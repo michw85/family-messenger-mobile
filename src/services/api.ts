@@ -2,7 +2,7 @@
 const IP = '192.168.184.112';  // Ваш IP
 
 export const API_URL = `http://${IP}:8080/api`;
-export const WS_URL = `ws://${IP}:8080/ws`;
+export const WS_URL = `http://${IP}:8080/ws`;
 
 export const api = {
   register: async (username: string, email: string, password: string) => {
