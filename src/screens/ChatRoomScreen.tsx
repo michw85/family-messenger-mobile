@@ -12,12 +12,13 @@ import {
     StyleSheet,
     FlatList,
     KeyboardAvoidingView,
+    // KeyboardAwareScrollView,
+    Keyboard,
     Platform,
     Alert,
     Image,
-    Keyboard,
-    SafeAreaView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,12 +31,12 @@ import { Audio } from 'expo-av';
  * Message type interface
  */
 interface Message {
-    id: string;           // Уникальный ID сообщения / Unique message ID
-    sender: string;       // Отправитель / Sender name
-    content: string;      // Текст или ссылка на файл / Text or file URL
-    timestamp: string;    // Время отправки / Timestamp
-    type?: 'TEXT' | 'IMAGE' | 'VOICE'; // Тип сообщения / Message type
-    mediaUrl?: string;    // Ссылка на файл (фото/голос) / Media file URL
+    id: string;
+    sender: string;
+    content: string;
+    timestamp: string;
+    type?: 'TEXT' | 'IMAGE' | 'VOICE';
+    mediaUrl?: string;
 }
 
 /**
@@ -43,11 +44,8 @@ interface Message {
  * Chat component with WebSocket connection
  */
 export default function ChatRoomScreen({ route }: any) {
-    // Получаем ID комнаты из параметров навигации
-    // Get room ID from navigation params
     const { roomId } = route.params || { roomId: 'family-chat' };
 
-    // Состояния компонента / Component states
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState('');
     const [connected, setConnected] = useState(false);
@@ -55,18 +53,13 @@ export default function ChatRoomScreen({ route }: any) {
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [typingUser, setTypingUser] = useState<string | null>(null);
-    const [keyboardVisible, setKeyboardVisible] = useState(false);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-    // Refs для доступа к DOM элементам / Refs for DOM elements access
     const stompClientRef = useRef<Client | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const insets = useSafeAreaInsets();
 
-    /**
-     * Загрузка сохранённого JWT токена из AsyncStorage
-     * Load saved JWT token from AsyncStorage
-     */
     useEffect(() => {
         const loadToken = async () => {
             try {
@@ -79,51 +72,24 @@ export default function ChatRoomScreen({ route }: any) {
         loadToken();
     }, []);
 
-    /**
-     * Отслеживание появления/скрытия клавиатуры для корректировки отступов
-     * Track keyboard show/hide to adjust padding
-     */
-    useEffect(() => {
-        const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
-            setKeyboardHeight(e.endCoordinates.height);
-        });
-        const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
-            setKeyboardHeight(0);
-        });
-
-        return () => {
-            keyboardDidShowListener.remove();
-            keyboardDidHideListener.remove();
-        };
-    }, []);
-
-    /**
-     * WebSocket подключение и подписка на комнату
-     * WebSocket connection and room subscription
-     */
     useEffect(() => {
         if (!token) return;
 
         const client = new Client({
             webSocketFactory: () => new SockJS(WS_URL),
             connectHeaders: {
-                Authorization: `Bearer ${token}`, // JWT токен для авторизации / JWT token for auth
+                Authorization: `Bearer ${token}`,
             },
-            debug: (str) => console.log('🐛 DEBUG:', str),
-            reconnectDelay: 5000, // Переподключение через 5 секунд / Reconnect after 5 seconds
-
-            // Обработчик успешного подключения / On successful connection
+            reconnectDelay: 5000,
             onConnect: () => {
                 setConnected(true);
 
-                // Подписка на сообщения комнаты / Subscribe to room messages
                 client.subscribe(`/topic/room/${roomId}`, (message) => {
                     const newMessage = JSON.parse(message.body);
                     setMessages(prev => [...prev, newMessage]);
-                    flatListRef.current?.scrollToEnd({ animated: true });
+                    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
                 });
 
-                // Подписка на статус печатания / Subscribe to typing status
                 client.subscribe(`/topic/room/${roomId}/typing`, (message) => {
                     const data = JSON.parse(message.body);
                     if (data.typing) {
@@ -132,13 +98,11 @@ export default function ChatRoomScreen({ route }: any) {
                     }
                 });
 
-                // Отправляем приветственное сообщение / Send welcome message
                 client.publish({
                     destination: `/app/chat.send/${roomId}`,
                     body: JSON.stringify({ content: 'User joined the chat', type: 'JOIN' }),
                 });
             },
-
             onDisconnect: () => setConnected(false),
             onStompError: (frame) => Alert.alert('WebSocket Error', 'Connection failed'),
         });
@@ -153,19 +117,29 @@ export default function ChatRoomScreen({ route }: any) {
         };
     }, [roomId, token]);
 
-    // Авто-скролл к новым сообщениям / Auto-scroll to new messages
     useEffect(() => {
-        if (messages.length) flatListRef.current?.scrollToEnd({ animated: true });
+        if (messages.length) {
+            flatListRef.current?.scrollToEnd({ animated: true });
+        }
     }, [messages]);
 
-    /**
-     * Отправка текстового сообщения
-     * Send text message
-     */
+    // Слушаем клавиатуру вручную — работает с edgeToEdge
+    useEffect(() => {
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+            setKeyboardHeight(e.endCoordinates.height);
+        });
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardHeight(0);
+        });
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, []);
+
     const sendMessage = () => {
         if (!inputText.trim() || !connected) return;
 
-        // Оптимистичное обновление / Optimistic update
         setMessages(prev => [...prev, {
             id: Date.now().toString(),
             sender: 'You',
@@ -182,10 +156,6 @@ export default function ChatRoomScreen({ route }: any) {
         setInputText('');
     };
 
-    /**
-     * Отправка статуса "печатает..."
-     * Send typing status
-     */
     const handleTyping = () => {
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
@@ -202,14 +172,10 @@ export default function ChatRoomScreen({ route }: any) {
         }, 1000);
     };
 
-    /**
-     * Выбор и отправка фото из галереи
-     * Pick and send photo from gallery
-     */
     const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Ошибка', 'Нет доступа к галерее / No gallery access');
+            Alert.alert('Ошибка', 'Нет доступа к галерее');
             return;
         }
 
@@ -230,10 +196,6 @@ export default function ChatRoomScreen({ route }: any) {
         }
     };
 
-    /**
-     * Запись голосового сообщения
-     * Record voice message
-     */
     const startRecording = async () => {
         try {
             await Audio.requestPermissionsAsync();
@@ -248,7 +210,7 @@ export default function ChatRoomScreen({ route }: any) {
             setRecording(recording);
             setIsRecording(true);
         } catch (err) {
-            Alert.alert('Ошибка', 'Не удалось начать запись / Failed to start recording');
+            Alert.alert('Ошибка', 'Не удалось начать запись');
         }
     };
 
@@ -273,146 +235,114 @@ export default function ChatRoomScreen({ route }: any) {
     };
 
     return (
-        
-            <KeyboardAvoidingView
+        <View style={[styles.container, { paddingBottom: keyboardHeight || insets.bottom }]}>
+            {/* <KeyboardAvoidingView
+                style={styles.flex}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={{ flex: 1 }}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-            >
-                <View style={styles.container}>
-                    {/* Шапка с названием комнаты и статусом подключения */}
-                    {/* Header with room name and connection status */}
-                    <View style={styles.header}>
-                        <Text style={styles.headerText}>Room: {roomId}</Text>
-                        <Text style={[styles.status, connected ? styles.connected : styles.disconnected]}>
-                            {connected ? '🟢 Connected' : '🔴 Disconnected'}
+            > */}
+            {/* Header */}
+            <View style={styles.header}>
+                <Text style={styles.headerText}>Room: {roomId}</Text>
+                <Text style={[styles.status, connected ? styles.connected : styles.disconnected]}>
+                    {connected ? '🟢 Connected' : '🔴 Disconnected'}
+                </Text>
+            </View>
+
+            {/* Typing indicator */}
+            {typingUser && (
+                <View style={styles.typingIndicator}>
+                    <Text style={styles.typingText}>{typingUser} is typing...</Text>
+                </View>
+            )}
+
+            {/* Messages list */}
+            <FlatList
+                ref={flatListRef}
+                data={messages}
+                keyExtractor={(_, index) => index.toString()}
+                renderItem={({ item }) => (
+                    <View style={[styles.messageBubble, item.sender === 'You' && styles.myMessage]}>
+                        <Text style={[styles.sender, item.sender === 'You' && styles.myMessageText]}>
+                            {item.sender || 'User'}
+                        </Text>
+                        {item.type === 'IMAGE' && item.mediaUrl ? (
+                            <Image source={{ uri: item.mediaUrl }} style={styles.imageMessage} />
+                        ) : (
+                            <Text style={item.sender === 'You' && styles.myMessageText}>{item.content}</Text>
+                        )}
+                        <Text style={[styles.time, item.sender === 'You' && styles.myMessageTime]}>
+                            {item.timestamp}
                         </Text>
                     </View>
+                )}
+                style={styles.messageList}
+                contentContainerStyle={styles.messageListContent}
+            />
+            {/* Input panel */}
+            <View style={styles.inputWrapper}>
+                <View style={styles.inputContainer}>
+                    <TouchableOpacity onPress={pickImage} style={styles.iconButton}>
+                        <Text style={styles.iconText}>📷</Text>
+                    </TouchableOpacity>
 
-                    {/* Индикатор печатания */}
-                    {/* Typing indicator */}
-                    {typingUser && (
-                        <View style={styles.typingIndicator}>
-                            <Text style={styles.typingText}>{typingUser} is typing...</Text>
-                        </View>
-                    )}
+                    <TouchableOpacity
+                        onPressIn={startRecording}
+                        onPressOut={stopRecording}
+                        style={[styles.iconButton, isRecording && styles.recordingActive]}
+                    >
+                        <Text style={styles.iconText}>{isRecording ? '⏺' : '🎤'}</Text>
+                    </TouchableOpacity>
 
-                    {/* Список сообщений */}
-                    {/* Messages list */}
-                    <FlatList
-                        ref={flatListRef}
-                        data={messages}
-                        keyExtractor={(_, index) => index.toString()}
-                        renderItem={({ item }) => (
-                            <View style={[styles.messageBubble, item.sender === 'You' && styles.myMessage]}>
-                                <Text style={styles.sender}>{item.sender || 'User'}</Text>
-                                {item.type === 'IMAGE' && item.mediaUrl ? (
-                                    <Image source={{ uri: item.mediaUrl }} style={styles.imageMessage} />
-                                ) : (
-                                    <Text>{item.content}</Text>
-                                )}
-                                <Text style={styles.time}>{item.timestamp}</Text>
-                            </View>
-                        )}
-                        style={styles.messageList}
+                    <TextInput
+                        style={styles.input}
+                        value={inputText}
+                        onChangeText={(text) => {
+                            setInputText(text);
+                            handleTyping();
+                        }}
+                        placeholder="Type a message..."
+                        placeholderTextColor="#999"
+                        onSubmitEditing={sendMessage}
+                        returnKeyType="send"
                     />
 
-                    {/* Панель ввода сообщения */}
-                    {/* Message input panel */}
-                    <View style={[styles.inputContainer, keyboardHeight > 0 && { paddingBottom: keyboardHeight - 20 }]}>
-                        <TouchableOpacity onPress={pickImage} style={styles.iconButton}>
-                            <Text style={styles.iconText}>📷</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPressIn={startRecording}
-                            onPressOut={stopRecording}
-                            style={[styles.iconButton, isRecording && styles.recordingActive]}
-                        >
-                            <Text style={styles.iconText}>{isRecording ? '⏺' : '🎤'}</Text>
-                        </TouchableOpacity>
-
-                        <TextInput
-                            style={styles.input}
-                            value={inputText}
-                            onChangeText={(text) => {
-                                setInputText(text);
-                                handleTyping();
-                            }}
-                            placeholder="Type a message..."
-                            placeholderTextColor="#999"
-                            onSubmitEditing={sendMessage}
-                            returnKeyType="send"
-                        />
-
-                        <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-                            <Text style={styles.sendButtonText}>Send</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
+                        <Text style={styles.sendButtonText}>Send</Text>
+                    </TouchableOpacity>
                 </View>
-            </KeyboardAvoidingView>
+            </View>
 
+            {/* </KeyboardAvoidingView> */}
+        </View>
     );
 }
 
-/**
- * Стили компонента
- * Component styles
- */
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
-
-    // Шапка / Header
-    header: { padding: 16, backgroundColor: '#007AFF', flexDirection: 'row', justifyContent: 'space-between' },
+    flex: { flex: 1 },
+    header: { padding: 16, backgroundColor: '#007AFF', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     headerText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
     status: { fontSize: 14 },
     connected: { color: '#4CD964' },
     disconnected: { color: 'white' },
-
-    // Индикатор печатания / Typing indicator
     typingIndicator: { padding: 8, backgroundColor: '#f0f0f0', alignItems: 'center' },
     typingText: { fontSize: 12, color: '#666', fontStyle: 'italic' },
-
-    // Список сообщений / Messages list
-    messageList: { flex: 1, padding: 16 },
+    messageList: { flex: 1 },
     messageListContent: { padding: 16, paddingBottom: 20 },
-    messageBubble: { backgroundColor: '#e1e1e1', padding: 12, borderRadius: 8, marginBottom: 8, maxWidth: '80%', alignSelf: 'flex-start', },
+    messageBubble: { backgroundColor: '#e1e1e1', padding: 12, borderRadius: 8, marginBottom: 8, maxWidth: '80%', alignSelf: 'flex-start' },
     myMessage: { backgroundColor: '#007AFF', alignSelf: 'flex-end' },
+    myMessageText: { color: 'white' },
+    myMessageTime: { color: '#cce5ff' },
     sender: { fontWeight: 'bold', marginBottom: 4 },
     time: { fontSize: 10, color: '#666', marginTop: 4 },
     imageMessage: { width: 200, height: 200, borderRadius: 8, marginVertical: 4 },
-
-    // Панель ввода / Input panel
-    inputContainer: {
-        flexDirection: 'row',
-        padding: 12,
-        paddingBottom: 20,
-        borderTopWidth: 1,
-        borderTopColor: '#ddd',
-        backgroundColor: '#fff',
-        alignItems: 'center',
-    },
-    iconButton: {
-        padding: 12,
-        backgroundColor: '#e1e1e1',
-        borderRadius: 8,
-        marginRight: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: 50,
-    },
+    inputWrapper: { borderTopWidth: 1, borderTopColor: '#ddd', backgroundColor: '#fff' },
+    inputContainer: { flexDirection: 'row', padding: 12, alignItems: 'center', backgroundColor: '#fff' },
+    iconButton: { padding: 12, backgroundColor: '#e1e1e1', borderRadius: 8, marginRight: 8, justifyContent: 'center', alignItems: 'center', width: 50 },
     iconText: { fontSize: 20 },
     recordingActive: { backgroundColor: '#ff4444' },
-    input: {
-        flex: 1,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 8,
-        padding: 12,
-        marginRight: 8,
-        backgroundColor: '#fff',
-        fontSize: 16,
-    },
+    input: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, marginRight: 8, backgroundColor: '#fff', fontSize: 16 },
     sendButton: { backgroundColor: '#007AFF', padding: 12, borderRadius: 8, justifyContent: 'center', minWidth: 70 },
     sendButtonText: { color: 'white', fontWeight: 'bold', textAlign: 'center' },
 });
