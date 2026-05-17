@@ -1,194 +1,151 @@
 /**
  * @file ChatRoomScreen.tsx
- * @description Экран чата с облаками мыслей и анимацией отправки
- * @description Chat screen with thought bubbles and send animation
+ * @description Экран чата с облаками мыслей и исправленной прокруткой
+ * @description Chat screen with thought bubbles and fixed scrolling
  * 
  * @author Family Messenger Team
- * @version 3.3.0
+ * @version 3.5.0
  * @license MIT
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
+    Text,
     StyleSheet,
     FlatList,
     Keyboard,
     Platform,
     Alert,
+    TextInput,
+    TouchableOpacity,
     Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import ThoughtBubble from '../components/ThoughtBubble';
-import InputPanel from '../components/InputPanel';
-import TypingIndicator from '../components/TypingIndicator';
 import FloatingClouds from '../components/FloatingClouds';
-import { useKeyboard } from '../hooks/useKeyboard';
-import { colors, spacing } from '../styles/theme';
-import { Message, User } from '../types';
-import { WS_URL } from '../services/api';
 
 const { height: screenHeight } = Dimensions.get('window');
 
 /**
+ * Интерфейс сообщения
+ * Message interface
+ */
+interface Message {
+    id: string;
+    sender: string;
+    content: string;
+    timestamp: string;
+    type?: 'TEXT' | 'IMAGE' | 'VOICE';
+    mediaUrl?: string;
+}
+
+/**
  * Экран чата
  * Chat screen component
- * @param route - Параметры маршрута / Route parameters
  */
 const ChatRoomScreen: React.FC<any> = ({ route }) => {
     // Получаем параметры комнаты / Get room parameters
-    const { roomId, roomName } = route.params || { roomId: 'family-chat', roomName: 'Семейные мысли' };
+    const { roomId, roomName } = route.params || { 
+        roomId: 'family-chat', 
+        roomName: 'Семейные мысли / Family Thoughts' 
+    };
     
     // Состояния / States
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState<string>('');
-    const [connected, setConnected] = useState<boolean>(false);
-    const [token, setToken] = useState<string>('');
-    const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isRecording, setIsRecording] = useState<boolean>(false);
-    const [typingUser, setTypingUser] = useState<string | null>(null);
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [currentUsername, setCurrentUsername] = useState<string>('You');
+    const [keyboardVisible, setKeyboardVisible] = useState<boolean>(false);
     
     // Refs
-    const stompClientRef = useRef<Client | null>(null);
     const flatListRef = useRef<FlatList>(null);
-    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const insets = useSafeAreaInsets();
-    
-    // Хуки / Hooks
-    const { isVisible: isKeyboardVisible, height: keyboardHeight } = useKeyboard();
+    const inputRef = useRef<TextInput>(null);
 
     /**
-     * Загрузка токена и данных пользователя
-     * Load token and user data
+     * Эффект при монтировании
+     * Effect on mount
+     * Загружает имя пользователя и настраивает клавиатуру
+     * Loads username and sets up keyboard
      */
     useEffect(() => {
-        const loadUserData = async (): Promise<void> => {
-            try {
-                const savedToken = await AsyncStorage.getItem('token');
-                if (savedToken) {
-                    setToken(savedToken);
-                    // TODO: Загрузить данные пользователя / Load user data
-                    setCurrentUser({ id: 1, username: 'You', email: 'user@test.com', avatarUrl: null, status: 'ONLINE' });
-                }
-            } catch (error) {
-                console.error('Error loading user data:', error);
-            }
+        const loadUsername = async () => {
+            const name = await AsyncStorage.getItem('username');
+            if (name) setCurrentUsername(name);
         };
-        loadUserData();
+        loadUsername();
+        
+        // Подписка на события клавиатуры / Keyboard event subscription
+        const showSub = Keyboard.addListener('keyboardDidShow', () => {
+            setKeyboardVisible(true);
+            // Отложенная прокрутка для гарантии / Delayed scroll for guarantee
+            setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+            }, 200);
+        });
+        
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardVisible(false);
+            setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+        });
+        
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
     }, []);
 
     /**
-     * WebSocket подключение
-     * WebSocket connection
+     * Автоматическая прокрутка при добавлении новых сообщений
+     * Auto-scroll when new messages are added
      */
     useEffect(() => {
-        if (!token) return;
-
-        const client = new Client({
-            webSocketFactory: () => new SockJS(WS_URL),
-            connectHeaders: { Authorization: `Bearer ${token}` },
-            reconnectDelay: 5000,
-            onConnect: () => {
-                setConnected(true);
-                
-                // Подписка на сообщения комнаты / Subscribe to room messages
-                client.subscribe(`/topic/room/${roomId}`, (message) => {
-                    const newMessage: Message = JSON.parse(message.body);
-                    setMessages(prev => [...prev, newMessage]);
-                    // Прокрутка к новому сообщению / Scroll to new message
-                    setTimeout(() => {
-                        flatListRef.current?.scrollToEnd({ animated: true });
-                    }, 100);
-                });
-                
-                // Подписка на статус печатания / Subscribe to typing status
-                client.subscribe(`/topic/room/${roomId}/typing`, (message) => {
-                    const data = JSON.parse(message.body);
-                    if (data.typing && data.user !== currentUser?.username) {
-                        setTypingUser(data.user);
-                        setTimeout(() => setTypingUser(null), 2000);
-                    }
-                });
-            },
-            onDisconnect: () => setConnected(false),
-            onStompError: () => Alert.alert('Ошибка', 'Потеря соединения'),
-        });
-
-        client.activate();
-        stompClientRef.current = client;
-
-        return () => {
-            if (stompClientRef.current && stompClientRef.current.active) {
-                stompClientRef.current.deactivate();
-            }
-        };
-    }, [token, roomId, currentUser]);
+        if (messages.length > 0) {
+            const timeoutId = setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+            return () => clearTimeout(timeoutId);
+        }
+    }, [messages]);
 
     /**
      * Отправка текстового сообщения
      * Send text message
      */
-    const sendMessage = useCallback((): void => {
-        if (!inputText.trim() || !connected) return;
+    const sendMessage = useCallback(() => {
+        if (!inputText.trim()) return;
 
         const newMessage: Message = {
             id: Date.now().toString(),
-            sender: currentUser?.username || 'You',
+            sender: currentUsername,
             content: inputText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             type: 'TEXT',
         };
 
         setMessages(prev => [...prev, newMessage]);
-        
-        stompClientRef.current?.publish({
-            destination: `/app/chat.send/${roomId}`,
-            body: JSON.stringify({ content: inputText, type: 'CHAT' }),
-        });
-
         setInputText('');
         
-        // Прокрутка после отправки / Scroll after send
-        setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-        }, 50);
-    }, [inputText, connected, roomId, currentUser]);
+        // Множественные прокрутки для надёжности / Multiple scrolls for reliability
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 150);
+    }, [inputText, currentUsername]);
 
     /**
-     * Обработчик печатания с debounce
-     * Typing handler with debounce
+     * Выбор и отправка изображения
+     * Pick and send image
      */
-    const handleTyping = useCallback((): void => {
-        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-        
-        stompClientRef.current?.publish({
-            destination: `/app/typing/${roomId}`,
-            body: JSON.stringify({ typing: true, user: currentUser?.username }),
-        });
-        
-        typingTimeoutRef.current = setTimeout(() => {
-            stompClientRef.current?.publish({
-                destination: `/app/typing/${roomId}`,
-                body: JSON.stringify({ typing: false, user: currentUser?.username }),
-            });
-        }, 1000);
-    }, [roomId, currentUser]);
-
-    /**
-     * Выбор и отправка фото
-     * Pick and send photo
-     */
-    const pickImage = async (): Promise<void> => {
+    const pickImage = async () => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-            Alert.alert('Ошибка', 'Нет доступа к галерее');
+            Alert.alert('Ошибка / Error', 'Нет доступа к галерее / No gallery access');
             return;
         }
         
@@ -198,89 +155,38 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
         });
         
         if (!result.canceled && result.assets[0]) {
-            stompClientRef.current?.publish({
-                destination: `/app/chat.send/${roomId}`,
-                body: JSON.stringify({
-                    content: '📷 Фото',
-                    type: 'IMAGE',
-                    mediaUrl: result.assets[0].uri,
-                }),
-            });
+            const newMessage: Message = {
+                id: Date.now().toString(),
+                sender: currentUsername,
+                content: '📷 Фото / Photo',
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                type: 'IMAGE',
+                mediaUrl: result.assets[0].uri,
+            };
+            setMessages(prev => [...prev, newMessage]);
         }
     };
 
     /**
-     * Начало записи голоса
-     * Start voice recording
-     */
-    const startRecording = async (): Promise<void> => {
-        try {
-            await Audio.requestPermissionsAsync();
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-            });
-            
-            const { recording } = await Audio.Recording.createAsync(
-                Audio.RecordingOptionsPresets.HIGH_QUALITY
-            );
-            setRecording(recording);
-            setIsRecording(true);
-        } catch (err) {
-            Alert.alert('Ошибка', 'Не удалось начать запись');
-        }
-    };
-
-    /**
-     * Остановка записи и отправка голоса
-     * Stop recording and send voice
-     */
-    const stopRecording = async (): Promise<void> => {
-        if (!recording) return;
-        
-        setIsRecording(false);
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
-        
-        if (uri && connected) {
-            stompClientRef.current?.publish({
-                destination: `/app/chat.send/${roomId}`,
-                body: JSON.stringify({
-                    content: '🎙️ Голосовое сообщение',
-                    type: 'VOICE',
-                    mediaUrl: uri,
-                }),
-            });
-        }
-        setRecording(null);
-    };
-
-    /**
-     * Рендер сообщения
-     * Render message
+     * Рендер отдельного сообщения
+     * Render individual message
      */
     const renderMessage = useCallback(({ item }: { item: Message }) => (
         <ThoughtBubble
             content={item.content}
             sender={item.sender}
             timestamp={item.timestamp}
-            isMyMessage={item.sender === currentUser?.username}
+            isMyMessage={item.sender === currentUsername}
             type={item.type}
             mediaUrl={item.mediaUrl}
-            userColor={colors.primary}
         />
-    ), [currentUser]);
+    ), [currentUsername]);
 
     /**
-     * Ключ для FlatList
-     * FlatList key extractor
+     * Генерация ключа для FlatList
+     * Key extractor for FlatList
      */
     const keyExtractor = useCallback((_: Message, index: number) => `${index}-${_.id}`, []);
-
-    // Расчёт отступа для панели ввода / Calculate input panel padding
-    const inputPanelBottom = isKeyboardVisible 
-        ? keyboardHeight - (Platform.OS === 'ios' ? 0 : 20)
-        : (Platform.OS === 'ios' ? insets.bottom + 15 : 20);
 
     return (
         <View style={styles.container}>
@@ -288,15 +194,16 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
             <LinearGradient
                 colors={['#E8F4F8', '#D1E9F2', '#F5F0EB']}
                 style={StyleSheet.absoluteFillObject}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
             />
             
-            {/* Декоративные облака / Decorative clouds */}
+            {/* Декоративные парящие облака / Decorative floating clouds */}
             <FloatingClouds />
             
-            {/* Индикатор печатания / Typing indicator */}
-            {typingUser && <TypingIndicator username={typingUser} />}
+            {/* Заголовок с названием комнаты / Header with room name */}
+            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+                <Text style={styles.headerTitle}>{roomName}</Text>
+                <Text style={styles.headerStatus}>💭 Мысли парят в воздухе / Thoughts are floating in the air</Text>
+            </View>
             
             {/* Список сообщений / Messages list */}
             <FlatList
@@ -311,45 +218,170 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
                     flatListRef.current?.scrollToEnd({ animated: true });
                 }}
                 onLayout={() => {
-                    if (messages.length > 0) {
-                        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
-                    }
+                    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
                 }}
             />
             
-            {/* Панель ввода / Input panel */}
-            <View style={{ paddingBottom: inputPanelBottom }}>
-                <InputPanel
-                    inputText={inputText}
-                    setInputText={setInputText}
-                    onSend={sendMessage}
-                    onTyping={handleTyping}
-                    onPickImage={pickImage}
-                    onStartRecording={startRecording}
-                    onStopRecording={stopRecording}
-                    isRecording={isRecording}
-                    isSending={false}
-                    isConnected={connected}
-                />
+            {/* Панель ввода сообщений / Message input panel */}
+            <View style={[
+                styles.inputWrapper, 
+                { 
+                    paddingBottom: keyboardVisible ? 12 : insets.bottom + 15,
+                    paddingTop: 8,
+                }
+            ]}>
+                <View style={styles.inputContainer}>
+                    {/* Кнопка выбора фото / Photo picker button */}
+                    <TouchableOpacity onPress={pickImage} style={styles.iconButton}>
+                        <Text style={styles.iconText}>📷</Text>
+                    </TouchableOpacity>
+                    
+                    {/* Кнопка записи голоса / Voice recording button */}
+                    <TouchableOpacity 
+                        onPressIn={() => setIsRecording(true)}
+                        onPressOut={() => setIsRecording(false)}
+                        style={[styles.iconButton, isRecording && styles.recordingActive]}
+                    >
+                        <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
+                    </TouchableOpacity>
+                    
+                    {/* Поле ввода текста / Text input field */}
+                    <TextInput
+                        ref={inputRef}
+                        style={styles.input}
+                        value={inputText}
+                        onChangeText={setInputText}
+                        placeholder="Пиши... / Write..."
+                        placeholderTextColor="#95A5A6"
+                        onSubmitEditing={sendMessage}
+                        returnKeyType="send"
+                        multiline
+                    />
+                    
+                    {/* Кнопка отправки / Send button */}
+                    <TouchableOpacity 
+                        style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]} 
+                        onPress={sendMessage}
+                        disabled={!inputText.trim()}
+                    >
+                        <Text style={styles.sendButtonText}>✈️</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
         </View>
     );
-}
+};
 
 /**
- * Стили экрана чата
- * Chat screen styles
+ * Стили компонента ChatRoomScreen
+ * ChatRoomScreen component styles
  */
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+    container: { 
+        flex: 1, 
+        backgroundColor: '#E8F4F8' 
     },
-    messageList: {
-        flex: 1,
+    header: {
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        paddingHorizontal: 20,
+        paddingBottom: 12,
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
     },
-    messageListContent: {
-        padding: spacing.lg,
-        paddingBottom: spacing.xl,
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#2C3E50',
+    },
+    headerStatus: {
+        fontSize: 11,
+        color: '#8A9AAA',
+        marginTop: 2,
+    },
+    messageList: { 
+        flex: 1 
+    },
+    messageListContent: { 
+        paddingHorizontal: 8, 
+        paddingVertical: 16, 
+        paddingBottom: 24 
+    },
+    inputWrapper: {
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(0,0,0,0.05)',
+        backgroundColor: 'rgba(255,255,255,0.96)',
+        paddingHorizontal: 12,
+    },
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: 10,
+    },
+    iconButton: {
+        padding: 10,
+        backgroundColor: '#F0F0F5',
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 44,
+        height: 44,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    iconText: { 
+        fontSize: 20 
+    },
+    recordingActive: {
+        backgroundColor: '#FFE0E0',
+    },
+    input: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: '#E8E8E8',
+        borderRadius: 30,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        backgroundColor: '#FFFFFF',
+        fontSize: 15,
+        color: '#2C3E50',
+        maxHeight: 80,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    sendButton: {
+        backgroundColor: '#6C5CE7',
+        padding: 10,
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 44,
+        height: 44,
+        shadowColor: '#6C5CE7',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    sendButtonDisabled: {
+        backgroundColor: '#B0A0D0',
+        opacity: 0.7,
+    },
+    sendButtonText: { 
+        color: '#FFFFFF', 
+        fontSize: 20, 
+        textAlign: 'center' 
     },
 });
 

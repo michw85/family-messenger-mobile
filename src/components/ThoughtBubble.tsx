@@ -1,10 +1,10 @@
 /**
  * @file ThoughtBubble.tsx
- * @description Компонент "облако мысли" - основная единица сообщения в чате
- * @description "Thought bubble" component - main unit of chat message
+ * @description Компонент "облако мысли" с SVG-формой и анимацией
+ * @description "Thought bubble" component with SVG shape and animation
  * 
  * @author Family Messenger Team
- * @version 3.2.0
+ * @version 3.7.0
  * @license MIT
  */
 
@@ -21,27 +21,17 @@ import Svg, { Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg'
 
 const { width: screenWidth } = Dimensions.get('window');
 
-/**
- * Интерфейс пропсов компонента ThoughtBubble
- * ThoughtBubble component props interface
- */
 interface ThoughtBubbleProps {
-    content: string;           // Текст сообщения / Message text
-    sender: string;            // Имя отправителя / Sender name
-    timestamp: string;         // Время отправки / Timestamp
-    isMyMessage: boolean;      // Флаг своего сообщения / Is my message flag
-    type?: 'TEXT' | 'IMAGE' | 'VOICE'; // Тип сообщения / Message type
-    mediaUrl?: string;         // URL медиафайла / Media file URL
-    userColor?: string;        // Цвет текущего пользователя / Current user color
+    content: string;
+    sender: string;
+    timestamp: string;
+    isMyMessage: boolean;
+    type?: 'TEXT' | 'IMAGE' | 'VOICE';
+    mediaUrl?: string;
+    userColor?: string;
 }
 
-/**
- * Генерация уникального цвета для пользователя на основе его имени
- * Generate unique color for user based on their name
- * @param name - Имя пользователя / User name
- * @returns Цвет в формате HEX / Color in HEX format
- */
-const getUserColor = (name: string): string => {
+const getAccentColor = (name: string): string => {
     const colorPalette = [
         '#6C5CE7', '#00CEC9', '#FF7675', '#74B9FF', '#A29BFE',
         '#FD79A8', '#55EFC4', '#0984E3', '#D63031', '#00B894',
@@ -54,16 +44,12 @@ const getUserColor = (name: string): string => {
     return colorPalette[Math.abs(hash) % colorPalette.length];
 };
 
-/**
- * SVG-форма облака для своих сообщений (справа)
- * Cloud shape for my messages (right side)
- */
-const MyCloudShape: React.FC<{ width: number; height: number; color: string }> = ({ width, height, color }) => (
-    <Svg width={width + 30} height={height + 30} viewBox={`0 0 ${width + 30} ${height + 30}`}>
+const MyCloudShape: React.FC<{ width: number; height: number }> = ({ width, height }) => (
+    <Svg width={width + 35} height={height + 35} viewBox={`0 0 ${width + 35} ${height + 35}`}>
         <Defs>
             <LinearGradient id="myGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor={color} stopOpacity="0.95" />
-                <Stop offset="100%" stopColor={color} stopOpacity="0.8" />
+                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
+                <Stop offset="100%" stopColor="#F5F0EB" stopOpacity="0.95" />
             </LinearGradient>
         </Defs>
         
@@ -75,31 +61,48 @@ const MyCloudShape: React.FC<{ width: number; height: number; color: string }> =
                 Q 15 50 25 55
                 Q 30 70 60 65
                 Q 80 85 120 80
-                Q 150 95 ${width - 20} 85
+                Q 150 95 ${width - 15} 85
                 Q ${width + 5} 75 ${width} 60
                 Q ${width + 10} 45 ${width} 35
-                Q ${width - 5} 20 ${width - 25} 15
+                Q ${width - 5} 20 ${width - 20} 15
+                Z
+            `}
+            fill="rgba(0,0,0,0.06)"
+            transform="translate(2, 3)"
+        />
+        
+        <Path
+            d={`
+                M 20 15
+                Q 10 15 10 25
+                Q 10 35 20 40
+                Q 15 50 25 55
+                Q 30 70 60 65
+                Q 80 85 120 80
+                Q 150 95 ${width - 15} 85
+                Q ${width + 5} 75 ${width} 60
+                Q ${width + 10} 45 ${width} 35
+                Q ${width - 5} 20 ${width - 20} 15
                 Z
             `}
             fill="url(#myGradient)"
+            stroke="#E8E8E8"
+            strokeWidth="0.5"
         />
         
-        <Circle cx={width - 15} cy={height - 5} r="6" fill={color} opacity="0.8" />
-        <Circle cx={width - 8} cy={height} r="4" fill={color} opacity="0.6" />
-        <Circle cx={width - 3} cy={height + 4} r="2.5" fill={color} opacity="0.4" />
+        <Circle cx={width - 12} cy={height - 2} r="7" fill="#FFFFFF" opacity="0.95" stroke="#E8E8E8" strokeWidth="0.5" />
+        <Circle cx={width - 5} cy={height + 4} r="5" fill="#FFFFFF" opacity="0.85" />
+        <Circle cx={width} cy={height + 9} r="3.5" fill="#FFFFFF" opacity="0.7" />
+        <Circle cx={width + 3} cy={height + 13} r="2" fill="#FFFFFF" opacity="0.5" />
     </Svg>
 );
 
-/**
- * SVG-форма облака для чужих сообщений (слева)
- * Cloud shape for others' messages (left side)
- */
-const TheirCloudShape: React.FC<{ width: number; height: number; color: string }> = ({ width, height, color }) => (
-    <Svg width={width + 30} height={height + 30} viewBox={`0 0 ${width + 30} ${height + 30}`}>
+const TheirCloudShape: React.FC<{ width: number; height: number }> = ({ width, height }) => (
+    <Svg width={width + 35} height={height + 35} viewBox={`0 0 ${width + 35} ${height + 35}`}>
         <Defs>
             <LinearGradient id="theirGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                 <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                <Stop offset="100%" stopColor={color} stopOpacity="0.08" />
+                <Stop offset="100%" stopColor="#F5F0EB" stopOpacity="0.95" />
             </LinearGradient>
         </Defs>
         
@@ -111,28 +114,42 @@ const TheirCloudShape: React.FC<{ width: number; height: number; color: string }
                 Q ${width - 15} 50 ${width - 25} 55
                 Q ${width - 30} 70 ${width - 60} 65
                 Q ${width - 80} 85 ${width - 120} 80
-                Q ${width - 150} 95 20 85
+                Q ${width - 150} 95 15 85
                 Q 5 75 10 60
                 Q 0 45 10 35
-                Q 15 20 35 15
+                Q 15 20 20 15
+                Z
+            `}
+            fill="rgba(0,0,0,0.06)"
+            transform="translate(-2, 3)"
+        />
+        
+        <Path
+            d={`
+                M ${width - 20} 15
+                Q ${width - 10} 15 ${width - 10} 25
+                Q ${width - 10} 35 ${width - 20} 40
+                Q ${width - 15} 50 ${width - 25} 55
+                Q ${width - 30} 70 ${width - 60} 65
+                Q ${width - 80} 85 ${width - 120} 80
+                Q ${width - 150} 95 15 85
+                Q 5 75 10 60
+                Q 0 45 10 35
+                Q 15 20 20 15
                 Z
             `}
             fill="url(#theirGradient)"
-            stroke={color}
-            strokeWidth="1"
-            strokeOpacity="0.2"
+            stroke="#E8E8E8"
+            strokeWidth="0.5"
         />
         
-        <Circle cx={25} cy={height - 5} r="6" fill="#FFFFFF" opacity="0.8" stroke={color} strokeWidth="1" strokeOpacity="0.2" />
-        <Circle cx={18} cy={height} r="4" fill="#FFFFFF" opacity="0.6" />
-        <Circle cx={13} cy={height + 4} r="2.5" fill="#FFFFFF" opacity="0.4" />
+        <Circle cx={22} cy={height - 2} r="7" fill="#FFFFFF" opacity="0.95" stroke="#E8E8E8" strokeWidth="0.5" />
+        <Circle cx={15} cy={height + 4} r="5" fill="#FFFFFF" opacity="0.85" />
+        <Circle cx={10} cy={height + 9} r="3.5" fill="#FFFFFF" opacity="0.7" />
+        <Circle cx={7} cy={height + 13} r="2" fill="#FFFFFF" opacity="0.5" />
     </Svg>
 );
 
-/**
- * Главный компонент облака мысли
- * Main thought bubble component
- */
 const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     content,
     sender,
@@ -140,30 +157,69 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     isMyMessage,
     type = 'TEXT',
     mediaUrl,
-    userColor,
 }) => {
-    const scaleAnim = useRef(new Animated.Value(0)).current;
-    const opacityAnim = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(30)).current;
+    // Создаём анимационные значения
+    const animation = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        Animated.parallel([
-            Animated.spring(scaleAnim, { toValue: 1, tension: 70, friction: 7, useNativeDriver: true }),
-            Animated.timing(opacityAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
-            Animated.spring(translateY, { toValue: 0, tension: 70, friction: 7, useNativeDriver: true }),
-        ]).start();
+        // Запускаем анимацию при монтировании
+        Animated.spring(animation, {
+            toValue: 1,
+            tension: 70,
+            friction: 7,
+            useNativeDriver: true,
+        }).start();
     }, []);
 
-    const bubbleColor = useMemo(() => {
-        if (isMyMessage) return userColor || '#6C5CE7';
-        return getUserColor(sender);
-    }, [isMyMessage, sender, userColor]);
+    // Интерполяция значений для различных трансформаций
+    const scale = animation.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.3, 1],
+    });
+    
+    const opacity = animation.interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: [0, 0.7, 1],
+    });
+    
+    const translateY = animation.interpolate({
+        inputRange: [0, 1],
+        outputRange: [30, 0],
+    });
+    
+    const rotate = animation.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['-3deg', '0deg'],
+    });
+    
+    // Анимация для пузырьков
+    const bubble1Scale = animation.interpolate({
+        inputRange: [0, 0.3, 1],
+        outputRange: [0, 0.5, 1],
+    });
+    
+    const bubble2Scale = animation.interpolate({
+        inputRange: [0, 0.5, 1],
+        outputRange: [0, 0.6, 1],
+    });
+    
+    const bubble3Scale = animation.interpolate({
+        inputRange: [0, 0.7, 1],
+        outputRange: [0, 0.7, 1],
+    });
+    
+    const bubble4Scale = animation.interpolate({
+        inputRange: [0, 0.9, 1],
+        outputRange: [0, 0.8, 1],
+    });
+
+    const accentColor = useMemo(() => getAccentColor(sender), [sender]);
 
     const dimensions = useMemo(() => {
-        if (type === 'IMAGE') return { width: 260, height: 240 };
+        if (type === 'IMAGE') return { width: 250, height: 250 };
         if (type === 'VOICE') return { width: 200, height: 70 };
         
-        const maxWidth = Math.min(screenWidth * 0.75, 280);
+        const maxWidth = Math.min(screenWidth * 0.7, 270);
         const charWidth = 6.5;
         const maxCharsPerLine = Math.floor(maxWidth / charWidth);
         
@@ -192,10 +248,10 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
         
         const lines = wrapText(content, maxCharsPerLine);
         const lineCount = Math.max(1, lines.length);
-        const textHeight = Math.max(50, lineCount * 22 + 30);
-        const textWidth = Math.min(maxWidth, Math.max(...lines.map(l => l.length * charWidth), 80));
+        const textHeight = Math.max(55, lineCount * 22 + 25);
+        const textWidth = Math.min(maxWidth, Math.max(...lines.map(l => l.length * charWidth), 70));
         
-        return { width: textWidth + 45, height: textHeight };
+        return { width: textWidth + 35, height: textHeight };
     }, [content, type]);
 
     return (
@@ -204,18 +260,27 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                 styles.wrapper,
                 isMyMessage ? styles.myWrapper : styles.theirWrapper,
                 {
-                    opacity: opacityAnim,
-                    transform: [{ scale: scaleAnim }, { translateY: translateY }],
+                    opacity: opacity,
+                    transform: [
+                        { scale: scale },
+                        { translateY: translateY },
+                        { rotate: rotate },
+                    ],
                 },
             ]}
         >
             <View style={styles.svgContainer} pointerEvents="none">
                 {isMyMessage ? (
-                    <MyCloudShape width={dimensions.width} height={dimensions.height} color={bubbleColor} />
+                    <MyCloudShape width={dimensions.width} height={dimensions.height} />
                 ) : (
-                    <TheirCloudShape width={dimensions.width} height={dimensions.height} color={bubbleColor} />
+                    <TheirCloudShape width={dimensions.width} height={dimensions.height} />
                 )}
             </View>
+            
+            <Animated.View style={[styles.trailBubble1, isMyMessage ? styles.trailRight1 : styles.trailLeft1, { transform: [{ scale: bubble1Scale }] }]} />
+            <Animated.View style={[styles.trailBubble2, isMyMessage ? styles.trailRight2 : styles.trailLeft2, { transform: [{ scale: bubble2Scale }] }]} />
+            <Animated.View style={[styles.trailBubble3, isMyMessage ? styles.trailRight3 : styles.trailLeft3, { transform: [{ scale: bubble3Scale }] }]} />
+            <Animated.View style={[styles.trailBubble4, isMyMessage ? styles.trailRight4 : styles.trailLeft4, { transform: [{ scale: bubble4Scale }] }]} />
 
             <View
                 style={[
@@ -229,8 +294,8 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                 ]}
             >
                 {!isMyMessage && (
-                    <Text style={[styles.senderName, { color: bubbleColor }]}>
-                        {sender || 'Семья'}
+                    <Text style={[styles.senderName, { color: accentColor }]}>
+                        {sender || 'Семья / Family'}
                     </Text>
                 )}
 
@@ -239,12 +304,12 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                 ) : type === 'VOICE' ? (
                     <View style={styles.voiceRow}>
                         <Text style={styles.voiceIcon}>🎙️</Text>
-                        <Text style={[styles.voiceText, isMyMessage && styles.myText]}>
-                            Голосовое сообщение
+                        <Text style={styles.voiceText}>
+                            Голосовое сообщение / Voice message
                         </Text>
                     </View>
                 ) : (
-                    <Text style={[styles.messageText, isMyMessage && styles.myText]}>
+                    <Text style={styles.messageText}>
                         {content}
                     </Text>
                 )}
@@ -258,23 +323,122 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
 };
 
 const styles = StyleSheet.create({
-    wrapper: { marginBottom: 24, position: 'relative' },
-    myWrapper: { alignSelf: 'flex-end', marginRight: 8 },
-    theirWrapper: { alignSelf: 'flex-start', marginLeft: 8 },
-    svgContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-    contentOverlay: { zIndex: 2 },
-    myContentAlign: { alignItems: 'flex-end' },
-    theirContentAlign: { alignItems: 'flex-start' },
-    senderName: { fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.3 },
-    messageText: { fontSize: 15, lineHeight: 22, color: '#2C3E50', letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
-    myText: { color: '#FFFFFF' },
-    timestamp: { fontSize: 10, fontWeight: '500', marginTop: 4, color: '#1A252F', letterSpacing: 0.2 },
-    timestampLeft: { marginLeft: 36 },
-    timestampRight: { marginRight: 36, textAlign: 'right' },
-    image: { width: 220, height: 220, borderRadius: 16, marginVertical: 4 },
-    voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    voiceIcon: { fontSize: 22 },
-    voiceText: { fontSize: 14, color: '#7F8C8D' },
+    wrapper: {
+        marginBottom: 24,
+        position: 'relative',
+    },
+    myWrapper: {
+        alignSelf: 'flex-end',
+        marginRight: 8,
+    },
+    theirWrapper: {
+        alignSelf: 'flex-start',
+        marginLeft: 8,
+    },
+    svgContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    contentOverlay: {
+        zIndex: 2,
+    },
+    myContentAlign: {
+        alignItems: 'flex-end',
+    },
+    theirContentAlign: {
+        alignItems: 'flex-start',
+    },
+    senderName: {
+        fontSize: 11,
+        fontWeight: '700',
+        marginBottom: 4,
+        letterSpacing: 0.3,
+    },
+    messageText: {
+        fontSize: 15,
+        lineHeight: 22,
+        color: '#2C3E50',
+        letterSpacing: 0.2,
+        flexShrink: 1,
+        flexWrap: 'wrap',
+    },
+    timestamp: {
+        fontSize: 10,
+        fontWeight: '500',
+        marginTop: 6,
+        color: '#7F8C8D',
+        letterSpacing: 0.2,
+    },
+    timestampLeft: {
+        marginLeft: 20,
+    },
+    timestampRight: {
+        marginRight: 20,
+        textAlign: 'right',
+    },
+    image: {
+        width: 200,
+        height: 200,
+        borderRadius: 16,
+        marginVertical: 4,
+    },
+    voiceRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    voiceIcon: {
+        fontSize: 22,
+    },
+    voiceText: {
+        fontSize: 14,
+        color: '#2C3E50',
+    },
+    trailBubble1: {
+        position: 'absolute',
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 0.5,
+        borderColor: '#E8E8E8',
+        opacity: 0.95,
+    },
+    trailBubble2: {
+        position: 'absolute',
+        width: 9,
+        height: 9,
+        borderRadius: 4.5,
+        backgroundColor: '#FFFFFF',
+        opacity: 0.85,
+    },
+    trailBubble3: {
+        position: 'absolute',
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#FFFFFF',
+        opacity: 0.7,
+    },
+    trailBubble4: {
+        position: 'absolute',
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: '#FFFFFF',
+        opacity: 0.5,
+    },
+    trailRight1: { bottom: -8, right: 10 },
+    trailRight2: { bottom: -15, right: 5 },
+    trailRight3: { bottom: -21, right: 2 },
+    trailRight4: { bottom: -26, right: 0 },
+    trailLeft1: { bottom: -8, left: 10 },
+    trailLeft2: { bottom: -15, left: 5 },
+    trailLeft3: { bottom: -21, left: 2 },
+    trailLeft4: { bottom: -26, left: 0 },
 });
 
 export default ThoughtBubble;
