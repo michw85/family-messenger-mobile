@@ -1,7 +1,7 @@
 /**
  * @file ChatRoomScreen.tsx
- * @description Экран чата с исправленной прокруткой и панелью ввода
- * @description Chat screen with fixed scrolling and input panel
+ * @description Экран чата с облаками мыслей и анимацией отправки
+ * @description Chat screen with thought bubbles and send animation
  * 
  * @author Family Messenger Team
  * @version 3.3.0
@@ -11,16 +11,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
-    Text,
-    TextInput,
-    TouchableOpacity,
     StyleSheet,
     FlatList,
     Keyboard,
     Platform,
     Alert,
-    Animated,
-    KeyboardAvoidingView,
     Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,83 +23,74 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { WS_URL } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import ThoughtBubble from '../components/ThoughtBubble';
+import InputPanel from '../components/InputPanel';
+import TypingIndicator from '../components/TypingIndicator';
 import FloatingClouds from '../components/FloatingClouds';
+import { useKeyboard } from '../hooks/useKeyboard';
+import { colors, spacing } from '../styles/theme';
+import { Message, User } from '../types';
+import { WS_URL } from '../services/api';
 
 const { height: screenHeight } = Dimensions.get('window');
 
-interface Message {
-    id: string;
-    sender: string;
-    content: string;
-    timestamp: string;
-    type?: 'TEXT' | 'IMAGE' | 'VOICE';
-    mediaUrl?: string;
-}
-
-export default function ChatRoomScreen({ route }: any) {
-    const { roomId } = route.params || { roomId: 'family-chat' };
+/**
+ * Экран чата
+ * Chat screen component
+ * @param route - Параметры маршрута / Route parameters
+ */
+const ChatRoomScreen: React.FC<any> = ({ route }) => {
+    // Получаем параметры комнаты / Get room parameters
+    const { roomId, roomName } = route.params || { roomId: 'family-chat', roomName: 'Семейные мысли' };
     
+    // Состояния / States
     const [messages, setMessages] = useState<Message[]>([]);
-    const [inputText, setInputText] = useState('');
-    const [connected, setConnected] = useState(false);
-    const [token, setToken] = useState('');
+    const [inputText, setInputText] = useState<string>('');
+    const [connected, setConnected] = useState<boolean>(false);
+    const [token, setToken] = useState<string>('');
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
-    const [isRecording, setIsRecording] = useState(false);
+    const [isRecording, setIsRecording] = useState<boolean>(false);
     const [typingUser, setTypingUser] = useState<string | null>(null);
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
     
+    // Refs
     const stompClientRef = useRef<Client | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const insets = useSafeAreaInsets();
-    const flyAnim = useRef(new Animated.Value(0)).current;
-    const [isFlying, setIsFlying] = useState(false);
     
-    // Отслеживание высоты клавиатуры
+    // Хуки / Hooks
+    const { isVisible: isKeyboardVisible, height: keyboardHeight } = useKeyboard();
+
+    /**
+     * Загрузка токена и данных пользователя
+     * Load token and user data
+     */
     useEffect(() => {
-        const showSubscription = Keyboard.addListener('keyboardDidShow', (e) => {
-            setKeyboardHeight(e.endCoordinates.height);
-            // Прокрутка при появлении клавиатуры
-            setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-            }, 150);
-        });
-        
-        const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-            setKeyboardHeight(0);
-            // Прокрутка при скрытии клавиатуры
-            setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
-        });
-        
-        return () => {
-            showSubscription.remove();
-            hideSubscription.remove();
-        };
-    }, []);
-    
-    // Загрузка токена
-    useEffect(() => {
-        const loadToken = async () => {
+        const loadUserData = async (): Promise<void> => {
             try {
                 const savedToken = await AsyncStorage.getItem('token');
-                if (savedToken) setToken(savedToken);
+                if (savedToken) {
+                    setToken(savedToken);
+                    // TODO: Загрузить данные пользователя / Load user data
+                    setCurrentUser({ id: 1, username: 'You', email: 'user@test.com', avatarUrl: null, status: 'ONLINE' });
+                }
             } catch (error) {
-                console.error('Error loading token:', error);
+                console.error('Error loading user data:', error);
             }
         };
-        loadToken();
+        loadUserData();
     }, []);
-    
-    // WebSocket подключение
+
+    /**
+     * WebSocket подключение
+     * WebSocket connection
+     */
     useEffect(() => {
         if (!token) return;
-        
+
         const client = new Client({
             webSocketFactory: () => new SockJS(WS_URL),
             connectHeaders: { Authorization: `Bearer ${token}` },
@@ -112,18 +98,20 @@ export default function ChatRoomScreen({ route }: any) {
             onConnect: () => {
                 setConnected(true);
                 
+                // Подписка на сообщения комнаты / Subscribe to room messages
                 client.subscribe(`/topic/room/${roomId}`, (message) => {
-                    const newMessage = JSON.parse(message.body);
+                    const newMessage: Message = JSON.parse(message.body);
                     setMessages(prev => [...prev, newMessage]);
-                    // Принудительная прокрутка при получении сообщения
+                    // Прокрутка к новому сообщению / Scroll to new message
                     setTimeout(() => {
                         flatListRef.current?.scrollToEnd({ animated: true });
                     }, 100);
                 });
                 
+                // Подписка на статус печатания / Subscribe to typing status
                 client.subscribe(`/topic/room/${roomId}/typing`, (message) => {
                     const data = JSON.parse(message.body);
-                    if (data.typing) {
+                    if (data.typing && data.user !== currentUser?.username) {
                         setTypingUser(data.user);
                         setTimeout(() => setTypingUser(null), 2000);
                     }
@@ -132,78 +120,72 @@ export default function ChatRoomScreen({ route }: any) {
             onDisconnect: () => setConnected(false),
             onStompError: () => Alert.alert('Ошибка', 'Потеря соединения'),
         });
-        
+
         client.activate();
         stompClientRef.current = client;
-        
+
         return () => {
             if (stompClientRef.current && stompClientRef.current.active) {
                 stompClientRef.current.deactivate();
             }
         };
-    }, [roomId, token]);
-    
-    // Авто-скролл при добавлении сообщений
-    useEffect(() => {
-        if (messages.length > 0) {
-            const timeoutId = setTimeout(() => {
-                flatListRef.current?.scrollToEnd({ animated: true });
-            }, 100);
-            return () => clearTimeout(timeoutId);
-        }
-    }, [messages]);
-    
-    // Отправка сообщения
-    const sendMessage = useCallback(() => {
-        if (!inputText.trim() || !connected || isFlying) return;
-        
-        setIsFlying(true);
-        
-        Animated.sequence([
-            Animated.timing(flyAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-            Animated.timing(flyAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-        ]).start(() => setIsFlying(false));
-        
+    }, [token, roomId, currentUser]);
+
+    /**
+     * Отправка текстового сообщения
+     * Send text message
+     */
+    const sendMessage = useCallback((): void => {
+        if (!inputText.trim() || !connected) return;
+
         const newMessage: Message = {
             id: Date.now().toString(),
-            sender: 'You',
+            sender: currentUser?.username || 'You',
             content: inputText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             type: 'TEXT',
         };
-        
+
         setMessages(prev => [...prev, newMessage]);
         
         stompClientRef.current?.publish({
             destination: `/app/chat.send/${roomId}`,
             body: JSON.stringify({ content: inputText, type: 'CHAT' }),
         });
-        
+
         setInputText('');
         
-        // Немедленная прокрутка
+        // Прокрутка после отправки / Scroll after send
         setTimeout(() => {
             flatListRef.current?.scrollToEnd({ animated: true });
         }, 50);
-    }, [inputText, connected, isFlying, flyAnim]);
-    
-    const handleTyping = useCallback(() => {
+    }, [inputText, connected, roomId, currentUser]);
+
+    /**
+     * Обработчик печатания с debounce
+     * Typing handler with debounce
+     */
+    const handleTyping = useCallback((): void => {
         if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         
         stompClientRef.current?.publish({
             destination: `/app/typing/${roomId}`,
-            body: JSON.stringify({ typing: true }),
+            body: JSON.stringify({ typing: true, user: currentUser?.username }),
         });
         
         typingTimeoutRef.current = setTimeout(() => {
             stompClientRef.current?.publish({
                 destination: `/app/typing/${roomId}`,
-                body: JSON.stringify({ typing: false }),
+                body: JSON.stringify({ typing: false, user: currentUser?.username }),
             });
         }, 1000);
-    }, []);
-    
-    const pickImage = async () => {
+    }, [roomId, currentUser]);
+
+    /**
+     * Выбор и отправка фото
+     * Pick and send photo
+     */
+    const pickImage = async (): Promise<void> => {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
             Alert.alert('Ошибка', 'Нет доступа к галерее');
@@ -226,8 +208,12 @@ export default function ChatRoomScreen({ route }: any) {
             });
         }
     };
-    
-    const startRecording = async () => {
+
+    /**
+     * Начало записи голоса
+     * Start voice recording
+     */
+    const startRecording = async (): Promise<void> => {
         try {
             await Audio.requestPermissionsAsync();
             await Audio.setAudioModeAsync({
@@ -244,8 +230,12 @@ export default function ChatRoomScreen({ route }: any) {
             Alert.alert('Ошибка', 'Не удалось начать запись');
         }
     };
-    
-    const stopRecording = async () => {
+
+    /**
+     * Остановка записи и отправка голоса
+     * Stop recording and send voice
+     */
+    const stopRecording = async (): Promise<void> => {
         if (!recording) return;
         
         setIsRecording(false);
@@ -264,38 +254,37 @@ export default function ChatRoomScreen({ route }: any) {
         }
         setRecording(null);
     };
-    
-    const flyTransform = flyAnim.interpolate({
-        inputRange: [0, 0.5, 1],
-        outputRange: [0, -25, 0],
-    });
-    
-    const flyRotate = flyAnim.interpolate({
-        inputRange: [0, 0.5, 1],
-        outputRange: ['0deg', '-25deg', '0deg'],
-    });
-    
+
+    /**
+     * Рендер сообщения
+     * Render message
+     */
     const renderMessage = useCallback(({ item }: { item: Message }) => (
         <ThoughtBubble
             content={item.content}
             sender={item.sender}
             timestamp={item.timestamp}
-            isMyMessage={item.sender === 'You'}
+            isMyMessage={item.sender === currentUser?.username}
             type={item.type}
             mediaUrl={item.mediaUrl}
-            userColor="#6C5CE7"
+            userColor={colors.primary}
         />
-    ), []);
-    
+    ), [currentUser]);
+
+    /**
+     * Ключ для FlatList
+     * FlatList key extractor
+     */
     const keyExtractor = useCallback((_: Message, index: number) => `${index}-${_.id}`, []);
-    
-    // Расчёт отступа для панели ввода
-    const inputPanelBottom = keyboardHeight > 0 
+
+    // Расчёт отступа для панели ввода / Calculate input panel padding
+    const inputPanelBottom = isKeyboardVisible 
         ? keyboardHeight - (Platform.OS === 'ios' ? 0 : 20)
         : (Platform.OS === 'ios' ? insets.bottom + 15 : 20);
-    
+
     return (
         <View style={styles.container}>
+            {/* Фоновый градиент / Background gradient */}
             <LinearGradient
                 colors={['#E8F4F8', '#D1E9F2', '#F5F0EB']}
                 style={StyleSheet.absoluteFillObject}
@@ -303,18 +292,13 @@ export default function ChatRoomScreen({ route }: any) {
                 end={{ x: 0, y: 1 }}
             />
             
+            {/* Декоративные облака / Decorative clouds */}
             <FloatingClouds />
             
-            {typingUser && (
-                <View style={styles.typingContainer}>
-                    <View style={styles.typingCloud}>
-                        <Text style={styles.typingText}>
-                            ✍️ {typingUser === 'You' ? 'Кто-то' : typingUser} печатает...
-                        </Text>
-                    </View>
-                </View>
-            )}
+            {/* Индикатор печатания / Typing indicator */}
+            {typingUser && <TypingIndicator username={typingUser} />}
             
+            {/* Список сообщений / Messages list */}
             <FlatList
                 ref={flatListRef}
                 data={messages}
@@ -333,174 +317,40 @@ export default function ChatRoomScreen({ route }: any) {
                 }}
             />
             
-            {/* Панель ввода с динамическим отступом */}
-            <Animated.View 
-                style={[
-                    styles.inputWrapper,
-                    {
-                        paddingBottom: inputPanelBottom,
-                        paddingTop: 8,
-                        transform: [{
-                            translateY: keyboardHeight > 0 ? 0 : 0
-                        }]
-                    }
-                ]}
-            >
-                <View style={styles.inputContainer}>
-                    <TouchableOpacity onPress={pickImage} style={styles.iconButton}>
-                        <Text style={styles.iconText}>📷</Text>
-                    </TouchableOpacity>
-                    
-                    <TouchableOpacity
-                        onPressIn={startRecording}
-                        onPressOut={stopRecording}
-                        style={[styles.iconButton, isRecording && styles.recordingActive]}
-                    >
-                        <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
-                    </TouchableOpacity>
-                    
-                    <TextInput
-                        style={styles.input}
-                        value={inputText}
-                        onChangeText={(text) => {
-                            setInputText(text);
-                            handleTyping();
-                        }}
-                        placeholder="Мысль..."
-                        placeholderTextColor="#95A5A6"
-                        onSubmitEditing={sendMessage}
-                        returnKeyType="send"
-                        multiline
-                    />
-                    
-                    <TouchableOpacity 
-                        style={[styles.sendButton, (!inputText.trim() || isFlying) && styles.sendButtonDisabled]} 
-                        onPress={sendMessage}
-                        disabled={!inputText.trim() || isFlying}
-                    >
-                        <Animated.Text 
-                            style={[
-                                styles.sendButtonText,
-                                {
-                                    transform: [
-                                        { translateY: flyTransform },
-                                        { rotate: flyRotate }
-                                    ]
-                                }
-                            ]}
-                        >
-                            ✈️
-                        </Animated.Text>
-                    </TouchableOpacity>
-                </View>
-            </Animated.View>
+            {/* Панель ввода / Input panel */}
+            <View style={{ paddingBottom: inputPanelBottom }}>
+                <InputPanel
+                    inputText={inputText}
+                    setInputText={setInputText}
+                    onSend={sendMessage}
+                    onTyping={handleTyping}
+                    onPickImage={pickImage}
+                    onStartRecording={startRecording}
+                    onStopRecording={stopRecording}
+                    isRecording={isRecording}
+                    isSending={false}
+                    isConnected={connected}
+                />
+            </View>
         </View>
     );
 }
 
+/**
+ * Стили экрана чата
+ * Chat screen styles
+ */
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-    },
-    typingContainer: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        zIndex: 1,
-    },
-    typingCloud: {
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderRadius: 20,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        alignSelf: 'flex-start',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
-    },
-    typingText: {
-        fontSize: 12,
-        color: '#8A9AAA',
-        fontStyle: 'italic',
     },
     messageList: {
         flex: 1,
     },
     messageListContent: {
-        padding: 16,
-        paddingBottom: 20,
-    },
-    inputWrapper: {
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
-        backgroundColor: 'rgba(255,255,255,0.96)',
-    },
-    inputContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 12,
-        alignItems: 'flex-end',
-        gap: 8,
-    },
-    iconButton: {
-        padding: 10,
-        backgroundColor: '#F0F0F5',
-        borderRadius: 30,
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: 44,
-        height: 44,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
-    },
-    iconText: {
-        fontSize: 20,
-    },
-    recordingActive: {
-        backgroundColor: '#FFE0E0',
-    },
-    input: {
-        flex: 1,
-        borderWidth: 1,
-        borderColor: '#E8E8E8',
-        borderRadius: 30,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        backgroundColor: '#FFFFFF',
-        fontSize: 14,
-        color: '#2C3E50',
-        maxHeight: 80,
-        minHeight: 40,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 2,
-        elevation: 1,
-    },
-    sendButton: {
-        backgroundColor: '#6C5CE7',
-        padding: 10,
-        borderRadius: 30,
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: 44,
-        height: 44,
-        shadowColor: '#6C5CE7',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    sendButtonDisabled: {
-        backgroundColor: '#B0A0D0',
-        opacity: 0.7,
-    },
-    sendButtonText: {
-        color: 'white',
-        fontSize: 20,
-        textAlign: 'center',
+        padding: spacing.lg,
+        paddingBottom: spacing.xl,
     },
 });
+
+export default ChatRoomScreen;

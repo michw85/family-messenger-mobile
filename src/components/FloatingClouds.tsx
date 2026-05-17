@@ -1,33 +1,54 @@
 /**
  * @file FloatingClouds.tsx
- * @description Компонент декоративных парящих облаков для фона
- * @description Decorative floating clouds component for background
+ * @description Компонент декоративных парящих облаков для фона всех экранов
+ * @description Decorative floating clouds component for background of all screens
  * 
  * @author Family Messenger Team
- * @version 1.0.0
+ * @version 1.1.0
+ * @license MIT
  */
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
-export default function FloatingClouds() {
+/**
+ * Компонент FloatingClouds - создаёт атмосферу парящих облаков на фоне
+ * FloatingClouds component - creates atmosphere of floating clouds in background
+ * @returns React элемент с декоративными облаками / React element with decorative clouds
+ */
+const FloatingClouds: React.FC = () => {
     return (
         <View style={styles.container} pointerEvents="none">
+            {/* Облако вверху слева / Cloud at top left */}
             <View style={[styles.cloud, { top: 80, left: -30, opacity: 0.15 }]} />
+            
+            {/* Облако справа в середине / Cloud at middle right */}
             <View style={[styles.cloud, { top: 250, right: -20, opacity: 0.1, width: 120, height: 70 }]} />
+            
+            {/* Облако снизу слева / Cloud at bottom left */}
             <View style={[styles.cloud, { bottom: 150, left: 20, opacity: 0.12 }]} />
+            
+            {/* Маленькое облако справа вверху / Small cloud at top right */}
             <View style={[styles.cloud, { top: 450, right: '10%', opacity: 0.08, width: 80, height: 50 }]} />
+            
+            {/* Ещё одно облако снизу справа / Another cloud at bottom right */}
             <View style={[styles.cloud, { bottom: 300, right: '15%', opacity: 0.1, width: 90, height: 55 }]} />
         </View>
     );
-}
+};
 
+/**
+ * Стили компонента
+ * Component styles
+ */
 const styles = StyleSheet.create({
+    // Основной контейнер для облаков / Main container for clouds
     container: {
         position: 'absolute',
         width: '100%',
         height: '100%',
     },
+    // Стиль одного облака / Single cloud style
     cloud: {
         position: 'absolute',
         width: 100,
@@ -36,3 +57,5 @@ const styles = StyleSheet.create({
         borderRadius: 50,
     },
 });
+
+export default FloatingClouds;
