@@ -1,10 +1,10 @@
 /**
  * @file RoomSelectScreen.tsx
- * @description Экран выбора чат-комнат: семейный чат, группы по интересам, личная переписка
- * @description Chat room selection screen: family chat, interest groups, private messages
+ * @description Экран выбора чата с возможностью создания и удаления чатов
+ * @description Chat selection screen with ability to create and delete chats
  * 
  * @author Family Messenger Team
- * @version 3.1.0
+ * @version 5.3.0
  * @license MIT
  */
 
@@ -14,210 +14,124 @@ import {
     Text,
     TouchableOpacity,
     StyleSheet,
-    FlatList,
     Animated,
-    Dimensions,
+    SectionList,
+    Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
-
-const { width: screenWidth } = Dimensions.get('window');
+import CreateChatModal from '../components/CreateChatModal';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
- * Интерфейс комнаты
- * Room interface
+ * Интерфейс чата
+ * Chat interface
+ * @property id - Уникальный идентификатор чата / Unique chat identifier
+ * @property name - Название чата / Chat name
+ * @property type - Тип чата (групповой или личный) / Chat type (group or private)
+ * @property color - Акцентный цвет / Accent color
+ * @property createdAt - Дата создания / Creation date
  */
-interface Room {
+interface Chat {
     id: string;
     name: string;
-    description: string;
-    icon: string;
-    type: 'family' | 'interest' | 'private';
-    memberCount: number;
+    type: 'group' | 'private';
     color: string;
+    createdAt: number;
 }
 
 /**
- * Список доступных комнат
- * List of available rooms
+ * Интерфейс секции для SectionList
+ * Section interface for SectionList
+ * @property title - Заголовок секции / Section title
+ * @property data - Массив чатов в секции / Array of chats in section
+ * @property type - Тип секции / Section type
  */
-const rooms: Room[] = [
-    {
-        id: 'family-chat',
-        name: 'Семейные мысли',
-        description: 'Общий семейный чат, где все делятся новостями',
-        icon: '💭',
-        type: 'family',
-        memberCount: 6,
-        color: '#6C5CE7',
-    },
-    {
-        id: 'interests-cooking',
-        name: 'Кулинарные рецепты',
-        description: 'Делимся любимыми рецептами и секретами готовки',
-        icon: '🍳',
-        type: 'interest',
-        memberCount: 4,
-        color: '#FF7675',
-    },
-    {
-        id: 'interests-travel',
-        name: 'Путешествия',
-        description: 'Планируем поездки и делимся впечатлениями',
-        icon: '✈️',
-        type: 'interest',
-        memberCount: 3,
-        color: '#74B9FF',
-    },
-    {
-        id: 'interests-movies',
-        name: 'Кинозал',
-        description: 'Обсуждаем фильмы и сериалы',
-        icon: '🎬',
-        type: 'interest',
-        memberCount: 5,
-        color: '#00CEC9',
-    },
-    {
-        id: 'private-mom',
-        name: 'Мама',
-        description: 'Личная переписка с мамой',
-        icon: '👩',
-        type: 'private',
-        memberCount: 2,
-        color: '#FD79A8',
-    },
-    {
-        id: 'private-dad',
-        name: 'Папа',
-        description: 'Личная переписка с папой',
-        icon: '👨',
-        type: 'private',
-        memberCount: 2,
-        color: '#55EFC4',
-    },
+interface Section {
+    title: string;
+    data: Chat[];
+    type: 'group' | 'private';
+}
+
+/**
+ * Ключ для хранения чатов в AsyncStorage
+ * Storage key for AsyncStorage
+ */
+const CHATS_STORAGE_KEY = '@family_messenger_chats';
+
+/**
+ * Цветовая палитра для новых чатов
+ * Color palette for new chats
+ */
+const COLOR_PALETTE = [
+    '#6C5CE7', '#00CEC9', '#FF7675', '#74B9FF', '#A29BFE',
+    '#FD79A8', '#55EFC4', '#0984E3', '#D63031', '#00B894',
 ];
 
 /**
- * Компонент анимированной карточки комнаты
- * Animated room card component
- * Вынесен в отдельный компонент, чтобы использовать хуки на верхнем уровне
- * Extracted to separate component to use hooks at top level
+ * Начальные чаты по умолчанию
+ * Default initial chats
  */
-const AnimatedRoomCard: React.FC<{
-    item: Room;
-    index: number;
-    isSelected: boolean;
-    onPress: (room: Room) => void;
-}> = ({ item, index, isSelected, onPress }) => {
-    // Хуки вызываются на верхнем уровне компонента
-    // Hooks are called at the top level of the component
-    const translateX = useRef(new Animated.Value(30)).current;
-    const opacity = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        // Анимация появления карточки с задержкой
-        // Card appearance animation with delay
-        Animated.parallel([
-            Animated.spring(translateX, {
-                toValue: 0,
-                tension: 50,
-                friction: 7,
-                delay: index * 80,
-                useNativeDriver: true,
-            }),
-            Animated.timing(opacity, {
-                toValue: 1,
-                duration: 400,
-                delay: index * 80,
-                useNativeDriver: true,
-            }),
-        ]).start();
-    }, [index]);
-
-    return (
-        <Animated.View
-            style={[
-                styles.roomCardWrapper,
-                {
-                    opacity: opacity,
-                    transform: [{ translateX: translateX }],
-                },
-            ]}
-        >
-            <TouchableOpacity
-                style={[
-                    styles.roomCard,
-                    isSelected && styles.roomCardSelected,
-                    { borderLeftColor: item.color, borderLeftWidth: 4 }
-                ]}
-                onPress={() => onPress(item)}
-                activeOpacity={0.7}
-            >
-                <View style={[styles.roomIconContainer, { backgroundColor: item.color + '20' }]}>
-                    <Text style={styles.roomIcon}>{item.icon}</Text>
-                </View>
-                <View style={styles.roomInfo}>
-                    <Text style={styles.roomName}>{item.name}</Text>
-                    <Text style={styles.roomDescription}>{item.description}</Text>
-                    <View style={styles.membersContainer}>
-                        <Text style={styles.membersIcon}>👥</Text>
-                        <Text style={styles.roomMembers}>{item.memberCount} участников</Text>
-                    </View>
-                </View>
-                <Text style={[styles.arrow, { color: item.color }]}>→</Text>
-            </TouchableOpacity>
-        </Animated.View>
-    );
-};
+const DEFAULT_CHATS: Chat[] = [
+    { id: 'family', name: 'Семья', type: 'group', color: '#6C5CE7', createdAt: Date.now() },
+    { id: 'friends', name: 'Друзья', type: 'group', color: '#00CEC9', createdAt: Date.now() },
+    { id: 'work', name: 'Работа', type: 'group', color: '#FF7675', createdAt: Date.now() },
+    { id: 'private-mom', name: 'Мама', type: 'private', color: '#FD79A8', createdAt: Date.now() },
+    { id: 'private-dad', name: 'Папа', type: 'private', color: '#55EFC4', createdAt: Date.now() },
+    { id: 'private-brother', name: 'Брат', type: 'private', color: '#74B9FF', createdAt: Date.now() },
+];
 
 /**
- * Компонент таба для переключения категорий
- * Tab component for category switching
- */
-const Tab: React.FC<{
-    type: 'family' | 'interest' | 'private';
-    label: string;
-    icon: string;
-    isActive: boolean;
-    onPress: () => void;
-}> = ({ type, label, icon, isActive, onPress }) => {
-    return (
-        <TouchableOpacity
-            style={[styles.tab, isActive && styles.tabActive]}
-            onPress={onPress}
-            activeOpacity={0.7}
-        >
-            <Text style={styles.tabIcon}>{icon}</Text>
-            <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-                {label}
-            </Text>
-        </TouchableOpacity>
-    );
-};
-
-/**
- * Экран выбора комнаты
- * Room selection screen component
+ * Экран выбора чата
+ * Chat selection screen component
  */
 const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
-    // Все хуки на верхнем уровне компонента
-    // All hooks at the top level of component
-    const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<'family' | 'interest' | 'private'>('family');
+    const { t, language, setLanguage } = useLanguage();
+    const [chats, setChats] = useState<Chat[]>([]);
     const [currentUsername, setCurrentUsername] = useState<string>('');
+    const [modalVisible, setModalVisible] = useState<boolean>(false);
     const fadeAnim = useRef(new Animated.Value(0)).current;
 
+    /**
+     * Загрузка чатов из AsyncStorage
+     * Load chats from AsyncStorage
+     */
     useEffect(() => {
-        // Анимация появления всего экрана / Screen appearance animation
+        const loadChats = async () => {
+            try {
+                const savedChats = await AsyncStorage.getItem(CHATS_STORAGE_KEY);
+                if (savedChats) {
+                    const parsedChats = JSON.parse(savedChats);
+                    if (Array.isArray(parsedChats) && parsedChats.length > 0) {
+                        setChats(parsedChats);
+                    } else {
+                        setChats(DEFAULT_CHATS);
+                        await AsyncStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(DEFAULT_CHATS));
+                    }
+                } else {
+                    setChats(DEFAULT_CHATS);
+                    await AsyncStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(DEFAULT_CHATS));
+                }
+            } catch (error) {
+                console.error('Failed to load chats:', error);
+                setChats(DEFAULT_CHATS);
+            }
+        };
+        loadChats();
+    }, []);
+
+    /**
+     * Анимация появления экрана
+     * Screen appearance animation
+     */
+    useEffect(() => {
         Animated.timing(fadeAnim, {
             toValue: 1,
             duration: 800,
             useNativeDriver: true,
         }).start();
         
-        // Загрузка имени пользователя / Load username
         const loadUsername = async () => {
             const name = await AsyncStorage.getItem('username');
             if (name) setCurrentUsername(name);
@@ -226,51 +140,154 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     }, []);
 
     /**
-     * Фильтрация комнат по типу
-     * Filter rooms by type
+     * Сохранение чатов в AsyncStorage
+     * Save chats to AsyncStorage
+     * @param updatedChats - Обновлённый список чатов / Updated chats list
      */
-    const filteredRooms = rooms.filter(room => room.type === activeTab);
-
-    /**
-     * Обработчик выбора комнаты
-     * Room selection handler
-     */
-    const handleRoomSelect = (room: Room) => {
-        setSelectedRoom(room.id);
-        setTimeout(() => {
-            navigation.navigate('ChatRoom', { 
-                roomId: room.id, 
-                roomName: room.name 
-            });
-        }, 300);
+    const saveChats = async (updatedChats: Chat[]): Promise<void> => {
+        try {
+            await AsyncStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(updatedChats));
+            setChats(updatedChats);
+        } catch (error) {
+            console.error('Failed to save chats:', error);
+            Alert.alert(t('error'), 'Не удалось сохранить чат / Failed to save chat');
+        }
     };
 
     /**
-     * Рендер карточки комнаты (без хуков внутри!)
-     * Render room card (no hooks inside!)
+     * Создание нового чата
+     * Create new chat
+     * @param name - Название чата / Chat name
+     * @param type - Тип чата / Chat type
      */
-    const renderRoom = ({ item, index }: { item: Room; index: number }) => (
-        <AnimatedRoomCard
-            item={item}
-            index={index}
-            isSelected={selectedRoom === item.id}
-            onPress={handleRoomSelect}
-        />
+    const handleCreateChat = (name: string, type: 'group' | 'private'): void => {
+        // Проверка на существование чата с таким именем / Check if chat with same name exists
+        const existingChat = chats.find(chat => chat.name.toLowerCase() === name.toLowerCase());
+        if (existingChat) {
+            Alert.alert(t('error'), 'Чат с таким именем уже существует / Chat with this name already exists');
+            return;
+        }
+
+        // Генерация уникального ID / Generate unique ID
+        const newId = `${type}-${name.toLowerCase().replace(/\s/g, '-')}-${Date.now()}`;
+        
+        // Выбор случайного цвета из палитры / Pick random color from palette
+        const randomColor = COLOR_PALETTE[Math.floor(Math.random() * COLOR_PALETTE.length)];
+        
+        // Создание нового чата / Create new chat
+        const newChat: Chat = {
+            id: newId,
+            name: name,
+            type: type,
+            color: randomColor,
+            createdAt: Date.now(),
+        };
+        
+        // Добавление в список и сохранение / Add to list and save
+        const updatedChats = [...chats, newChat];
+        saveChats(updatedChats);
+    };
+
+    /**
+     * Удаление чата
+     * Delete chat
+     * @param chatId - ID чата для удаления / Chat ID to delete
+     * @param chatName - Название чата для подтверждения / Chat name for confirmation
+     */
+    const handleDeleteChat = (chatId: string, chatName: string): void => {
+        Alert.alert(
+            'Удалить чат? / Delete chat?',
+            `Вы уверены, что хотите удалить чат "${chatName}"? Это действие нельзя отменить.\n\nAre you sure you want to delete "${chatName}"? This action cannot be undone.`,
+            [
+                { 
+                    text: 'Отмена / Cancel', 
+                    style: 'cancel' 
+                },
+                {
+                    text: 'Удалить / Delete',
+                    style: 'destructive',
+                    onPress: () => {
+                        const updatedChats = chats.filter(chat => chat.id !== chatId);
+                        saveChats(updatedChats);
+                    },
+                },
+            ]
+        );
+    };
+
+    /**
+     * Разделение чатов по типу для SectionList
+     * Split chats by type for SectionList
+     */
+    const sections: Section[] = [
+        {
+            title: t('group_chats'),
+            data: chats.filter(chat => chat.type === 'group'),
+            type: 'group',
+        },
+        {
+            title: t('private_chats'),
+            data: chats.filter(chat => chat.type === 'private'),
+            type: 'private',
+        },
+    ];
+
+    /**
+     * Рендер заголовка секции
+     * Render section header
+     * @param section - Объект секции / Section object
+     */
+    const renderSectionHeader = ({ section }: { section: Section }) => (
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>{section.title}</Text>
+            <Text style={styles.sectionCount}>{section.data.length}</Text>
+        </View>
     );
 
     /**
-     * Рендер таба (без хуков внутри!)
-     * Render tab (no hooks inside!)
+     * Рендер элемента чата с поддержкой удаления
+     * Render chat item with delete support
+     * @param item - Объект чата / Chat object
      */
-    const renderTab = (type: 'family' | 'interest' | 'private', label: string, icon: string) => (
-        <Tab
-            type={type}
-            label={label}
-            icon={icon}
-            isActive={activeTab === type}
-            onPress={() => setActiveTab(type)}
-        />
+    const renderChatItem = ({ item }: { item: Chat }) => (
+        <TouchableOpacity
+            style={[styles.chatCard, { borderLeftColor: item.color, borderLeftWidth: 4 }]}
+            onPress={() => navigation.navigate('ChatRoom', { roomId: item.id, roomName: item.name })}
+            onLongPress={() => handleDeleteChat(item.id, item.name)}
+            activeOpacity={0.7}
+            delayLongPress={500}
+        >
+            <View style={[styles.avatar, { backgroundColor: item.color + '20' }]}>
+                <Text style={[styles.avatarText, { color: item.color }]}>
+                    {item.name.charAt(0).toUpperCase()}
+                </Text>
+            </View>
+            <View style={styles.chatInfo}>
+                <Text style={styles.chatName}>{item.name}</Text>
+                <Text style={styles.chatType}>
+                    {item.type === 'group' ? '👥 ' + t('group_chats') : '👤 ' + t('private_chats')}
+                </Text>
+            </View>
+            <View style={styles.rightContainer}>
+                <Text style={[styles.arrow, { color: item.color }]}>›</Text>
+                <TouchableOpacity 
+                    onPress={() => handleDeleteChat(item.id, item.name)}
+                    style={styles.deleteButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Text style={styles.deleteText}>🗑️</Text>
+                </TouchableOpacity>
+            </View>
+        </TouchableOpacity>
     );
+
+    /**
+     * Переключение языка приложения
+     * Toggle application language
+     */
+    const toggleLanguage = () => {
+        setLanguage(language === 'ru' ? 'en' : 'ru');
+    };
 
     return (
         <LinearGradient
@@ -280,38 +297,53 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             <FloatingClouds />
             
             <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-                {/* Приветствие / Greeting */}
+                {/* Верхняя панель с приветствием и кнопками / Header with greeting and buttons */}
                 <View style={styles.header}>
-                    <Text style={styles.greeting}>
-                        Привет, {currentUsername || 'Друг'}! 👋
-                    </Text>
-                    <Text style={styles.title}>Выберите комнату</Text>
-                    <Text style={styles.subtitle}>Куда отправим мысль?</Text>
+                    <View style={styles.headerTop}>
+                        <Text style={styles.greeting}>
+                            {t('greeting')}, {currentUsername || t('friend')}! 👋
+                        </Text>
+                        <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
+                            <Text style={styles.langText}>{language === 'ru' ? '🇬🇧 EN' : '🇷🇺 RU'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <Text style={styles.title}>{t('select_chat')}</Text>
                 </View>
 
-                {/* Табы для переключения категорий / Tabs for category switching */}
-                <View style={styles.tabsContainer}>
-                    {renderTab('family', 'Семья', '💭')}
-                    {renderTab('interest', 'Интересы', '⭐')}
-                    {renderTab('private', 'Личное', '💌')}
-                </View>
-
-                {/* Список комнат / Rooms list */}
-                <FlatList
-                    data={filteredRooms}
+                {/* Список чатов / Chats list */}
+                <SectionList
+                    sections={sections}
                     keyExtractor={(item) => item.id}
-                    renderItem={renderRoom}
+                    renderItem={renderChatItem}
+                    renderSectionHeader={renderSectionHeader}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.listContent}
+                    stickySectionHeadersEnabled={false}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Text style={styles.emptyEmoji}>🕊️</Text>
-                            <Text style={styles.emptyText}>Нет комнат в этой категории</Text>
-                            <Text style={styles.emptySubtext}>Скоро появятся новые!</Text>
+                            <Text style={styles.emptyText}>{t('no_chats')}</Text>
+                            <Text style={styles.emptySubtext}>{t('soon')}</Text>
                         </View>
                     }
                 />
+
+                {/* Кнопка создания нового чата (FAB) / Create new chat button (FAB) */}
+                <TouchableOpacity
+                    style={styles.fab}
+                    onPress={() => setModalVisible(true)}
+                    activeOpacity={0.8}
+                >
+                    <Text style={styles.fabText}>+</Text>
+                </TouchableOpacity>
             </Animated.View>
+
+            {/* Модальное окно создания чата / Create chat modal */}
+            <CreateChatModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                onCreate={handleCreateChat}
+            />
         </LinearGradient>
     );
 };
@@ -321,153 +353,104 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
  * Room selection screen styles
  */
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    content: {
-        flex: 1,
-        paddingHorizontal: 20,
-        paddingTop: 60,
-    },
-    header: {
-        marginBottom: 24,
-    },
-    greeting: {
-        fontSize: 14,
-        color: '#8A9AAA',
-        marginBottom: 4,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#2C3E50',
-        marginBottom: 4,
-    },
-    subtitle: {
-        fontSize: 14,
-        color: '#8A9AAA',
-    },
-    // Стили табов / Tab styles
-    tabsContainer: {
+    container: { flex: 1 },
+    content: { flex: 1, paddingHorizontal: 20, paddingTop: 60 },
+    header: { marginBottom: 24 },
+    headerTop: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.7)',
-        borderRadius: 30,
-        padding: 4,
-        marginBottom: 24,
-    },
-    tab: {
-        flex: 1,
-        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: 25,
-        gap: 6,
+        marginBottom: 8,
     },
-    tabActive: {
-        backgroundColor: '#FFFFFF',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
+    greeting: { fontSize: 14, color: '#8A9AAA' },
+    langButton: {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        borderRadius: 16,
     },
-    tabIcon: {
-        fontSize: 16,
+    langText: { fontSize: 11, fontWeight: '500', color: '#6C5CE7' },
+    title: { fontSize: 28, fontWeight: '700', color: '#2C3E50' },
+    
+    // Секции / Sections
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 16,
+        marginBottom: 8,
     },
-    tabText: {
-        fontSize: 13,
-        color: '#8A9AAA',
-        fontWeight: '500',
-    },
-    tabTextActive: {
-        color: '#6C5CE7',
-        fontWeight: '600',
-    },
-    // Стили списка / List styles
-    listContent: {
-        paddingBottom: 40,
-    },
-    roomCardWrapper: {
-        marginBottom: 12,
-    },
-    roomCard: {
+    sectionHeaderText: { fontSize: 16, fontWeight: '600', color: '#2C3E50' },
+    sectionCount: { fontSize: 13, color: '#8A9AAA' },
+    listContent: { paddingBottom: 80 },
+    
+    // Карточки чатов / Chat cards
+    chatCard: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: 'rgba(255,255,255,0.95)',
-        borderRadius: 20,
-        padding: 16,
+        borderRadius: 16,
+        padding: 12,
+        marginBottom: 8,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.04,
-        shadowRadius: 4,
-        elevation: 2,
+        shadowRadius: 2,
+        elevation: 1,
     },
-    roomCardSelected: {
-        backgroundColor: '#F8F6FF',
-    },
-    roomIconContainer: {
-        width: 52,
-        height: 52,
-        borderRadius: 26,
+    avatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 16,
+        marginRight: 12,
     },
-    roomIcon: {
-        fontSize: 28,
-    },
-    roomInfo: {
-        flex: 1,
-    },
-    roomName: {
-        fontSize: 17,
-        fontWeight: '600',
-        color: '#2C3E50',
-        marginBottom: 2,
-    },
-    roomDescription: {
-        fontSize: 12,
-        color: '#8A9AAA',
-        marginBottom: 4,
-    },
-    membersContainer: {
+    avatarText: { fontSize: 20, fontWeight: '600' },
+    chatInfo: { flex: 1 },
+    chatName: { fontSize: 16, fontWeight: '600', color: '#2C3E50', marginBottom: 2 },
+    chatType: { fontSize: 11, color: '#8A9AAA' },
+    rightContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 8,
     },
-    membersIcon: {
-        fontSize: 10,
-        color: '#95A5A6',
+    arrow: { fontSize: 24 },
+    deleteButton: {
+        padding: 4,
+        borderRadius: 16,
+        backgroundColor: 'rgba(0,0,0,0.05)',
     },
-    roomMembers: {
-        fontSize: 10,
-        color: '#95A5A6',
-    },
-    arrow: {
-        fontSize: 18,
-        marginLeft: 8,
-    },
+    deleteText: { fontSize: 16, opacity: 0.6 },
+    
     // Пустое состояние / Empty state
-    emptyContainer: {
-        alignItems: 'center',
+    emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+    emptyEmoji: { fontSize: 48, marginBottom: 16, opacity: 0.6 },
+    emptyText: { fontSize: 16, color: '#8A9AAA', marginBottom: 4 },
+    emptySubtext: { fontSize: 13, color: '#B0B0B0' },
+    
+    // Кнопка создания чата (FAB) / Create chat button (FAB)
+    fab: {
+        position: 'absolute',
+        bottom: 20,
+        right: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#6C5CE7',
         justifyContent: 'center',
-        paddingVertical: 60,
+        alignItems: 'center',
+        shadowColor: '#6C5CE7',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        elevation: 5,
     },
-    emptyEmoji: {
-        fontSize: 48,
-        marginBottom: 16,
-        opacity: 0.6,
-    },
-    emptyText: {
-        fontSize: 16,
-        color: '#8A9AAA',
-        marginBottom: 4,
-    },
-    emptySubtext: {
-        fontSize: 13,
-        color: '#B0B0B0',
+    fabText: {
+        color: '#FFFFFF',
+        fontSize: 32,
+        fontWeight: '300',
+        marginTop: -2,
     },
 });
 
