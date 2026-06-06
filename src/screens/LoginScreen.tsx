@@ -1,10 +1,10 @@
 /**
  * @file LoginScreen.tsx
- * @description Экран входа с сохранением данных пользователя
- * @description Login screen with user data persistence
+ * @description Экран входа с сохранением данных пользователя и вызовом API бэкенда
+ * @description Login screen with user data persistence and backend API call
  * 
  * @author Family Messenger Team
- * @version 2.1.0
+ * @version 3.0.0
  * @license MIT
  */
 
@@ -25,10 +25,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
+import { login } from '../services/api'; // Импорт реального API
 
 /**
- * Ключи для хранения данных
- * Storage keys
+ * Ключи для хранения данных в AsyncStorage
+ * Storage keys for AsyncStorage
  */
 const STORAGE_KEYS = {
     TOKEN: '@family_messenger_token',
@@ -38,6 +39,7 @@ const STORAGE_KEYS = {
 /**
  * Экран входа
  * Login screen component
+ * @param navigation - объект навигации React Navigation
  */
 const LoginScreen: React.FC<any> = ({ navigation }) => {
     const { t, language, setLanguage } = useLanguage();
@@ -45,10 +47,12 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
     const [password, setPassword] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false);
 
+    // Анимации для плавного появления
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
 
     useEffect(() => {
+        // Запуск анимации при монтировании
         Animated.parallel([
             Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
             Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 7, useNativeDriver: true }),
@@ -57,35 +61,40 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
 
     /**
      * Обработчик входа
-     * Login handler
+     * Выполняет валидацию, вызывает API логина, сохраняет токен и имя пользователя
+     * Login handler – validates input, calls login API, stores token and username
      */
     const handleLogin = async () => {
+        // Проверка заполнения полей / Check fields are filled
         if (!username || !password) {
             Alert.alert(t('error'), 'Заполните все поля / Please fill all fields');
             return;
         }
 
         setLoading(true);
-
         try {
-            // Сохраняем токен и имя пользователя / Save token and username
-            await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, 'mock-token-' + Date.now());
-            await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, username);
+            // Реальный вызов бэкенда / Actual backend call
+            const response = await login(username, password);
+            const { token, user } = response.data;
 
-            console.log('Login successful - Token saved, Username saved:', username);
+            // Сохраняем полученные данные / Save received data
+            await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
+            await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
 
+            console.log('Login successful – token saved');
+            // Переход на экран выбора чатов / Navigate to chat selection
             navigation.replace('RoomSelect');
         } catch (error) {
             console.error('Login error:', error);
-            Alert.alert(t('error'), 'Не удалось войти / Login failed');
+            Alert.alert(t('error'), 'Неверное имя пользователя или пароль / Invalid username or password');
         } finally {
             setLoading(false);
         }
     };
 
     /**
-     * Переключение языка
-     * Toggle language
+     * Переключение языка приложения
+     * Toggle application language
      */
     const toggleLanguage = () => {
         setLanguage(language === 'ru' ? 'en' : 'ru');
