@@ -4,7 +4,7 @@
  */
 
 import { Client } from '@stomp/stompjs';
-// import SockJS from 'sockjs-client';
+import SockJS from 'sockjs-client';
 
 
 let stompClient: Client | null = null;
@@ -17,8 +17,8 @@ let stompClient: Client | null = null;
 export const connectWebSocket = async (token: string): Promise<Client> => {
     return new Promise((resolve, reject) => {
         const client = new Client({
-            webSocketFactory: () => new WebSocket('ws://165.245.213.90:8080/ws'),
-            // webSocketFactory: () => new SockJS('http://165.245.213.90:8080/ws'),
+            // webSocketFactory: () => new WebSocket('ws://165.245.213.90:8080/ws'),
+            webSocketFactory: () => new SockJS('http://165.245.213.90:8080/ws'),
             // webSocketFactory: () => new SockJS('http://192.168.106.112:8080/ws'),
             // webSocketFactory: () => new SockJS('http://10.0.2.2:8080/ws'),
             connectHeaders: { Authorization: `Bearer ${token}` },

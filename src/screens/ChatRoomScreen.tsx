@@ -80,7 +80,7 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
         try {
             setLoading(true);
             const response = await fetchMessages(roomId);
-            setMessages(response.data);
+            setMessages(response.data.reverse());
         } catch (error) {
             console.error('Failed to load messages:', error);
             Alert.alert(t('error'), 'Could not load messages');
@@ -104,12 +104,17 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
      */
     const setupWebSocket = useCallback(async () => {
         const token = await AsyncStorage.getItem('token');
-        if (!token) return;
+        if (!token) {
+        console.log('No token, skipping WebSocket connection');
+        return;
+    }
         try {
             const client = await connectWebSocket(token);
             stompClientRef.current = client;
+             console.log('WebSocket connected, subscribing to room:', roomId);
             // Подписываемся на топик комнаты
             const sub = subscribeToRoom(roomId, (newMessage: Message) => {
+                console.log('New message received:', newMessage);
                 setMessages(prev => [...prev, newMessage]);
                 setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
             });
