@@ -66,6 +66,7 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     const [keyboardVisible, setKeyboardVisible] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(true);
     const [sending, setSending] = useState<boolean>(false);
+    const [recording, setRecording] = useState<Audio.Recording | null>(null);
 
     // Refs
     const flatListRef = useRef<FlatList>(null);
@@ -105,13 +106,13 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     const setupWebSocket = useCallback(async () => {
         const token = await AsyncStorage.getItem('token');
         if (!token) {
-        console.log('No token, skipping WebSocket connection');
-        return;
-    }
+            console.log('No token, skipping WebSocket connection');
+            return;
+        }
         try {
             const client = await connectWebSocket(token);
             stompClientRef.current = client;
-             console.log('WebSocket connected, subscribing to room:', roomId);
+            console.log('WebSocket connected, subscribing to room:', roomId);
             // Подписываемся на топик комнаты
             const sub = subscribeToRoom(roomId, (newMessage: Message) => {
                 console.log('New message received:', newMessage);
@@ -188,33 +189,80 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     }, [roomId, t]);
 
     /**
-     * Начало записи голоса (заглушка, можно расширить)
-     * Start voice recording (placeholder)
-     */
-    const startRecording = useCallback(async () => {
-        try {
-            await Audio.requestPermissionsAsync();
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-            });
-            setIsRecording(true);
-            setTimeout(() => stopRecording(), 3000);
-        } catch (err) {
-            Alert.alert(t('error'), 'Could not start recording');
-        }
-    }, [t]);
+ * Начало записи голоса
+ * Start voice recording
+ */
+const startRecording = useCallback(async () => {
+    // Если уже идёт запись – ничего не делаем
+    if (recording) {
+        console.log('Recording already in progress');
+        return;
+    }
 
-    /**
-     * Остановка записи и отправка голосового сообщения
-     * Stop recording and send voice message
-     */
-    const stopRecording = useCallback(async () => {
+    try {
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert(t('error'), 'Нет доступа к микрофону');
+            return;
+        }
+
+        await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+        });
+
+        const { recording: newRecording } = await Audio.Recording.createAsync(
+            Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        setRecording(newRecording);
+        setIsRecording(true);
+        console.log('Recording started');
+    } catch (err) {
+        console.error('Failed to start recording', err);
+        Alert.alert(t('error'), 'Не удалось начать запись');
+    }
+}, [recording, t]);
+
+/**
+ * Остановка записи и отправка голосового сообщения
+ * Stop recording and send voice message
+ */
+const stopRecording = useCallback(async () => {
+    if (!recording) {
+        console.log('No recording to stop');
+        setIsRecording(false); // сброс, если запись не активна
+        return;
+    }
+
+    try {
+        setIsRecording(false); // сразу меняем UI
+        await recording.stopAndUnloadAsync();
+        const uri = recording.getURI();
+        setRecording(null); // сброс состояния
+
+        if (!uri) {
+            console.error('Recording URI is null');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', {
+            uri: uri,
+            type: 'audio/m4a',
+            name: 'voice.m4a',
+        } as any);
+
+        const uploadRes = await uploadFile(formData, 'voice');
+        const mediaUrl = uploadRes.data.url;
+        wsSendMessage(roomId, '🎤 Voice message', 'VOICE', mediaUrl);
+    } catch (error) {
+        console.error('Failed to send voice message', error);
+        Alert.alert(t('error'), 'Не удалось отправить голосовое сообщение');
+    } finally {
         setIsRecording(false);
-        // Здесь нужно получить URI записанного файла и загрузить его на сервер
-        // Для примера отправляем фиктивное сообщение
-        wsSendMessage(roomId, '🎤 Voice message', 'VOICE', 'mock_voice_url');
-    }, [roomId]);
+        setRecording(null);
+    }
+}, [recording, roomId, t]);
 
     /**
      * Рендер одного сообщения
