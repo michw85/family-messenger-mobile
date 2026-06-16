@@ -9,8 +9,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Базовый URL бэкенда (замените на ваш IP в локальной сети)
 // Base URL of backend (replace with your local IP)
-const BASE_URL = 'http://192.168.106.112:8080/api';  // 'http://192.168.1.100:8080/api'; было - 'http://192.168.184.112:8080/api'
+// const BASE_URL = 'http://192.168.106.112:8080/api';  // 'http://192.168.1.100:8080/api'; было - 'http://192.168.184.112:8080/api'
 // const BASE_URL = 'http://10.0.2.2:8080/api';
+const BASE_URL = 'http://165.245.213.90:8080/api';
+
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -24,6 +26,8 @@ api.interceptors.request.use(async (config) => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
         console.log('Adding token to request:', config.url, token.substring(0, 20) + '...');
+    }else {
+        console.log('No token for request:', config.url);
     }
     return config;
 });

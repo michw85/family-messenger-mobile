@@ -201,8 +201,8 @@ const Navigation = () => {
     return (
         <NavigationContainer>
             <Stack.Navigator
-                initialRouteName="Login"
-                // initialRouteName={isLoggedIn ? "RoomSelect" : "Login"}
+                // initialRouteName="Login"
+                initialRouteName={isLoggedIn ? "RoomSelect" : "Login"}
                 screenOptions={{
                     headerShown: false,
                     animation: 'slide_from_right',

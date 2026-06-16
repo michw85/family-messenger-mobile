@@ -4,7 +4,7 @@
  */
 
 import { Client } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
+// import SockJS from 'sockjs-client';
 
 
 let stompClient: Client | null = null;
@@ -17,7 +17,9 @@ let stompClient: Client | null = null;
 export const connectWebSocket = async (token: string): Promise<Client> => {
     return new Promise((resolve, reject) => {
         const client = new Client({
-            webSocketFactory: () => new SockJS('http://192.168.106.112:8080/ws'),
+            webSocketFactory: () => new WebSocket('ws://165.245.213.90:8080/ws'),
+            // webSocketFactory: () => new SockJS('http://165.245.213.90:8080/ws'),
+            // webSocketFactory: () => new SockJS('http://192.168.106.112:8080/ws'),
             // webSocketFactory: () => new SockJS('http://10.0.2.2:8080/ws'),
             connectHeaders: { Authorization: `Bearer ${token}` },
             reconnectDelay: 5000,
@@ -29,6 +31,8 @@ export const connectWebSocket = async (token: string): Promise<Client> => {
                 console.error('STOMP error', frame);
                 reject(frame);
             },
+            onWebSocketClose: () => console.log('🔌 WebSocket closed'),
+            onWebSocketError: (event) => console.error('❌ WebSocket error', event),
         });
         client.activate();
     });
@@ -56,7 +60,11 @@ export const subscribeToRoom = (roomId: string, onMessage: (msg: any) => void) =
  * @param mediaUrl - URL медиафайла (опционально)
  */
 export const sendMessage = (roomId: string, content: string, type: string, mediaUrl?: string) => {
-    if (!stompClient) return;
+    if (!stompClient) {
+        console.error('STOMP client not connected');
+        return;
+    }
+    console.log('Sending message via STOMP:', { roomId, content, type, mediaUrl });
     stompClient.publish({
         destination: `/app/chat.send/${roomId}`,
         body: JSON.stringify({ content, type, mediaUrl }),

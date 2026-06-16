@@ -96,8 +96,10 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
         try {
             const response = await register(username, email, password);
             const { token, user } = response.data;
-            await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
-            await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
+            // await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
+            await AsyncStorage.setItem('token', token);
+            // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
+            await AsyncStorage.setItem('username', user.username);
             console.log('Registration successful');
             navigation.replace('RoomSelect');
         } catch (error) {

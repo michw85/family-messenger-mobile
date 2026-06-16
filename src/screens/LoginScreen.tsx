@@ -78,8 +78,10 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
             const { token, user } = response.data;
 
             // Сохраняем полученные данные / Save received data
-            await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
-            await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
+            // await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
+            await AsyncStorage.setItem('token', token);
+            // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
+            await AsyncStorage.setItem('username', user.username);
 
             console.log('Login successful – token saved');
             // Переход на экран выбора чатов / Navigate to chat selection

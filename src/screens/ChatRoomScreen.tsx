@@ -142,6 +142,7 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
      */
     const sendTextMessage = useCallback(() => {
         if (!inputText.trim() || !stompClientRef.current) return;
+        console.log('Sending message:', { roomId, inputText });
         wsSendMessage(roomId, inputText.trim(), 'TEXT');
         setInputText('');
         setSending(false);
