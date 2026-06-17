@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     theirContentAlign: { alignItems: 'flex-start' },
     senderName: { fontSize: 11, fontWeight: '700', marginBottom: 4, letterSpacing: 0.3 },
     messageText: { fontSize: 15, lineHeight: 22, color: '#2C3E50', letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
-    myText: { color: '#FFFFFF' },
+    myText: { color: '#2C3E50' },
     timestamp: { fontSize: 10, fontWeight: '500', marginTop: 6, color: '#7F8C8D', letterSpacing: 0.2 },
     timestampLeft: { marginLeft: 20 },
     timestampRight: { marginRight: 20, textAlign: 'right' },
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     voiceIcon: { fontSize: 22 },
     voiceText: { fontSize: 14, color: '#2C3E50' },
-    voiceTextMy: { color: '#FFFFFF' },
+    voiceTextMy: { color: '#2C3E50' },
 });
 
 export default ThoughtBubble;

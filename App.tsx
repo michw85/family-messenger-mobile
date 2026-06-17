@@ -19,6 +19,7 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import RoomSelectScreen from './src/screens/RoomSelectScreen';
 import ChatRoomScreen from './src/screens/ChatRoomScreen';
 
+
 const Stack = createNativeStackNavigator();
 
 /**
@@ -59,31 +60,31 @@ const Initializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         const initializeApp = async () => {
             try {
                 console.log('Starting app initialization...');
-                
+
                 // Проверяем первый ли запуск / Check if first launch
                 const isFirstLaunch = await AsyncStorage.getItem(STORAGE_KEYS.FIRST_LAUNCH);
                 console.log('Is first launch:', !isFirstLaunch);
-                
+
                 if (!isFirstLaunch) {
                     // Первый запуск - инициализируем данные / First launch - initialize data
                     console.log('First launch - initializing data...');
-                    
+
                     // Устанавливаем флаг первого запуска / Set first launch flag
                     await AsyncStorage.setItem(STORAGE_KEYS.FIRST_LAUNCH, 'true');
-                    
+
                     // Инициализируем чаты по умолчанию / Initialize default chats
                     await AsyncStorage.setItem(STORAGE_KEYS.CHATS, JSON.stringify(DEFAULT_CHATS));
                     console.log('Default chats saved:', DEFAULT_CHATS.length);
-                    
+
                     // НЕ создаём тестового пользователя! Пусть пользователь сам регистрируется
                     // Do NOT create test user! Let user register themselves
                     console.log('Data initialized successfully');
                 } else {
                     console.log('App already initialized');
-                    
+
                     // Проверяем, есть ли чаты в хранилище / Check if chats exist in storage
                     const savedChats = await AsyncStorage.getItem(STORAGE_KEYS.CHATS);
-                    
+
                     if (!savedChats) {
                         // Если чатов нет, восстанавливаем стандартные / If no chats, restore defaults
                         console.log('No chats found, restoring defaults...');
@@ -99,14 +100,14 @@ const Initializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         }
                     }
                 }
-                
+
                 // Загрузка сохранённого языка / Load saved language
                 const savedLanguage = await AsyncStorage.getItem(STORAGE_KEYS.LANGUAGE);
                 console.log('Saved language:', savedLanguage);
                 if (savedLanguage === 'en' || savedLanguage === 'ru') {
                     setLanguage(savedLanguage);
                 }
-                
+
                 setIsReady(true);
                 console.log('App initialization complete!');
             } catch (error) {
@@ -132,7 +133,7 @@ const Initializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E8F4F8' }}>
                 <Text style={{ fontSize: 16, color: '#FF7675', textAlign: 'center', padding: 20 }}>{error}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                     onPress={() => {
                         setError(null);
                         setIsReady(false);
@@ -166,10 +167,10 @@ const Navigation = () => {
                 setIsChecking(true);
                 const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
                 const username = await AsyncStorage.getItem(STORAGE_KEYS.USERNAME);
-                
+
                 console.log('Checking login status - Token exists:', !!token);
                 console.log('Checking login status - Username exists:', !!username);
-                
+
                 // Пользователь считается авторизованным, если есть и токен, и имя пользователя
                 // User is considered authorized if both token and username exist
                 const isLoggedInFlag = !!(token && username);
@@ -181,7 +182,7 @@ const Navigation = () => {
                 setIsChecking(false);
             }
         };
-        
+
         checkLoginStatus();
     }, []);
 
@@ -210,13 +211,13 @@ const Navigation = () => {
             >
                 {/* Экран входа - всегда должен быть доступен / Login screen - should always be available */}
                 <Stack.Screen name="Login" component={LoginScreen} />
-                
+
                 {/* Экран регистрации - всегда должен быть доступен / Register screen - should always be available */}
                 <Stack.Screen name="Register" component={RegisterScreen} />
-                
+
                 {/* Экран выбора чата - только для авторизованных / Room select screen - only for authorized */}
                 <Stack.Screen name="RoomSelect" component={RoomSelectScreen} />
-                
+
                 {/* Экран чата - только для авторизованных / Chat room screen - only for authorized */}
                 <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
             </Stack.Navigator>

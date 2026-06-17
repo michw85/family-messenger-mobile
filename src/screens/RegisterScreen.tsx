@@ -26,7 +26,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
-import { register } from '../services/api';
+import { register, updateFcmToken } from '../services/api';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
 const STORAGE_KEYS = {
     TOKEN: '@family_messenger_token',
@@ -101,6 +102,10 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
             // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
             await AsyncStorage.setItem('username', user.username);
             console.log('Registration successful');
+            const pushToken = await registerForPushNotificationsAsync();
+            if (pushToken) {
+                await updateFcmToken(pushToken);
+            }
             navigation.replace('RoomSelect');
         } catch (error) {
             console.error('Registration error:', error);

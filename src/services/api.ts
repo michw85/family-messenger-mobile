@@ -66,6 +66,12 @@ export const uploadFile = (formData: FormData, type: 'image' | 'voice') =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 
+// Firebase
+export const updateFcmToken = (token: string) => {
+    return api.post('/auth/fcm-token', { token });
+};
+
+
 
 
 /*

@@ -27,7 +27,18 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-router"
-    ]
+      "expo-router",
+       "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#6C5CE7",
+          "sounds": ["./assets/notification.wav"]
+        }
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cd3777d1-9f36-4fe9-b724-7dcb24a59bf5"
+      }
+    }
   }
 }

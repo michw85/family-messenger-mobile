@@ -25,7 +25,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
-import { login } from '../services/api'; // Импорт реального API
+import { login, updateFcmToken } from '../services/api'; // Импорт реального API
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
 /**
  * Ключи для хранения данных в AsyncStorage
@@ -82,6 +83,11 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
             await AsyncStorage.setItem('token', token);
             // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
             await AsyncStorage.setItem('username', user.username);
+
+            const pushToken = await registerForPushNotificationsAsync();
+            if (pushToken) {
+                await updateFcmToken(pushToken);
+            }
 
             console.log('Login successful – token saved');
             // Переход на экран выбора чатов / Navigate to chat selection

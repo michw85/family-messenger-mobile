@@ -24,6 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { fetchChats, createChat, deleteChat } from '../services/api';
+import CreateChatModal from '../components/CreateChatModal';
 
 /**
  * Интерфейс чата, получаемый с бэкенда
@@ -47,6 +48,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const [currentUsername, setCurrentUsername] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(true);
     const [refreshing, setRefreshing] = useState<boolean>(false);
+    const [modalVisible, setModalVisible] = useState<boolean>(false);
 
     /**
      * Загрузка чатов с бэкенда
@@ -180,7 +182,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                             {t('greeting')}, {currentUsername || t('friend')}! 👋
                         </Text>
                         <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
-                            <Text style={styles.langText}>{language === 'ru' ? '🇬🇧 EN' : '🇷🇺 RU'}</Text>
+                            <Text style={styles.langText}>🌐 {language === 'ru' ? 'EN' : 'RU'}</Text>
                         </TouchableOpacity>
                     </View>
                     <Text style={styles.title}>{t('select_chat')}</Text>
@@ -206,13 +208,18 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                 {/* Кнопка создания нового чата (FAB) */}
                 <TouchableOpacity
                     style={styles.fab}
-                    onPress={() => {/* открыть модальное окно CreateChatModal */ }}
+                    onPress={() => { setModalVisible(true) }}
                     activeOpacity={0.8}
                 >
                     <Text style={styles.fabText}>+</Text>
                 </TouchableOpacity>
             </View>
             {/* Здесь должен быть компонент CreateChatModal, но он не показан для краткости */}
+            <CreateChatModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                onCreate={handleCreateChat}
+            />
         </LinearGradient>
     );
 };
