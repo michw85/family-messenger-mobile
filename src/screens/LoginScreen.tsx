@@ -84,10 +84,10 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
             // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
             await AsyncStorage.setItem('username', user.username);
 
-            const pushToken = await registerForPushNotificationsAsync();
-            if (pushToken) {
-                await updateFcmToken(pushToken);
-            }
+            /* const pushToken = await registerForPushNotificationsAsync();
+             if (pushToken) {
+                 await updateFcmToken(pushToken);
+             }*/
 
             console.log('Login successful – token saved');
             // Переход на экран выбора чатов / Navigate to chat selection
@@ -97,6 +97,14 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
             Alert.alert(t('error'), 'Неверное имя пользователя или пароль / Invalid username or password');
         } finally {
             setLoading(false);
+        }
+
+        // FCM отдельно, не блокирует логин
+        try {
+            const pushToken = await registerForPushNotificationsAsync();
+            if (pushToken) await updateFcmToken(pushToken);
+        } catch (e) {
+            console.warn('FCM skipped:', e);
         }
     };
 

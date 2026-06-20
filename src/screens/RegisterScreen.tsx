@@ -102,10 +102,14 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
             // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
             await AsyncStorage.setItem('username', user.username);
             console.log('Registration successful');
-            const pushToken = await registerForPushNotificationsAsync();
-            if (pushToken) {
-                await updateFcmToken(pushToken);
-            }
+           /* try {
+                const pushToken = await registerForPushNotificationsAsync();
+                if (pushToken) {
+                    await updateFcmToken(pushToken);
+                }
+            } catch (e) {
+                console.warn('FCM token registration skipped:', e);
+            }*/
             navigation.replace('RoomSelect');
         } catch (error) {
             console.error('Registration error:', error);
@@ -113,6 +117,13 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
         } finally {
             setLoading(false);
         }
+
+        try {
+        const pushToken = await registerForPushNotificationsAsync();
+        if (pushToken) await updateFcmToken(pushToken);
+    } catch (e) {
+        console.warn('FCM skipped:', e);
+    }
     };
 
     const toggleLanguage = () => {

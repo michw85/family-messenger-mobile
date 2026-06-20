@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
 export const registerForPushNotificationsAsync = async () => {
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    /*const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync();
@@ -18,5 +18,8 @@ export const registerForPushNotificationsAsync = async () => {
     if (tokenData.data) {
         await AsyncStorage.setItem('fcm_token', tokenData.data);
     }
-    return tokenData.data;
+    return tokenData.data;*/
+    console.warn('FCM not supported in Expo Go, skipping');
+    return 'test-token-123';
+    // return null;
 };
