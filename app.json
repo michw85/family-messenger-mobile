@@ -1,5 +1,6 @@
 {
   "expo": {
+    "owner": "mvorontsovs-team",
     "name": "family-messenger-mobile",
     "slug": "family-messenger-mobile",
     "version": "1.0.0",
@@ -16,6 +17,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.mvorontsovsteam.familymessengermobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -33,13 +35,15 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#6C5CE7",
-          "sounds": ["./assets/notification.wav"]
+          "sounds": [
+            "./assets/notification.wav"
+          ]
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "ваш-реальный-project-id"
+        "projectId": "cd3777d1-9f36-4fe9-b724-7dcb24a59bf5"
       }
     }
   }
