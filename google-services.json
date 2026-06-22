@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "510165474376",
+    "project_id": "family-messenge",
+    "storage_bucket": "family-messenge.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:510165474376:android:445587e24a0d22eff90c7d",
+        "android_client_info": {
+          "package_name": "com.mvorontsov.innercircle"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCuceF0fbxufhxCDu3OKC_Xeok_vC2b-os"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
