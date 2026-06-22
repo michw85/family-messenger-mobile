@@ -1,7 +1,7 @@
 {
   "expo": {
     "owner": "mvorontsovs-team",
-    "name": "Inner Circle",
+    "name": "Bonds",
     "slug": "family-messenger-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,10 +14,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mvorontsov.bonds",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
-      "package": "com.mvorontsov.innercircle",
+      "package": "com.mvorontsov.bonds",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

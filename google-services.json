@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "510165474376",
-    "project_id": "family-messenge",
-    "storage_bucket": "family-messenge.firebasestorage.app"
+    "project_number": "1002366212373",
+    "project_id": "bonds-b42f6",
+    "storage_bucket": "bonds-b42f6.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:510165474376:android:445587e24a0d22eff90c7d",
+        "mobilesdk_app_id": "1:1002366212373:android:bf6279c1486db0b8f6311c",
         "android_client_info": {
-          "package_name": "com.mvorontsov.innercircle"
+          "package_name": "com.mvorontsov.bonds"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCuceF0fbxufhxCDu3OKC_Xeok_vC2b-os"
+          "current_key": "AIzaSyAGe1j2FfCRdHHKUxudA4V4wRdloss7crc"
         }
       ],
       "services": {
