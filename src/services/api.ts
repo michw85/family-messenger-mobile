@@ -11,7 +11,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Base URL of backend (replace with your local IP)
 // const BASE_URL = 'http://192.168.106.112:8080/api';  // 'http://192.168.1.100:8080/api'; было - 'http://192.168.184.112:8080/api'
 // const BASE_URL = 'http://10.0.2.2:8080/api';
-const BASE_URL = 'http://165.245.213.90:8080/api';
+// const BASE_URL = 'http://165.245.213.90:8080/api';
+const BASE_URL = 'https://bonds-app.duckdns.org/api';
 
 
 const api = axios.create({

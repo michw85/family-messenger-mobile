@@ -18,9 +18,10 @@ export const connectWebSocket = async (token: string): Promise<Client> => {
     return new Promise((resolve, reject) => {
         const client = new Client({
             // webSocketFactory: () => new WebSocket('ws://165.245.213.90:8080/ws'),
-            webSocketFactory: () => new SockJS('http://165.245.213.90:8080/ws'),
+            // webSocketFactory: () => new SockJS('http://165.245.213.90:8080/ws'),
             // webSocketFactory: () => new SockJS('http://192.168.106.112:8080/ws'),
             // webSocketFactory: () => new SockJS('http://10.0.2.2:8080/ws'),
+            webSocketFactory: () => new SockJS('https://bonds-app.duckdns.org/ws'),
             connectHeaders: { Authorization: `Bearer ${token}` },
             reconnectDelay: 5000,
             onConnect: () => {
