@@ -185,7 +185,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                             {t('greeting')}, {currentUsername || t('friend')}! 👋
                         </Text>
                         <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
-                            <Text style={styles.langText}>{language === 'ru' ? '🇬🇧 EN' : '🇷🇺 RU'}</Text>
+                            <Text style={styles.langText}>{language === 'ru' ? 'EN' : 'RU'}</Text>
                         </TouchableOpacity>
                     </View>
                     <Text style={styles.title}>{t('select_chat')}</Text>

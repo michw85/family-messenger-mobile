@@ -134,11 +134,15 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
             >
                 <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                     <View style={styles.header}>
-                        <Text style={styles.emoji}>💛</Text>
+                        <Text style={styles.emoji}>⚡</Text>
                         <Text style={styles.title}>Bonds</Text>
                         <Text style={styles.subtitle}>
                             Ваша связь с близкими / Your bond with loved ones
                         </Text>
+                        {/* Кнопка переключения языка БЕЗ флага */}
+                        <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
+                            <Text style={styles.langText}>{language === 'ru' ? 'EN' : 'RU'}</Text>
+                        </TouchableOpacity>
                     </View>
 
                     <View style={styles.form}>
@@ -198,6 +202,20 @@ const styles = StyleSheet.create({
         color: colors.textSecondary,
         textAlign: 'center',
         letterSpacing: 0.3,
+    },
+    langButton: {
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        borderRadius: borderRadius.medium,
+        ...shadows.soft,
+    },
+    langText: {
+        fontSize: 12,
+        fontWeight: '500',
+        color: colors.primary,
+        letterSpacing: 0.5,
     },
     form: { gap: spacing.lg },
     input: {
