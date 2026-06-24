@@ -3,7 +3,7 @@
  * @description Компонент панели ввода сообщений с поддержкой фото, голоса и анимации
  * @description Message input panel component with photo, voice support and animation
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 1.1.0
  * @license MIT
  */
@@ -17,6 +17,7 @@ import {
     Animated,
     Text,
 } from 'react-native';
+import { colors, spacing, borderRadius, shadows } from '../styles/theme';
 
 /**
  * Интерфейс пропсов компонента InputPanel
@@ -61,7 +62,7 @@ const InputPanel: React.FC<InputPanelProps> = ({
      */
     const handleSend = () => {
         if (!inputText.trim() || !isConnected || isSending) return;
-        
+
         Animated.sequence([
             Animated.spring(sendButtonScale, { toValue: 0.8, friction: 3, useNativeDriver: true }),
             Animated.parallel([
@@ -71,7 +72,7 @@ const InputPanel: React.FC<InputPanelProps> = ({
         ]).start(() => {
             sendButtonRotate.setValue(0);
         });
-        
+
         onSend();
     };
 
@@ -97,7 +98,7 @@ const InputPanel: React.FC<InputPanelProps> = ({
                     onPressIn={onStartRecording}
                     onPressOut={onStopRecording}
                     style={[styles.iconButton, isRecording && styles.recordingActive]}
-                    activeOpacity={0.7}
+                // activeOpacity={0.7}
                 >
                     <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
                 </TouchableOpacity>
@@ -147,29 +148,25 @@ const InputPanel: React.FC<InputPanelProps> = ({
 const styles = StyleSheet.create({
     container: {
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
+        borderTopColor: colors.border,
         backgroundColor: 'rgba(255,255,255,0.96)',
     },
     inputContainer: {
         flexDirection: 'row',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
         alignItems: 'flex-end',
-        gap: 8,
+        gap: spacing.sm,
     },
     iconButton: {
-        padding: 10,
+        padding: spacing.sm,
         backgroundColor: '#F0F0F5',
         borderRadius: 30,
         justifyContent: 'center',
         alignItems: 'center',
         width: 44,
         height: 44,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        ...shadows.soft,
     },
     iconText: {
         fontSize: 20,
@@ -180,41 +177,33 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         borderWidth: 1,
-        borderColor: '#E8E8E8',
-        borderRadius: 30,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        backgroundColor: '#FFFFFF',
-        fontSize: 14,
-        color: '#2C3E50',
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        backgroundColor: colors.backgroundLight,
+        fontSize: 15,
+        color: colors.text,
         maxHeight: 80,
         minHeight: 40,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 2,
-        elevation: 1,
+        ...shadows.soft,
     },
     sendButton: {
-        backgroundColor: '#6C5CE7',
-        padding: 10,
+        backgroundColor: colors.primary,
+        padding: spacing.sm,
         borderRadius: 30,
         justifyContent: 'center',
         alignItems: 'center',
         width: 44,
         height: 44,
-        shadowColor: '#6C5CE7',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 3,
+        ...shadows.medium,
     },
     sendButtonDisabled: {
         backgroundColor: '#B0A0D0',
         opacity: 0.7,
     },
     sendButtonText: {
-        color: '#FFFFFF',
+        color: colors.textLight,
         fontSize: 20,
         textAlign: 'center',
     },

@@ -3,7 +3,7 @@
  * @description Хук для отслеживания состояния клавиатуры (высота, видимость)
  * @description Hook for tracking keyboard state (height, visibility)
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 1.0.0
  * @license MIT
  */

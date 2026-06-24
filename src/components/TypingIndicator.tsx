@@ -3,13 +3,14 @@
  * @description Компонент индикатора "пользователь печатает"
  * @description "User is typing" indicator component
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 1.1.0
  * @license MIT
  */
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
+import { colors, spacing, shadows, borderRadius } from '../styles/theme';
 
 /**
  * Интерфейс пропсов компонента
@@ -69,39 +70,20 @@ const TypingIndicator: React.FC<TypingIndicatorProps> = ({ username }) => {
  * Component styles
  */
 const styles = StyleSheet.create({
-    container: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        zIndex: 1,
-    },
+    container: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, zIndex: 1 },
     cloud: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: 'rgba(255,255,255,0.95)',
-        borderRadius: 20,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
+        borderRadius: borderRadius.large,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
         alignSelf: 'flex-start',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        ...shadows.soft,
     },
-    text: {
-        fontSize: 12,
-        color: '#8A9AAA',
-        fontStyle: 'italic',
-    },
-    dotsContainer: {
-        flexDirection: 'row',
-        marginLeft: 2,
-    },
-    dot: {
-        fontSize: 16,
-        color: '#8A9AAA',
-        marginLeft: -2,
-    },
+    text: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic' },
+    dotsContainer: { flexDirection: 'row', marginLeft: 2 },
+    dot: { fontSize: 16, color: colors.textSecondary, marginLeft: -2 },
 });
 
 export default TypingIndicator;

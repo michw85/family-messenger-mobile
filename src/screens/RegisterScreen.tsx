@@ -3,7 +3,7 @@
  * @description Экран регистрации нового пользователя с вызовом API бэкенда
  * @description New user registration screen with backend API call
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 3.0.0
  * @license MIT
  */
@@ -28,6 +28,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { register, updateFcmToken } from '../services/api';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
+import { colors, spacing, borderRadius, shadows } from '../styles/theme';
 
 const STORAGE_KEYS = {
     TOKEN: '@family_messenger_token',
@@ -102,14 +103,14 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
             // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
             await AsyncStorage.setItem('username', user.username);
             console.log('Registration successful');
-           /* try {
-                const pushToken = await registerForPushNotificationsAsync();
-                if (pushToken) {
-                    await updateFcmToken(pushToken);
-                }
-            } catch (e) {
-                console.warn('FCM token registration skipped:', e);
-            }*/
+            /* try {
+                 const pushToken = await registerForPushNotificationsAsync();
+                 if (pushToken) {
+                     await updateFcmToken(pushToken);
+                 }
+             } catch (e) {
+                 console.warn('FCM token registration skipped:', e);
+             }*/
             navigation.replace('RoomSelect');
         } catch (error) {
             console.error('Registration error:', error);
@@ -119,11 +120,11 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
         }
 
         try {
-        const pushToken = await registerForPushNotificationsAsync();
-        if (pushToken) await updateFcmToken(pushToken);
-    } catch (e) {
-        console.warn('FCM skipped:', e);
-    }
+            const pushToken = await registerForPushNotificationsAsync();
+            if (pushToken) await updateFcmToken(pushToken);
+        } catch (e) {
+            console.warn('FCM skipped:', e);
+        }
     };
 
     const toggleLanguage = () => {
@@ -131,17 +132,20 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
     };
 
     return (
-        <LinearGradient colors={['#E8F4F8', '#D1E9F2', '#F5F0EB']} style={styles.container}>
+        <LinearGradient
+            colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']}
+            style={styles.container}
+        >
             <FloatingClouds />
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
                 <ScrollView contentContainerStyle={styles.scrollContent}>
                     <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                         <View style={styles.header}>
-                            <Text style={styles.emoji}>🕊️✨</Text>
+                            <Text style={styles.emoji}>🕊️</Text>
                             <Text style={styles.title}>Присоединяйтесь / Join</Text>
                             <Text style={styles.subtitle}>Создайте новый аккаунт / Create a new account</Text>
                             <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
-                                <Text style={styles.langText}>{language === 'ru' ? '🇬🇧 English' : '🇷🇺 Русский'}</Text>
+                                <Text style={styles.langText}>{language === 'ru' ? '🇬🇧 EN' : '🇷🇺 RU'}</Text>
                             </TouchableOpacity>
                         </View>
                         <View style={styles.form}>
@@ -167,19 +171,46 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     keyboardView: { flex: 1 },
     scrollContent: { flexGrow: 1, justifyContent: 'center', paddingVertical: 40 },
-    content: { paddingHorizontal: 24 },
-    header: { alignItems: 'center', marginBottom: 32 },
-    emoji: { fontSize: 56, marginBottom: 16 },
-    title: { fontSize: 28, fontWeight: '700', color: '#2C3E50', marginBottom: 8 },
-    subtitle: { fontSize: 14, color: '#8A9AAA', textAlign: 'center' },
-    langButton: { marginTop: 16, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20 },
-    langText: { fontSize: 12, fontWeight: '500', color: '#6C5CE7' },
-    form: { gap: 16 },
-    input: { borderWidth: 1, borderColor: '#E8E8E8', borderRadius: 30, paddingHorizontal: 20, paddingVertical: 14, backgroundColor: 'rgba(255,255,255,0.9)', fontSize: 16, color: '#2C3E50' },
-    button: { backgroundColor: '#6C5CE7', borderRadius: 30, width: 50, height: 50, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginTop: 8 },
-    buttonText: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' },
-    linkButton: { alignItems: 'center', marginTop: 16 },
-    linkText: { color: '#6C5CE7', fontSize: 14 },
+    content: { paddingHorizontal: spacing.xl },
+    header: { alignItems: 'center', marginBottom: spacing.xxxl },
+    emoji: { fontSize: 56, marginBottom: spacing.md },
+    title: { fontSize: 28, fontWeight: '700', color: colors.primary, letterSpacing: 0.5, marginBottom: spacing.sm },
+    subtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
+    langButton: {
+        marginTop: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        borderRadius: borderRadius.medium,
+        ...shadows.soft,
+    },
+    langText: { fontSize: 12, fontWeight: '500', color: colors.primary, letterSpacing: 0.5 },
+    form: { gap: spacing.lg },
+    input: {
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        fontSize: 16,
+        color: colors.text,
+        ...shadows.soft,
+    },
+    button: {
+        backgroundColor: colors.primary,
+        borderRadius: borderRadius.xlarge,
+        width: 50,
+        height: 50,
+        alignItems: 'center',
+        justifyContent: 'center',
+        alignSelf: 'center',
+        marginTop: spacing.sm,
+        ...shadows.medium,
+    },
+    buttonText: { color: colors.textLight, fontSize: 24, fontWeight: '600' },
+    linkButton: { alignItems: 'center', marginTop: spacing.md },
+    linkText: { color: colors.primary, fontSize: 14, fontWeight: '500', letterSpacing: 0.3 },
 });
 
 export default RegisterScreen;

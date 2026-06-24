@@ -1,10 +1,10 @@
 /**
  * @file theme.ts
- * @description Общие стили, цвета и константы для всего приложения
- * @description Common styles, colors and constants for the entire application
+ * @description Общие стили, цвета и константы для приложения Bonds
+ * @description Common styles, colors and constants for the Bonds app
  * 
- * @author Family Messenger Team
- * @version 2.0.0
+ * @author Bonds Team
+ * @version 3.0.0
  * @license MIT
  */
 
@@ -13,43 +13,51 @@ import { StyleSheet, Platform, Dimensions } from 'react-native';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 /**
- * Цветовая схема приложения
- * Application color scheme
+ * Цветовая схема приложения Bonds
+ * Bonds application color scheme
+ * 
+ * Основная идея: тёплый дом, уют, доверие, связь (bonds)
+ * Main idea: warm home, coziness, trust, connection (bonds)
  */
 export const colors = {
     // Основные цвета / Primary colors
-    primary: '#6C5CE7' as const,           // Фиолетовый для акцентов / Purple for accents
-    primaryLight: '#8B7EEC' as const,      // Светлый фиолетовый / Light purple
-    primaryDark: '#5A4BD1' as const,       // Тёмный фиолетовый / Dark purple
+    primary: '#2C3E7A' as const,           // Глубокий индиго – символ стабильности и связи / Deep indigo – symbol of stability and connection
+    primaryLight: '#4A6FA5' as const,      // Светлый индиго для второстепенных элементов / Light indigo for secondary elements
+    primaryDark: '#1A2530' as const,       // Тёмный акцент для текста / Dark accent for text
+    
+    // Акцентный цвет / Accent color
+    accent: '#D4AF37' as const,            // Мягкое золото – теплота и ценность отношений / Soft gold – warmth and value of relationships
+    accentLight: '#F0E0B8' as const,       // Светлое золото для фонов и подсветок / Light gold for backgrounds and highlights
     
     // Фоновые цвета / Background colors
-    background: '#E8F4F8' as const,        // Основной фон / Main background
-    backgroundLight: '#F5F0EB' as const,   // Светлый фон / Light background
-    backgroundGradient: ['#E8F4F8', '#D1E9F2', '#F5F0EB'] as const, // Градиент фона / Background gradient
+    background: '#FDF8F0' as const,        // Тёплый кремовый – основа уюта / Warm cream – foundation of coziness
+    backgroundLight: '#FFFFFF' as const,   // Белый для карточек и полей / White for cards and fields
+    backgroundWarm: '#F5E6CA' as const,    // Тёплый бежевый для облаков сообщений / Warm beige for message bubbles
+    backgroundGradient: ['#FDF8F0', '#F5E6CA', '#E8D5B8'] as const, // Градиент фона / Background gradient
     
     // Цвета сообщений / Message colors
-    myMessage: '#6C5CE7' as const,         // Мои сообщения / My messages
-    theirMessage: '#FFFFFF' as const,      // Сообщения других / Others' messages
+    myMessage: '#2C3E7A' as const,         // Мои сообщения – глубокий синий / My messages – deep blue
+    theirMessage: '#F5E6CA' as const,      // Сообщения других – тёплый бежевый / Others' messages – warm beige
     
     // Текст / Text colors
-    text: '#2C3E50' as const,              // Основной текст / Main text
-    textLight: '#FFFFFF' as const,         // Светлый текст / Light text
-    textSecondary: '#8A9AAA' as const,     // Второстепенный текст / Secondary text
+    text: '#1A2530' as const,              // Основной текст – почти чёрный с синевой / Main text – almost black with blue tint
+    textLight: '#FFFFFF' as const,         // Светлый текст для тёмных фонов / Light text for dark backgrounds
+    textSecondary: '#6B7A8A' as const,     // Второстепенный текст – мягкий серый / Secondary text – soft gray
     textMuted: '#95A5A6' as const,         // Приглушённый текст / Muted text
-    textDark: '#1A252F' as const,          // Тёмный текст для времени / Dark text for time
+    textDark: '#0D1B2A' as const,          // Тёмный текст для времени / Dark text for timestamp
     
     // Статусы / Status colors
-    online: '#4CD964' as const,            // Онлайн / Online
-    offline: '#FF4444' as const,           // Оффлайн / Offline
-    typing: '#6C5CE7' as const,            // Печатает / Typing
+    online: '#4CAF50' as const,            // Зелёный онлайн / Online green
+    offline: '#B0BEC5' as const,           // Серый офлайн / Offline gray
+    typing: '#2C3E7A' as const,            // Синий индикатор печати / Blue typing indicator
     
     // Границы и разделители / Borders and dividers
-    border: 'rgba(0,0,0,0.05)' as const,   // Прозрачная граница / Transparent border
-    borderLight: '#E8E8E8' as const,       // Светлая граница / Light border
+    border: 'rgba(44, 62, 122, 0.08)' as const,  // Полупрозрачный синий для границ / Semi-transparent blue for borders
+    borderLight: 'rgba(44, 62, 122, 0.04)' as const, // Очень светлая граница / Very light border
     
     // Эффекты / Effects
-    shadow: 'rgba(0,0,0,0.1)' as const,    // Тень / Shadow
-    shadowLight: 'rgba(0,0,0,0.05)' as const, // Лёгкая тень / Light shadow
+    shadow: 'rgba(44, 62, 122, 0.08)' as const,   // Тень с синим оттенком / Shadow with blue tint
+    shadowLight: 'rgba(44, 62, 122, 0.04)' as const, // Лёгкая тень / Light shadow
 };
 
 /**
@@ -57,13 +65,25 @@ export const colors = {
  * Spacing and sizes
  */
 export const spacing = {
-    xs: 4 as const,   // Очень маленький / Extra small
-    sm: 8 as const,   // Маленький / Small
-    md: 12 as const,  // Средний / Medium
-    lg: 16 as const,  // Большой / Large
-    xl: 20 as const,  // Очень большой / Extra large
-    xxl: 24 as const, // Двойной большой / Double extra large
-    xxxl: 32 as const, // Тройной большой / Triple extra large
+    xs: 4 as const,
+    sm: 8 as const,
+    md: 12 as const,
+    lg: 16 as const,
+    xl: 20 as const,
+    xxl: 24 as const,
+    xxxl: 32 as const,
+};
+
+/**
+ * Скругления для элементов
+ * Border radius for elements
+ */
+export const borderRadius = {
+    small: 8 as const,
+    medium: 16 as const,
+    large: 24 as const,
+    xlarge: 32 as const,
+    circle: 9999 as const,
 };
 
 /**
@@ -71,19 +91,19 @@ export const spacing = {
  * Shadows for different elevation levels
  */
 export const shadows = {
-    // Лёгкая тень для карточек / Light shadow for cards
-    small: {
+    // Очень лёгкая тень / Very light shadow
+    soft: {
         shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 1,
     },
-    // Средняя тень для кнопок / Medium shadow for buttons
+    // Средняя тень / Medium shadow
     medium: {
         shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.08,
         shadowRadius: 4,
         elevation: 2,
     },
@@ -91,9 +111,69 @@ export const shadows = {
     large: {
         shadowColor: colors.shadow,
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.12,
         shadowRadius: 8,
         elevation: 4,
+    },
+};
+
+/**
+ * Типографика / Typography
+ */
+export const typography = {
+    /**
+     * Крупный заголовок экрана (32px)
+     * Large screen header (32px)
+     */
+    header: {
+        fontSize: 32,
+        fontWeight: '700' as const,
+        letterSpacing: 0.5,
+        color: colors.text,
+        lineHeight: 40,
+    },
+    /**
+     * Заголовок второго уровня (22px)
+     * Secondary header (22px)
+     */
+    title: {
+        fontSize: 22,
+        fontWeight: '600' as const,
+        letterSpacing: 0.3,
+        color: colors.text,
+        lineHeight: 28,
+    },
+    /**
+     * Основной текст (16px)
+     * Body text (16px)
+     */
+    body: {
+        fontSize: 16,
+        fontWeight: '400' as const,
+        lineHeight: 24,
+        color: colors.text,
+        letterSpacing: 0.2,
+    },
+    /**
+     * Мелкий текст (13px)
+     * Small text (13px)
+     */
+    caption: {
+        fontSize: 13,
+        fontWeight: '400' as const,
+        color: colors.textSecondary,
+        lineHeight: 18,
+        letterSpacing: 0.2,
+    },
+    /**
+     * Время сообщения (11px)
+     * Message timestamp (11px)
+     */
+    time: {
+        fontSize: 11,
+        fontWeight: '500' as const,
+        color: colors.textMuted,
+        letterSpacing: 0.2,
     },
 };
 
@@ -102,81 +182,91 @@ export const shadows = {
  * Common reusable styles
  */
 export const commonStyles = StyleSheet.create({
-    // Основной контейнер / Main container
+    /**
+     * Основной контейнер с фоном
+     * Main container with background
+     */
     container: {
         flex: 1,
         backgroundColor: colors.background,
     },
     
-    // Контейнер с градиентом / Container with gradient
+    /**
+     * Контейнер с градиентом
+     * Container with gradient
+     */
     gradientContainer: {
         flex: 1,
     },
     
-    // Центрирование контента / Content centering
+    /**
+     * Центрирование контента
+     * Content centering
+     */
     center: {
         justifyContent: 'center',
         alignItems: 'center',
     },
     
-    // Основная кнопка / Primary button
+    /**
+     * Основная кнопка с закруглениями и тенью
+     * Primary button with rounded corners and shadow
+     */
     button: {
         backgroundColor: colors.primary,
-        borderRadius: 30,
+        borderRadius: borderRadius.xlarge,
         paddingVertical: spacing.md,
         paddingHorizontal: spacing.xl,
         alignItems: 'center',
+        justifyContent: 'center',
         ...shadows.medium,
     },
     
-    // Текст кнопки / Button text
+    /**
+     * Текст кнопки
+     * Button text
+     */
     buttonText: {
         color: colors.textLight,
         fontSize: 16,
         fontWeight: '600',
+        letterSpacing: 0.5,
     },
     
-    // Поле ввода / Input field
+    /**
+     * Поле ввода с мягкими краями
+     * Input field with soft edges
+     */
     input: {
         borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: 30,
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.md,
-        backgroundColor: colors.theirMessage,
+        backgroundColor: colors.backgroundLight,
         fontSize: 16,
         color: colors.text,
-        ...shadows.small,
+        ...shadows.soft,
     },
     
-    // Заголовок экрана / Screen header
-    header: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: colors.text,
-        marginBottom: spacing.sm,
-    },
-    
-    // Подзаголовок / Subheader
-    subheader: {
-        fontSize: 14,
-        color: colors.textSecondary,
-        textAlign: 'center',
-    },
-    
-    // Карточка / Card
+    /**
+     * Карточка с тенью и скруглением
+     * Card with shadow and rounding
+     */
     card: {
-        backgroundColor: colors.theirMessage,
-        borderRadius: 20,
+        backgroundColor: colors.backgroundLight,
+        borderRadius: borderRadius.large,
         padding: spacing.lg,
-        ...shadows.small,
+        ...shadows.soft,
     },
 });
 
 export default {
     colors,
     spacing,
+    borderRadius,
     shadows,
+    typography,
     commonStyles,
     screenWidth,
     screenHeight,

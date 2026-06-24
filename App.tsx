@@ -18,6 +18,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import RoomSelectScreen from './src/screens/RoomSelectScreen';
 import ChatRoomScreen from './src/screens/ChatRoomScreen';
+import { colors } from './src/styles/theme';
 
 
 const Stack = createNativeStackNavigator();
@@ -123,7 +124,7 @@ const Initializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     if (!isReady) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E8F4F8' }}>
-                <ActivityIndicator size="large" color="#6C5CE7" />
+                <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={{ marginTop: 16, color: '#8A9AAA' }}>Loading...</Text>
             </View>
         );
@@ -142,7 +143,7 @@ const Initializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             // ... логика перезапуска / restart logic
                         };
                     }}
-                    style={{ marginTop: 16, padding: 12, backgroundColor: '#6C5CE7', borderRadius: 8 }}
+                    style={{ marginTop: 16, padding: 12, backgroundColor: colors.primary, borderRadius: 8 }}
                 >
                     <Text style={{ color: '#FFFFFF' }}>Retry</Text>
                 </TouchableOpacity>
@@ -190,7 +191,7 @@ const Navigation = () => {
     if (isChecking) {
         return (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#E8F4F8' }}>
-                <ActivityIndicator size="large" color="#6C5CE7" />
+                <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={{ marginTop: 16, color: '#8A9AAA' }}>Checking...</Text>
             </View>
         );

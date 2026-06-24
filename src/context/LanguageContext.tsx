@@ -3,7 +3,7 @@
  * @description Контекст для управления языком приложения (русский/английский)
  * @description Context for managing app language (Russian/English)
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 1.0.0
  * @license MIT
  */

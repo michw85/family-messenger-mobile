@@ -3,7 +3,7 @@
  * @description Экран чата с загрузкой истории сообщений и WebSocket в реальном времени
  * @description Chat screen with message history and real‑time WebSocket
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 5.0.0
  * @license MIT
  */
@@ -31,6 +31,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { fetchMessages, uploadFile } from '../services/api';
 import { connectWebSocket, subscribeToRoom, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
+import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 
 /**
  * Интерфейс сообщения (соответствует DTO бэкенда)
@@ -192,77 +193,77 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
  * Начало записи голоса
  * Start voice recording
  */
-const startRecording = useCallback(async () => {
-    // Если уже идёт запись – ничего не делаем
-    if (recording) {
-        console.log('Recording already in progress');
-        return;
-    }
-
-    try {
-        const { status } = await Audio.requestPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert(t('error'), 'Нет доступа к микрофону');
+    const startRecording = useCallback(async () => {
+        // Если уже идёт запись – ничего не делаем
+        if (recording) {
+            console.log('Recording already in progress');
             return;
         }
 
-        await Audio.setAudioModeAsync({
-            allowsRecordingIOS: true,
-            playsInSilentModeIOS: true,
-        });
+        try {
+            const { status } = await Audio.requestPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert(t('error'), 'Нет доступа к микрофону');
+                return;
+            }
 
-        const { recording: newRecording } = await Audio.Recording.createAsync(
-            Audio.RecordingOptionsPresets.HIGH_QUALITY
-        );
-        setRecording(newRecording);
-        setIsRecording(true);
-        console.log('Recording started');
-    } catch (err) {
-        console.error('Failed to start recording', err);
-        Alert.alert(t('error'), 'Не удалось начать запись');
-    }
-}, [recording, t]);
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+            });
 
-/**
- * Остановка записи и отправка голосового сообщения
- * Stop recording and send voice message
- */
-const stopRecording = useCallback(async () => {
-    if (!recording) {
-        console.log('No recording to stop');
-        setIsRecording(false); // сброс, если запись не активна
-        return;
-    }
+            const { recording: newRecording } = await Audio.Recording.createAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY
+            );
+            setRecording(newRecording);
+            setIsRecording(true);
+            console.log('Recording started');
+        } catch (err) {
+            console.error('Failed to start recording', err);
+            Alert.alert(t('error'), 'Не удалось начать запись');
+        }
+    }, [recording, t]);
 
-    try {
-        setIsRecording(false); // сразу меняем UI
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
-        setRecording(null); // сброс состояния
-
-        if (!uri) {
-            console.error('Recording URI is null');
+    /**
+     * Остановка записи и отправка голосового сообщения
+     * Stop recording and send voice message
+     */
+    const stopRecording = useCallback(async () => {
+        if (!recording) {
+            console.log('No recording to stop');
+            setIsRecording(false); // сброс, если запись не активна
             return;
         }
 
-        const formData = new FormData();
-        formData.append('file', {
-            uri: uri,
-            type: 'audio/m4a',
-            name: 'voice.m4a',
-        } as any);
+        try {
+            setIsRecording(false); // сразу меняем UI
+            await recording.stopAndUnloadAsync();
+            const uri = recording.getURI();
+            setRecording(null); // сброс состояния
 
-        const uploadRes = await uploadFile(formData, 'voice');
-        const mediaUrl = uploadRes.data.url;
-        wsSendMessage(roomId, '🎤 Voice message', 'VOICE', mediaUrl);
-    } catch (error) {
-        console.error('Failed to send voice message', error);
-        Alert.alert(t('error'), 'Не удалось отправить голосовое сообщение');
-    } finally {
-        setIsRecording(false);
-        setRecording(null);
-    }
-}, [recording, roomId, t]);
+            if (!uri) {
+                console.error('Recording URI is null');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', {
+                uri: uri,
+                type: 'audio/m4a',
+                name: 'voice.m4a',
+            } as any);
+
+            const uploadRes = await uploadFile(formData, 'voice');
+            const mediaUrl = uploadRes.data.url;
+            wsSendMessage(roomId, '🎤 Voice message', 'VOICE', mediaUrl);
+        } catch (error) {
+            console.error('Failed to send voice message', error);
+            Alert.alert(t('error'), 'Не удалось отправить голосовое сообщение');
+        } finally {
+            setIsRecording(false);
+            setRecording(null);
+        }
+    }, [recording, roomId, t]);
 
     /**
      * Рендер одного сообщения
@@ -300,16 +301,19 @@ const stopRecording = useCallback(async () => {
     if (loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#6C5CE7" />
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
 
     return (
         <View style={styles.container}>
-            <LinearGradient colors={['#E8F4F8', '#D1E9F2', '#F5F0EB']} style={StyleSheet.absoluteFillObject} />
+            {/* Тёплый градиент Bonds вместо холодного */}
+            <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']}
+                style={StyleSheet.absoluteFillObject} />
             <FloatingClouds />
 
+            {/* Заголовок чата — прозрачный с тенью */}
             <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
                 <Text style={styles.headerTitle}>{roomName}</Text>
             </View>
@@ -326,8 +330,10 @@ const stopRecording = useCallback(async () => {
                 onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
             />
 
+            {/* Панель ввода с новыми цветами */}
             <View style={[styles.inputWrapper, { paddingBottom: keyboardVisible ? 12 : insets.bottom + 12 }]}>
                 <View style={styles.inputContainer}>
+                    {/* Кнопка фото */}
                     <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
                         <Text style={styles.iconText}>📷</Text>
                     </TouchableOpacity>
@@ -343,7 +349,7 @@ const stopRecording = useCallback(async () => {
                         value={inputText}
                         onChangeText={setInputText}
                         placeholder={t('placeholder')}
-                        placeholderTextColor="#95A5A6"
+                        placeholderTextColor={colors.textMuted}
                         onSubmitEditing={sendTextMessage}
                         returnKeyType="send"
                         multiline
@@ -361,61 +367,108 @@ const stopRecording = useCallback(async () => {
     );
 };
 
+/**
+ * Стили экрана чата в стиле Bonds
+ * Chat screen styles in Bonds style
+*/
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: {
-        backgroundColor: 'rgba(255,255,255,0.85)',
-        paddingHorizontal: 20,
-        paddingBottom: 12,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
+    container: {
+        flex: 1,
+        backgroundColor: colors.background, // теперь кремовый
+    },
+    center: {
+        flex: 1,
+        justifyContent: 'center',
         alignItems: 'center',
     },
-    headerTitle: { fontSize: 18, fontWeight: '600', color: '#2C3E50' },
-    messageList: { flex: 1 },
-    messageListContent: { paddingHorizontal: 8, paddingVertical: 16, paddingBottom: 24 },
+    // Заголовок стал чуть прозрачнее и теплее
+    header: {
+        backgroundColor: 'rgba(255, 248, 240, 0.85)',
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.md,
+        borderBottomLeftRadius: borderRadius.large,
+        borderBottomRightRadius: borderRadius.large,
+        alignItems: 'center',
+        ...shadows.soft,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: colors.primary, // индиго
+        letterSpacing: 0.5,
+    },
+    messageList: {
+        flex: 1,
+    },
+    messageListContent: {
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.lg,
+        paddingBottom: spacing.xxl,
+    },
+    // Панель ввода с тёплым фоном
     inputWrapper: {
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)',
-        backgroundColor: 'rgba(255,255,255,0.96)',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        borderTopColor: colors.border,
+        backgroundColor: 'rgba(255, 248, 240, 0.96)',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
     },
-    inputContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        gap: spacing.sm,
+    },
+    // Иконки — теперь с мягким фоном
     iconButton: {
-        padding: 10,
-        backgroundColor: '#F0F0F5',
-        borderRadius: 30,
+        padding: spacing.sm,
+        backgroundColor: '#F5F0EA',
+        borderRadius: borderRadius.circle,
         justifyContent: 'center',
         alignItems: 'center',
         width: 44,
         height: 44,
+        ...shadows.soft,
     },
-    iconText: { fontSize: 20 },
-    recordingActive: { backgroundColor: '#FFE0E0' },
+    iconText: {
+        fontSize: 20,
+    },
+    recordingActive: {
+        backgroundColor: '#FFE8E0',
+    },
+    // Поле ввода — светлое с тёплой границей
     input: {
         flex: 1,
         borderWidth: 1,
-        borderColor: '#E8E8E8',
-        borderRadius: 30,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        backgroundColor: '#FFFFFF',
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        backgroundColor: colors.backgroundLight,
         fontSize: 15,
-        color: '#2C3E50',
+        color: colors.text,
         maxHeight: 80,
+        ...shadows.soft,
     },
+    // Кнопка отправки — индиго
     sendButton: {
-        backgroundColor: '#6C5CE7',
+        backgroundColor: colors.primary,
         width: 44,
         height: 44,
-        borderRadius: 22,
+        borderRadius: borderRadius.circle,
         justifyContent: 'center',
         alignItems: 'center',
+        ...shadows.medium,
     },
-    sendButtonDisabled: { backgroundColor: '#B0A0D0', opacity: 0.7 },
-    sendButtonText: { color: '#FFFFFF', fontSize: 24, fontWeight: '600', marginTop: -2 },
+    sendButtonDisabled: {
+        backgroundColor: colors.textMuted,
+        opacity: 0.7,
+    },
+    sendButtonText: {
+        color: colors.textLight,
+        fontSize: 24,
+        fontWeight: '600',
+        marginTop: -2,
+    },
 });
 
 export default ChatRoomScreen;

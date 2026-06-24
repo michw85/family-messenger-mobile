@@ -3,7 +3,7 @@
  * @description Экран выбора чата – загружает реальные данные с бэкенда через API
  * @description Chat selection screen – loads real data from backend via API
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 6.0.0
  * @license MIT
  */
@@ -25,6 +25,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { fetchChats, createChat, deleteChat } from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
+import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 
 /**
  * Интерфейс чата, получаемый с бэкенда
@@ -143,8 +144,10 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             delayLongPress={500}
             activeOpacity={0.7}
         >
-            <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+            <View style={[styles.avatar, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+                <Text style={[styles.avatarText, { color: colors.primary }]}>
+                    {item.name.charAt(0).toUpperCase()}
+                </Text>
             </View>
             <View style={styles.chatInfo}>
                 <Text style={styles.chatName}>{item.name}</Text>
@@ -152,7 +155,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     {item.type === 'GROUP' ? '👥 ' + t('group_chats') : '👤 ' + t('private_chats')}
                 </Text>
             </View>
-            <Text style={styles.arrow}>›</Text>
+            <Text style={[styles.arrow, { color: colors.accent }]}>›</Text>
         </TouchableOpacity>
     );
 
@@ -167,13 +170,13 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     if (loading) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#6C5CE7" />
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
 
     return (
-        <LinearGradient colors={['#E8F4F8', '#D1E9F2', '#F5F0EB']} style={styles.container}>
+        <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']} style={styles.container}>
             <FloatingClouds />
             <View style={styles.content}>
                 <View style={styles.header}>
@@ -182,7 +185,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                             {t('greeting')}, {currentUsername || t('friend')}! 👋
                         </Text>
                         <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
-                            <Text style={styles.langText}>🌐 {language === 'ru' ? 'EN' : 'RU'}</Text>
+                            <Text style={styles.langText}>{language === 'ru' ? '🇬🇧 EN' : '🇷🇺 RU'}</Text>
                         </TouchableOpacity>
                     </View>
                     <Text style={styles.title}>{t('select_chat')}</Text>
@@ -193,28 +196,23 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     keyExtractor={(item) => item.id}
                     renderItem={renderChatItem}
                     refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#6C5CE7']} />
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
                     }
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyEmoji}>🕊️</Text>
+                            <Text style={styles.emptyEmoji}>💛</Text>
                             <Text style={styles.emptyText}>{t('no_chats')}</Text>
                             <Text style={styles.emptySubtext}>{t('soon')}</Text>
                         </View>
                     }
                 />
 
-                {/* Кнопка создания нового чата (FAB) */}
-                <TouchableOpacity
-                    style={styles.fab}
-                    onPress={() => { setModalVisible(true) }}
-                    activeOpacity={0.8}
-                >
+                <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
                     <Text style={styles.fabText}>+</Text>
                 </TouchableOpacity>
             </View>
-            {/* Здесь должен быть компонент CreateChatModal, но он не показан для краткости */}
+
             <CreateChatModal
                 visible={modalVisible}
                 onClose={() => setModalVisible(false)}
@@ -227,40 +225,49 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    content: { flex: 1, paddingHorizontal: 20, paddingTop: 60 },
-    header: { marginBottom: 24 },
-    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-    greeting: { fontSize: 14, color: '#8A9AAA' },
-    langButton: { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 16 },
-    langText: { fontSize: 11, fontWeight: '500', color: '#6C5CE7' },
-    title: { fontSize: 28, fontWeight: '700', color: '#2C3E50' },
+    content: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: 60 },
+    header: { marginBottom: spacing.xxl },
+    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+    greeting: { fontSize: 14, color: colors.textSecondary },
+    langButton: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        backgroundColor: 'rgba(255,255,255,0.8)',
+        borderRadius: borderRadius.medium,
+        ...shadows.soft,
+    },
+    langText: { fontSize: 11, fontWeight: '500', color: colors.primary, letterSpacing: 0.3 },
+    title: { fontSize: 28, fontWeight: '700', color: colors.primary, letterSpacing: 0.5 },
     listContent: { paddingBottom: 80 },
     chatCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        borderRadius: 16,
-        padding: 12,
-        marginBottom: 8,
+        backgroundColor: colors.backgroundLight,
+        borderRadius: borderRadius.medium,
+        padding: spacing.md,
+        marginBottom: spacing.sm,
+        borderWidth: 1,
+        borderColor: colors.border,
+        ...shadows.soft,
     },
     avatar: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        backgroundColor: '#E8E0D5',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
+        marginRight: spacing.md,
+        borderWidth: 2,
     },
-    avatarText: { fontSize: 20, fontWeight: '600', color: '#6C5CE7' },
+    avatarText: { fontSize: 20, fontWeight: '600' },
     chatInfo: { flex: 1 },
-    chatName: { fontSize: 16, fontWeight: '600', color: '#2C3E50', marginBottom: 2 },
-    chatType: { fontSize: 11, color: '#8A9AAA' },
-    arrow: { fontSize: 24, color: '#6C5CE7' },
+    chatName: { fontSize: 16, fontWeight: '600', color: colors.text, letterSpacing: 0.2 },
+    chatType: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+    arrow: { fontSize: 24, marginLeft: spacing.sm },
     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-    emptyEmoji: { fontSize: 48, marginBottom: 16, opacity: 0.6 },
-    emptyText: { fontSize: 16, color: '#8A9AAA', marginBottom: 4 },
-    emptySubtext: { fontSize: 13, color: '#B0B0B0' },
+    emptyEmoji: { fontSize: 48, marginBottom: spacing.md, opacity: 0.6 },
+    emptyText: { fontSize: 16, color: colors.textSecondary, marginBottom: spacing.xs },
+    emptySubtext: { fontSize: 13, color: colors.textMuted },
     fab: {
         position: 'absolute',
         bottom: 20,
@@ -268,11 +275,12 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#6C5CE7',
+        backgroundColor: colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
+        ...shadows.large,
     },
-    fabText: { color: '#FFFFFF', fontSize: 32, fontWeight: '300', marginTop: -2 },
+    fabText: { color: colors.textLight, fontSize: 32, fontWeight: '300', marginTop: -2 },
 });
 
 export default RoomSelectScreen;

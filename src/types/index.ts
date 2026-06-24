@@ -3,7 +3,7 @@
  * @description Глобальные типы и интерфейсы приложения
  * @description Global types and interfaces for the application
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 1.0.0
  */
 

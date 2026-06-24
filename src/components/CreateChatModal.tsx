@@ -3,7 +3,7 @@
  * @description Модальное окно для создания нового чата (группового или личного)
  * @description Modal dialog for creating new chat (group or private)
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 1.0.0
  * @license MIT
  */
@@ -23,6 +23,7 @@ import {
     Keyboard,
 } from 'react-native';
 import { useLanguage } from '../context/LanguageContext';
+import { colors, spacing, borderRadius, shadows } from '../styles/theme';
 
 /**
  * Интерфейс пропсов компонента CreateChatModal
@@ -61,7 +62,7 @@ const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClose, onC
         }
 
         setIsLoading(true);
-        
+
         // Имитация задержки для UX / Simulate delay for UX
         setTimeout(() => {
             onCreate(chatName.trim(), chatType);
@@ -135,7 +136,7 @@ const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClose, onC
 
                             {/* Пояснение к типам чата / Chat type explanation */}
                             <Text style={styles.hint}>
-                                {chatType === 'group' 
+                                {chatType === 'group'
                                     ? '👥 Групповой чат для общения с несколькими людьми / Group chat for multiple people'
                                     : '👤 Личный чат для общения один на один / Private chat for one-on-one conversation'}
                             </Text>
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
     // Затемнённый фон / Darkened overlay
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0,0,0,0.4)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -178,27 +179,18 @@ const styles = StyleSheet.create({
     },
     // Содержимое модального окна / Modal content
     modalContent: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 24,
-        padding: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-        elevation: 8,
+        backgroundColor: colors.backgroundLight,
+        borderRadius: borderRadius.large,
+        padding: spacing.xl,
+        ...shadows.large,
     },
     // Заголовок модального окна / Modal header
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
+    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
     // Заголовок / Title
     modalTitle: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#2C3E50',
+        color: colors.text,
     },
     // Кнопка закрытия / Close button
     closeButton: {
@@ -212,32 +204,33 @@ const styles = StyleSheet.create({
     // Текст кнопки закрытия / Close button text
     closeText: {
         fontSize: 18,
-        color: '#8A9AAA',
+        color: colors.textSecondary,
     },
     // Поле ввода / Input field
     input: {
         borderWidth: 1,
-        borderColor: '#E8E8E8',
-        borderRadius: 30,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: '#F8F8FA',
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        backgroundColor: 'rgba(255,255,255,0.9)',
         fontSize: 16,
-        color: '#2C3E50',
-        marginBottom: 20,
+        color: colors.text,
+        marginBottom: spacing.lg,
+        ...shadows.soft,
     },
     // Заголовок секции / Section title
     sectionTitle: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#8A9AAA',
-        marginBottom: 12,
+        color: colors.textSecondary,
+        marginBottom: spacing.md,
     },
     // Контейнер для кнопок типа чата / Chat type buttons container
     typeContainer: {
         flexDirection: 'row',
-        gap: 12,
-        marginBottom: 12,
+        gap: spacing.md,
+        marginBottom: spacing.md,
     },
     // Кнопка выбора типа / Type selection button
     typeButton: {
@@ -245,17 +238,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 12,
-        borderRadius: 30,
+        gap: spacing.sm,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.xlarge,
         backgroundColor: '#F0F0F5',
         borderWidth: 1,
-        borderColor: '#E8E8E8',
+        borderColor: colors.border,
     },
     // Активная кнопка типа / Active type button
     typeButtonActive: {
-        backgroundColor: '#6C5CE7',
-        borderColor: '#6C5CE7',
+        backgroundColor: colors.primary, borderColor: colors.primary
     },
     // Иконка типа чата / Chat type icon
     typeIcon: {
@@ -264,34 +256,27 @@ const styles = StyleSheet.create({
     // Текст типа чата / Chat type text
     typeText: {
         fontSize: 12,
-        color: '#2C3E50',
+        color: colors.text
     },
     // Активный текст типа чата / Active chat type text
     typeTextActive: {
-        color: '#FFFFFF',
+        color: colors.textLight
     },
     // Подсказка / Hint text
     hint: {
-        fontSize: 12,
-        color: '#95A5A6',
-        marginBottom: 20,
-        fontStyle: 'italic',
+        fontSize: 12, color: colors.textMuted, marginBottom: spacing.lg, fontStyle: 'italic'
     },
     // Кнопка создания / Create button
     createButton: {
-        backgroundColor: '#6C5CE7',
-        borderRadius: 30,
-        paddingVertical: 14,
-        alignItems: 'center',
+        backgroundColor: colors.primary, borderRadius: borderRadius.xlarge, paddingVertical: spacing.md, alignItems: 'center', ...shadows.medium
     },
     // Отключённая кнопка создания / Disabled create button
     createButtonDisabled: {
-        backgroundColor: '#B0A0D0',
-        opacity: 0.7,
+        backgroundColor: colors.textMuted, opacity: 0.7
     },
     // Текст кнопки создания / Create button text
     createButtonText: {
-        color: '#FFFFFF',
+        color: colors.textLight,
         fontSize: 16,
         fontWeight: '600',
     },

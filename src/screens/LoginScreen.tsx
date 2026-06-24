@@ -3,7 +3,7 @@
  * @description Экран входа с сохранением данных пользователя и вызовом API бэкенда
  * @description Login screen with user data persistence and backend API call
  * 
- * @author Family Messenger Team
+ * @author Bonds Team
  * @version 3.0.0
  * @license MIT
  */
@@ -27,6 +27,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { login, updateFcmToken } from '../services/api'; // Импорт реального API
 import { registerForPushNotificationsAsync } from '../utils/notifications';
+import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 
 /**
  * Ключи для хранения данных в AsyncStorage
@@ -117,7 +118,14 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
     };
 
     return (
-        <LinearGradient colors={['#E8F4F8', '#D1E9F2', '#F5F0EB']} style={styles.container}>
+        /**
+         * Тёплый градиент вместо холодного
+         * Warm gradient instead of cold
+         */
+        <LinearGradient
+            colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']}
+            style={styles.container}
+        >
             <FloatingClouds />
 
             <KeyboardAvoidingView
@@ -126,20 +134,18 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
             >
                 <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                     <View style={styles.header}>
-                        <Text style={styles.emoji}>💭✨</Text>
-                        <Text style={styles.title}>{t('app.name')}</Text>
-                        <Text style={styles.subtitle}>{t('app.subtitle')}</Text>
-
-                        <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
-                            <Text style={styles.langText}>{language === 'ru' ? '🇬🇧 English' : '🇷🇺 Русский'}</Text>
-                        </TouchableOpacity>
+                        <Text style={styles.emoji}>💛</Text>
+                        <Text style={styles.title}>Bonds</Text>
+                        <Text style={styles.subtitle}>
+                            Ваша связь с близкими / Your bond with loved ones
+                        </Text>
                     </View>
 
                     <View style={styles.form}>
                         <TextInput
                             style={styles.input}
                             placeholder="Username"
-                            placeholderTextColor="#95A5A6"
+                            placeholderTextColor={colors.textMuted}
                             value={username}
                             onChangeText={setUsername}
                             autoCapitalize="none"
@@ -149,7 +155,7 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
                         <TextInput
                             style={styles.input}
                             placeholder="Password"
-                            placeholderTextColor="#95A5A6"
+                            placeholderTextColor={colors.textMuted}
                             value={password}
                             onChangeText={setPassword}
                             secureTextEntry
@@ -170,22 +176,67 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
     );
 };
 
+/**
+ * Стили с использованием новой темы
+ * Styles using new theme
+ */
 const styles = StyleSheet.create({
     container: { flex: 1 },
     keyboardView: { flex: 1 },
-    content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-    header: { alignItems: 'center', marginBottom: 48 },
-    emoji: { fontSize: 64, marginBottom: 16 },
-    title: { fontSize: 28, fontWeight: '700', color: '#2C3E50', marginBottom: 8 },
-    subtitle: { fontSize: 14, color: '#8A9AAA', textAlign: 'center' },
-    langButton: { marginTop: 16, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: 20 },
-    langText: { fontSize: 12, fontWeight: '500', color: '#6C5CE7' },
-    form: { gap: 16 },
-    input: { borderWidth: 1, borderColor: '#E8E8E8', borderRadius: 30, paddingHorizontal: 20, paddingVertical: 14, backgroundColor: 'rgba(255,255,255,0.9)', fontSize: 16, color: '#2C3E50' },
-    button: { backgroundColor: '#6C5CE7', borderRadius: 30, width: 50, height: 50, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginTop: 8 },
-    buttonText: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' },
-    linkButton: { alignItems: 'center', marginTop: 16 },
-    linkText: { color: '#6C5CE7', fontSize: 14 },
+    content: { flex: 1, justifyContent: 'center', paddingHorizontal: spacing.xl },
+    header: { alignItems: 'center', marginBottom: spacing.xxxl },
+    emoji: { fontSize: 64, marginBottom: spacing.md },
+    title: {
+        fontSize: 36,
+        fontWeight: '700',
+        color: colors.primary,
+        letterSpacing: 1.5,
+        marginBottom: spacing.sm,
+    },
+    subtitle: {
+        fontSize: 14,
+        color: colors.textSecondary,
+        textAlign: 'center',
+        letterSpacing: 0.3,
+    },
+    form: { gap: spacing.lg },
+    input: {
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
+        paddingHorizontal: spacing.xl,
+        paddingVertical: spacing.md,
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        fontSize: 16,
+        color: colors.text,
+        ...shadows.soft,
+    },
+    button: {
+        backgroundColor: colors.primary,
+        borderRadius: borderRadius.xlarge,
+        width: 50,
+        height: 50,
+        alignItems: 'center',
+        justifyContent: 'center',
+        alignSelf: 'center',
+        marginTop: spacing.sm,
+        ...shadows.medium,
+    },
+    buttonText: {
+        color: colors.textLight,
+        fontSize: 24,
+        fontWeight: '600',
+    },
+    linkButton: {
+        alignItems: 'center',
+        marginTop: spacing.md,
+    },
+    linkText: {
+        color: colors.primary,
+        fontSize: 14,
+        fontWeight: '500',
+        letterSpacing: 0.5,
+    },
 });
 
 export default LoginScreen;
