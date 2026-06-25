@@ -37,7 +37,7 @@ export const colors = {
     
     // Цвета сообщений / Message colors
     myMessage: '#2C3E7A' as const,         // Мои сообщения – глубокий синий / My messages – deep blue
-    theirMessage: '#F5E6CA' as const,      // Сообщения других – тёплый бежевый / Others' messages – warm beige
+    theirMessage: '#44b054' as const,      // Сообщения других – тёплый бежевый / Others' messages – warm beige
     
     // Текст / Text colors
     text: '#1A2530' as const,              // Основной текст – почти чёрный с синевой / Main text – almost black with blue tint

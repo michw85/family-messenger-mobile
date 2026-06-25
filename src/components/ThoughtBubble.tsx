@@ -343,6 +343,11 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     );
 };
 
+/**
+ * Стили компонента ThoughtBubble
+ * ThoughtBubble component styles
+ * Все цвета текста тёмные, так как фон облаков светлый
+ */
 const styles = StyleSheet.create({
     wrapper: { marginBottom: spacing.xxl, position: 'relative' },
     myWrapper: { alignSelf: 'flex-end', marginRight: spacing.sm },
@@ -350,16 +355,28 @@ const styles = StyleSheet.create({
     svgContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
     contentOverlay: { zIndex: 2 },
     senderName: { fontSize: 11, fontWeight: '700', marginBottom: spacing.xs, letterSpacing: 0.3 },
-    messageText: { fontSize: 15, lineHeight: 22, color: colors.text, letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
-    myText: { color: colors.textLight },
-    timestamp: { fontSize: 11, fontWeight: '500', marginTop: spacing.xs, color: colors.textMuted },
+    /**
+     * Основной текст сообщения — тёмный для всех
+     * Main message text — dark for all
+     */
+    messageText: { fontSize: 15, lineHeight: 22, color: '#2C3E50', letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
+    /**
+     * Текст для своих сообщений — такой же тёмный
+     * Text for my messages — same dark color
+     */
+    myText: { color: '#2C3E50' },
+    /**
+     * Время отправки — тёмно-серый для всех
+     * Timestamp — dark gray for all
+     */
+    timestamp: { fontSize: 11, fontWeight: '500', marginTop: spacing.xs, color: '#6B7A8A' },
     timestampLeft: { marginLeft: 20 },
     timestampRight: { marginRight: 20, textAlign: 'right' },
     image: { width: 200, height: 200, borderRadius: borderRadius.medium, marginVertical: spacing.xs },
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     voiceIcon: { fontSize: 22 },
-    voiceText: { fontSize: 14, color: colors.text },
-    voiceTextMy: { color: colors.textLight },
+    voiceText: { fontSize: 14, color: '#2C3E50' },
+    voiceTextMy: { color: '#2C3E50' },
 });
 
 export default ThoughtBubble;
