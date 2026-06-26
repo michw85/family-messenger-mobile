@@ -47,6 +47,7 @@ interface ChatRoom {
  */
 const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const { t, language, setLanguage } = useLanguage();
+    const insets = useSafeAreaInsets();
     const [chats, setChats] = useState<ChatRoom[]>([]);
     const [currentUsername, setCurrentUsername] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(true);
@@ -176,8 +177,6 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             </View>
         );
     }
-
-    const insets = useSafeAreaInsets();
 
     return (
         <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']} style={styles.container}>

@@ -28,6 +28,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { login, updateFcmToken } from '../services/api'; // Импорт реального API
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * Ключи для хранения данных в AsyncStorage
@@ -45,6 +46,7 @@ const STORAGE_KEYS = {
  */
 const LoginScreen: React.FC<any> = ({ navigation }) => {
     const { t, language, setLanguage } = useLanguage();
+    const insets = useSafeAreaInsets();
     const [username, setUsername] = useState<string>('');
     const [password, setPassword] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(false);
@@ -130,7 +132,7 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.keyboardView}
+                style={[styles.keyboardView, { paddingTop: insets.top }]}
             >
                 <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                     <View style={styles.header}>

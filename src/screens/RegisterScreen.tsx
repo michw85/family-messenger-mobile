@@ -29,6 +29,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { register, updateFcmToken } from '../services/api';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { colors, spacing, borderRadius, shadows } from '../styles/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STORAGE_KEYS = {
     TOKEN: '@family_messenger_token',
@@ -42,6 +43,7 @@ const STORAGE_KEYS = {
  */
 const RegisterScreen: React.FC<any> = ({ navigation }) => {
     const { t, language, setLanguage } = useLanguage();
+    const insets = useSafeAreaInsets();
     const [username, setUsername] = useState<string>('');
     const [email, setEmail] = useState<string>('');
     const [password, setPassword] = useState<string>('');
@@ -137,7 +139,7 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
             style={styles.container}
         >
             <FloatingClouds />
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardView}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.keyboardView, { paddingTop: insets.top }]}>
                 <ScrollView contentContainerStyle={styles.scrollContent}>
                     <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                         <View style={styles.header}>
