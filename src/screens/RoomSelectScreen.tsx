@@ -26,6 +26,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { fetchChats, createChat, deleteChat } from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 
 /**
  * Интерфейс чата, получаемый с бэкенда
@@ -175,10 +177,12 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         );
     }
 
+    const insets = useSafeAreaInsets();
+
     return (
         <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']} style={styles.container}>
             <FloatingClouds />
-            <View style={styles.content}>
+            <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.header}>
                     <View style={styles.headerTop}>
                         <Text style={styles.greeting}>

@@ -19,6 +19,7 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import RoomSelectScreen from './src/screens/RoomSelectScreen';
 import ChatRoomScreen from './src/screens/ChatRoomScreen';
 import { colors } from './src/styles/theme';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 
 const Stack = createNativeStackNavigator();
@@ -232,10 +233,12 @@ const Navigation = () => {
  */
 export default function App() {
     return (
-        <LanguageProvider>
-            <Initializer>
-                <Navigation />
-            </Initializer>
-        </LanguageProvider>
+        <SafeAreaProvider>
+            <LanguageProvider>
+                <Initializer>
+                    <Navigation />
+                </Initializer>
+            </LanguageProvider>
+        </SafeAreaProvider>
     );
 }
