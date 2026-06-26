@@ -55,6 +55,7 @@ const InputPanel: React.FC<InputPanelProps> = ({
     isSending,
     isConnected,
 }) => {
+     const insets = useSafeAreaInsets();
     // Анимация для кнопки отправки / Animation for send button
     const sendButtonScale = useRef(new Animated.Value(1)).current;
     const sendButtonRotate = useRef(new Animated.Value(0)).current;
@@ -83,8 +84,6 @@ const InputPanel: React.FC<InputPanelProps> = ({
         inputRange: [0, 1],
         outputRange: ['0deg', '-15deg'],
     });
-
-    const insets = useSafeAreaInsets();
 
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
