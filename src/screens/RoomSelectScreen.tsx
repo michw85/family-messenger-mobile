@@ -211,7 +211,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     }
                 />
 
-                <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+                <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 20 }]} onPress={() => setModalVisible(true)}>
                     <Text style={styles.fabText}>+</Text>
                 </TouchableOpacity>
             </View>
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     emptySubtext: { fontSize: 13, color: colors.textMuted },
     fab: {
         position: 'absolute',
-        bottom: 20,
+        // bottom: 20,
         right: 20,
         width: 56,
         height: 56,
