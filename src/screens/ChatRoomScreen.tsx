@@ -20,6 +20,7 @@ import {
     TextInput,
     TouchableOpacity,
     ActivityIndicator,
+    KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -307,63 +308,69 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     }
 
     return (
-        <View style={styles.container}>
-            {/* Тёплый градиент Bonds вместо холодного */}
-            <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']}
-                style={StyleSheet.absoluteFillObject} />
-            <FloatingClouds />
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={0}
+        >
+            <View style={styles.container}>
+                {/* Тёплый градиент Bonds вместо холодного */}
+                <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']}
+                    style={StyleSheet.absoluteFillObject} />
+                <FloatingClouds />
 
-            {/* Заголовок чата — прозрачный с тенью */}
-            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-                <Text style={styles.headerTitle}>{roomName}</Text>
-            </View>
+                {/* Заголовок чата — прозрачный с тенью */}
+                <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+                    <Text style={styles.headerTitle}>{roomName}</Text>
+                </View>
 
-            <FlatList
-                ref={flatListRef}
-                data={messages}
-                keyExtractor={keyExtractor}
-                renderItem={renderMessage}
-                style={styles.messageList}
-                contentContainerStyle={styles.messageListContent}
-                showsVerticalScrollIndicator={false}
-                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
-            />
+                <FlatList
+                    ref={flatListRef}
+                    data={messages}
+                    keyExtractor={keyExtractor}
+                    renderItem={renderMessage}
+                    style={styles.messageList}
+                    contentContainerStyle={styles.messageListContent}
+                    showsVerticalScrollIndicator={false}
+                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                    onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                />
 
-            {/* Панель ввода с новыми цветами */}
-            <View style={[styles.inputWrapper, { paddingBottom: keyboardVisible ? 12 : insets.bottom + 12 }]}>
-                <View style={styles.inputContainer}>
-                    {/* Кнопка фото */}
-                    <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
-                        <Text style={styles.iconText}>📷</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPressIn={startRecording}
-                        onPressOut={stopRecording}
-                        style={[styles.iconButton, isRecording && styles.recordingActive]}
-                    >
-                        <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
-                    </TouchableOpacity>
-                    <TextInput
-                        style={styles.input}
-                        value={inputText}
-                        onChangeText={setInputText}
-                        placeholder={t('placeholder')}
-                        placeholderTextColor={colors.textMuted}
-                        onSubmitEditing={sendTextMessage}
-                        returnKeyType="send"
-                        multiline
-                    />
-                    <TouchableOpacity
-                        style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
-                        onPress={sendTextMessage}
-                        disabled={!inputText.trim() || sending}
-                    >
-                        <Text style={styles.sendButtonText}>↑</Text>
-                    </TouchableOpacity>
+                {/* Панель ввода с новыми цветами */}
+                <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 12 }]}>
+                    <View style={styles.inputContainer}>
+                        {/* Кнопка фото */}
+                        <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
+                            <Text style={styles.iconText}>📷</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPressIn={startRecording}
+                            onPressOut={stopRecording}
+                            style={[styles.iconButton, isRecording && styles.recordingActive]}
+                        >
+                            <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
+                        </TouchableOpacity>
+                        <TextInput
+                            style={styles.input}
+                            value={inputText}
+                            onChangeText={setInputText}
+                            placeholder={t('placeholder')}
+                            placeholderTextColor={colors.textMuted}
+                            onSubmitEditing={sendTextMessage}
+                            returnKeyType="send"
+                            multiline
+                        />
+                        <TouchableOpacity
+                            style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
+                            onPress={sendTextMessage}
+                            disabled={!inputText.trim() || sending}
+                        >
+                            <Text style={styles.sendButtonText}>↑</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 

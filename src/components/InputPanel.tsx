@@ -18,6 +18,9 @@ import {
     Text,
 } from 'react-native';
 import { colors, spacing, borderRadius, shadows } from '../styles/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+
 
 /**
  * Интерфейс пропсов компонента InputPanel
@@ -81,8 +84,10 @@ const InputPanel: React.FC<InputPanelProps> = ({
         outputRange: ['0deg', '-15deg'],
     });
 
+    const insets = useSafeAreaInsets();
+
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             <View style={styles.inputContainer}>
                 {/* Кнопка выбора фото / Photo picker button */}
                 <TouchableOpacity

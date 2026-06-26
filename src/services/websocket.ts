@@ -15,6 +15,11 @@ let stompClient: Client | null = null;
  * @param token - JWT токен для авторизации
  */
 export const connectWebSocket = async (token: string): Promise<Client> => {
+    // Деактивируем старый клиент перед созданием нового / Deactivate the old client before creating a new one.
+    if (stompClient) {
+        stompClient.deactivate();
+        stompClient = null;
+    }
     return new Promise((resolve, reject) => {
         const client = new Client({
             // webSocketFactory: () => new WebSocket('ws://165.245.213.90:8080/ws'),
@@ -26,6 +31,7 @@ export const connectWebSocket = async (token: string): Promise<Client> => {
             reconnectDelay: 5000,
             onConnect: () => {
                 stompClient = client;
+                console.log('✅ WebSocket connected');
                 resolve(client);
             },
             onStompError: (frame) => {
@@ -46,7 +52,10 @@ export const connectWebSocket = async (token: string): Promise<Client> => {
  * @param onMessage - колбэк при получении сообщения
  */
 export const subscribeToRoom = (roomId: string, onMessage: (msg: any) => void) => {
-    if (!stompClient) return null;
+    if (!stompClient?.connected) {
+        console.warn('STOMP not connected, cannot subscribe');
+        return null;
+    }
     return stompClient.subscribe(`/topic/room/${roomId}`, (message) => {
         onMessage(JSON.parse(message.body));
     });
@@ -61,7 +70,7 @@ export const subscribeToRoom = (roomId: string, onMessage: (msg: any) => void) =
  * @param mediaUrl - URL медиафайла (опционально)
  */
 export const sendMessage = (roomId: string, content: string, type: string, mediaUrl?: string) => {
-    if (!stompClient) {
+    if (!stompClient?.connected) {
         console.error('STOMP client not connected');
         return;
     }
