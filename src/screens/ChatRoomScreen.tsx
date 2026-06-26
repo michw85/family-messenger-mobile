@@ -310,7 +310,7 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={0}
         >
             <View style={styles.container}>
