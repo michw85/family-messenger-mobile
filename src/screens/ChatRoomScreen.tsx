@@ -33,6 +33,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { fetchMessages, uploadFile } from '../services/api';
 import { connectWebSocket, subscribeToRoom, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
+import AddParticipantsModal from '../components/AddParticipantsModal';
 
 /**
  * Интерфейс сообщения (соответствует DTO бэкенда)
@@ -69,6 +70,7 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [sending, setSending] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const [addParticipantsVisible, setAddParticipantsVisible] = useState(false);
 
     // Refs
     const flatListRef = useRef<FlatList>(null);
@@ -322,6 +324,9 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
                 {/* Заголовок чата — прозрачный с тенью */}
                 <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
                     <Text style={styles.headerTitle}>{roomName}</Text>
+                    <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
+                        <Text style={styles.addButtonText}>+</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <FlatList
@@ -369,6 +374,16 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
                         </TouchableOpacity>
                     </View>
                 </View>
+                {/* Модалка добавления участников */}
+                <AddParticipantsModal
+                    visible={addParticipantsVisible}
+                    onClose={() => setAddParticipantsVisible(false)}
+                    chatId={roomId}
+                    onParticipantsAdded={() => {
+                        Alert.alert('Участники добавлены');
+                        // При необходимости можно перезагрузить список участников
+                    }}
+                />
             </View>
         </KeyboardAvoidingView>
     );
@@ -403,6 +418,26 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: colors.primary, // индиго
         letterSpacing: 0.5,
+    },
+    /**
+     * Кнопка добавления участников
+     * Add participants button
+     */
+    addButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: colors.accent,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...shadows.soft,
+    },
+    addButtonText: {
+        color: '#FFFFFF',
+        fontSize: 24,
+        fontWeight: '300',
+        marginTop: -2,
+        textAlign: 'center',
     },
     messageList: {
         flex: 1,

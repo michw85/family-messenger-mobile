@@ -72,7 +72,22 @@ export const updateFcmToken = (token: string) => {
     return api.post('/auth/fcm-token', { token });
 };
 
+// Users
+export const searchUsers = (query: string) =>
+    api.get(`/users/search?q=${encodeURIComponent(query)}`);
 
+// Chat participants
+export const getParticipants = (chatId: string) =>
+    api.get(`/chats/${chatId}/participants`);
+
+export const addParticipants = (chatId: string, userIds: number[]) =>
+    api.post(`/chats/${chatId}/participants`, userIds);
+
+export const removeParticipant = (chatId: string, userId: number) =>
+    api.delete(`/chats/${chatId}/participants/${userId}`);
+
+export const createGroupChat = (name: string, participantIds: number[]) =>
+    api.post('/chats/group', { name, participantIds });
 
 
 /*
