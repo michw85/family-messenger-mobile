@@ -151,10 +151,10 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
                             </TouchableOpacity>
                         </View>
                         <View style={styles.form}>
-                            <TextInput style={styles.input} placeholder="Username" value={username} onChangeText={setUsername} autoCapitalize="none" editable={!loading} />
-                            <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!loading} />
-                            <TextInput style={styles.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry editable={!loading} />
-                            <TextInput style={styles.input} placeholder="Confirm password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry editable={!loading} />
+                            <TextInput style={styles.input} placeholder="Username" placeholderTextColor={colors.placeholder} value={username} onChangeText={setUsername} autoCapitalize="none" editable={!loading} />
+                            <TextInput style={styles.input} placeholder="Email" placeholderTextColor={colors.placeholder} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!loading} />
+                            <TextInput style={styles.input} placeholder="Password" placeholderTextColor={colors.placeholder} value={password} onChangeText={setPassword} secureTextEntry editable={!loading} />
+                            <TextInput style={styles.input} placeholder="Confirm password" placeholderTextColor={colors.placeholder} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry editable={!loading} />
                             <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
                                 {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>→</Text>}
                             </TouchableOpacity>

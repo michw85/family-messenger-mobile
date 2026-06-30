@@ -58,6 +58,8 @@ export const colors = {
     // Эффекты / Effects
     shadow: 'rgba(44, 62, 122, 0.08)' as const,   // Тень с синим оттенком / Shadow with blue tint
     shadowLight: 'rgba(44, 62, 122, 0.04)' as const, // Лёгкая тень / Light shadow
+
+    placeholder: '#A0B0C0' as const,
 };
 
 /**
@@ -248,6 +250,8 @@ export const commonStyles = StyleSheet.create({
         color: colors.text,
         ...shadows.soft,
     },
+    
+    
     
     /**
      * Карточка с тенью и скруглением
