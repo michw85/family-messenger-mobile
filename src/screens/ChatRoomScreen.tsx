@@ -312,8 +312,8 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={0}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+            keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
         >
             <View style={styles.container}>
                 {/* Тёплый градиент Bonds вместо холодного */}
@@ -342,7 +342,8 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
                 />
 
                 {/* Панель ввода с новыми цветами */}
-                <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 12 }]}>
+                {/* <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 12 }]}> */}
+                <View style={styles.inputWrapper}>
                     <View style={styles.inputContainer}>
                         {/* Кнопка фото */}
                         <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
@@ -454,6 +455,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255, 248, 240, 0.96)',
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
+        paddingBottom: spacing.md,
     },
     inputContainer: {
         flexDirection: 'row',

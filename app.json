@@ -3,7 +3,7 @@
     "owner": "mvorontsovs-team",
     "name": "Bonds",
     "slug": "family-messenger-mobile",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,11 +21,12 @@
     "android": {
       "package": "com.mvorontsov.bonds",
       "googleServicesFile": "./google-services.json",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-       "versionCode": 4,
+       "versionCode": 5,
       "predictiveBackGestureEnabled": false
     },
     "web": {
