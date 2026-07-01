@@ -170,7 +170,7 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
         }
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            quality: 0.8,
+            quality: 0.3,
         });
         if (!result.canceled && result.assets[0]) {
             setSending(true);
@@ -310,10 +310,10 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     }
 
     return (
-        <KeyboardAvoidingView
+        <View
             style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-            keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
+        // behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        // keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
         >
             <View style={styles.container}>
                 {/* Тёплый градиент Bonds вместо холодного */}
@@ -343,7 +343,7 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
 
                 {/* Панель ввода с новыми цветами */}
                 {/* <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 12 }]}> */}
-                <View style={styles.inputWrapper}>
+                <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 8 }]}>
                     <View style={styles.inputContainer}>
                         {/* Кнопка фото */}
                         <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
@@ -386,7 +386,7 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
                     }}
                 />
             </View>
-        </KeyboardAvoidingView>
+        </View>
     );
 };
 
