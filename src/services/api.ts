@@ -74,7 +74,7 @@ export const updateFcmToken = (token: string) => {
 
 // Users
 export const searchUsers = (query: string) =>
-    api.get(`/users/search?q=${encodeURIComponent(query)}`);
+    api.get(`/users/search?query=${encodeURIComponent(query)}`);
 
 // Chat participants
 export const getParticipants = (chatId: string) =>
