@@ -29,6 +29,8 @@ export const connectWebSocket = async (token: string): Promise<Client> => {
             webSocketFactory: () => new SockJS('https://bonds-app.duckdns.org/ws'),
             connectHeaders: { Authorization: `Bearer ${token}` },
             reconnectDelay: 5000,
+            heartbeatIncoming: 20000,
+            heartbeatOutgoing: 20000,
             onConnect: () => {
                 stompClient = client;
                 console.log('✅ WebSocket connected');

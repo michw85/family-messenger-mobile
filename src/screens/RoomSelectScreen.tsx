@@ -178,6 +178,26 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         );
     }
 
+    /* Выйти из аккаунта/ Exit */
+    const handleLogout = async () => {
+        Alert.alert(
+            'Выйти из аккаунта?',
+            'Вы уверены?',
+            [
+                { text: 'Отмена', style: 'cancel' },
+                {
+                    text: 'Выйти',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await AsyncStorage.removeItem('token');
+                        await AsyncStorage.removeItem('username');
+                        navigation.replace('Login');
+                    }
+                }
+            ]
+        );
+    };
+
     return (
         <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']} style={styles.container}>
             <FloatingClouds />
@@ -189,6 +209,9 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                         </Text>
                         <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
                             <Text style={styles.langText}>{language === 'ru' ? 'EN' : 'RU'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+                            <Text style={styles.logoutText}>⎋</Text>
                         </TouchableOpacity>
                     </View>
                     <Text style={styles.title}>{t('select_chat')}</Text>
@@ -284,6 +307,17 @@ const styles = StyleSheet.create({
         ...shadows.large,
     },
     fabText: { color: colors.textLight, fontSize: 32, fontWeight: '300', marginTop: -2 },
+    logoutButton: {
+        padding: 8,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.05)', // легкий фон для тактильности
+    },
+    logoutText: {
+        fontSize: 24,
+        color: '#d32f2f', // красный, чтобы обозначить выход
+        textAlign: 'center',
+        lineHeight: 28,
+    };
 });
 
 export default RoomSelectScreen;

@@ -167,8 +167,10 @@ const Navigation = () => {
         const checkLoginStatus = async () => {
             try {
                 setIsChecking(true);
-                const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
-                const username = await AsyncStorage.getItem(STORAGE_KEYS.USERNAME);
+                // const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+                // const username = await AsyncStorage.getItem(STORAGE_KEYS.USERNAME);
+                const token = await AsyncStorage.getItem('token');
+                const username = await AsyncStorage.getItem('username');
 
                 console.log('Checking login status - Token exists:', !!token);
                 console.log('Checking login status - Username exists:', !!username);
