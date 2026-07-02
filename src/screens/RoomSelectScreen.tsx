@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
         color: '#d32f2f', // красный, чтобы обозначить выход
         textAlign: 'center',
         lineHeight: 28,
-    };
+    },
 });
 
 export default RoomSelectScreen;
