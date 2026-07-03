@@ -18,7 +18,7 @@ import {
     FlatList,
     StyleSheet,
     ActivityIndicator,
-    Alert,
+    Alert, KeyboardAvoidingView, Platform
 } from 'react-native';
 import { searchUsers, addParticipants } from '../services/api';
 import { colors, spacing, borderRadius, shadows } from '../styles/theme';
@@ -158,7 +158,10 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
             transparent={true}
             onRequestClose={onClose}
         >
-            <View style={styles.overlay}>
+            <KeyboardAvoidingView
+                style={styles.overlay}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
                 <View style={styles.modalContent}>
                     {/* Заголовок / Header */}
                     <View style={styles.header}>
@@ -217,7 +220,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
                         </TouchableOpacity>
                     </View>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 };
