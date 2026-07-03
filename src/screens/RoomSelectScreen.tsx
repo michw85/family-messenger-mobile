@@ -204,7 +204,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.header}>
                     <View style={styles.headerTop}>
-                        <Text style={styles.greeting}>
+                        <Text style={[styles.greeting, { flex: 1 }]}>
                             {t('greeting')}, {currentUsername || t('friend')}! 👋
                         </Text>
                         <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
@@ -253,8 +253,8 @@ const styles = StyleSheet.create({
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: 60 },
     header: { marginBottom: spacing.xxl },
-    headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-    greeting: { fontSize: 14, color: colors.textSecondary },
+    headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.sm, },
+    greeting: { fontSize: 14, color: colors.textSecondary, flexShrink: 1, },
     langButton: {
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs,
