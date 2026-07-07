@@ -32,6 +32,8 @@ kotlin {
             implementation(projects.core.localization)
             implementation(projects.feature.auth.api)
             implementation(projects.feature.auth.impl)
+            implementation(projects.feature.chats.api)
+            implementation(projects.feature.chats.impl)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.navigation.compose)

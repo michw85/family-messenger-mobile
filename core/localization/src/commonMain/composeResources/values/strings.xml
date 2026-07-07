@@ -35,6 +35,8 @@
     <string name="auth_join_subtitle">Create a new account</string>
     <string name="auth_logout">Log out</string>
     <string name="auth_logged_in_as">Logged in as %1$s</string>
+    <string name="logout_confirm_title">Log out?</string>
+    <string name="logout_confirm_message">Are you sure you want to log out?</string>
 
     <!-- Auth errors -->
     <string name="error_fill_all_fields">Please fill all fields</string>
@@ -44,4 +46,21 @@
     <string name="error_email_invalid">Enter a valid email</string>
     <string name="error_password_too_short">Password must be at least 6 characters</string>
     <string name="error_passwords_mismatch">Passwords do not match</string>
+
+    <!-- Chats -->
+    <string name="chats_greeting">Hello, %1$s! 👋</string>
+    <string name="chats_title">Select a chat</string>
+    <string name="chats_empty">No chats yet</string>
+    <string name="chats_empty_hint">Create your first chat</string>
+    <string name="chats_group">Group</string>
+    <string name="chats_private">Private</string>
+    <string name="chats_create_title">New chat</string>
+    <string name="chats_name_hint">Chat name</string>
+    <string name="chats_create">Create</string>
+    <string name="chats_group_switch">Group chat</string>
+    <string name="chats_delete_title">Delete chat?</string>
+    <string name="chats_delete_message">Delete “%1$s”? This action cannot be undone.</string>
+    <string name="error_load_chats">Failed to load chats</string>
+    <string name="error_create_chat">Could not create chat</string>
+    <string name="error_delete_chat">Could not delete chat</string>
 </resources>

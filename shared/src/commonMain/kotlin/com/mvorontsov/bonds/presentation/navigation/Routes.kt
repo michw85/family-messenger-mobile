@@ -10,6 +10,9 @@ data object LoginRoute
 @Serializable
 data object RegisterRoute
 
-// Временный экран «после входа» (Фаза 2). В Фазе 3 заменится на список чатов.
 @Serializable
-data object HomeRoute
+data object ChatsRoute
+
+/** Экран чата. chatId/chatName — примитивы (кросс-фичевая навигация без общих типов). */
+@Serializable
+data class ChatRoomRoute(val chatId: String, val chatName: String)

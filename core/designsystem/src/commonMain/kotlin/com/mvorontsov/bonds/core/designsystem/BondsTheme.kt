@@ -5,12 +5,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.ui.graphics.Color
+import com.mvorontsov.bonds.core.designsystem.color.BondsColors
+import com.mvorontsov.bonds.core.designsystem.color.LocalBondsColors
+import com.mvorontsov.bonds.core.designsystem.color.bondsLightColors
 
-/**
- * Единая тема приложения — все экраны оборачиваются в неё на корне (в `shared/App.kt`).
- * Задаёт Material3 ColorScheme + расширенную палитру [BondsColors] и размеры [BondsDimens].
- */
+/** Корневая тема приложения. */
 @Composable
 fun BondsTheme(content: @Composable () -> Unit) {
     val colors = bondsLightColors
@@ -23,29 +22,21 @@ fun BondsTheme(content: @Composable () -> Unit) {
         onBackground = colors.text,
         surface = colors.backgroundLight,
         onSurface = colors.text,
-        error = Color(0xFFD32F2F),
+        error = colors.danger,
         outline = colors.border,
     )
     CompositionLocalProvider(
         LocalBondsColors provides colors,
         LocalBondsDimens provides BondsDimens(),
     ) {
-        MaterialTheme(
-            colorScheme = colorScheme,
-            content = content,
-        )
+        MaterialTheme(colorScheme = colorScheme, content = content)
     }
 }
 
-/** Доступ к расширенной палитре и размерам: `BondsTheme.colors` / `BondsTheme.dimens`. */
 object BondsTheme {
     val colors: BondsColors
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalBondsColors.current
+        @Composable @ReadOnlyComposable get() = LocalBondsColors.current
 
     val dimens: BondsDimens
-        @Composable
-        @ReadOnlyComposable
-        get() = LocalBondsDimens.current
+        @Composable @ReadOnlyComposable get() = LocalBondsDimens.current
 }

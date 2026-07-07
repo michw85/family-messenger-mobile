@@ -23,16 +23,17 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.mvorontsov.bonds.core.designsystem.BondsTheme
 import com.mvorontsov.bonds.core.localization.LocalAppLocale
 import com.mvorontsov.bonds.core.localization.LocaleController
 import com.mvorontsov.bonds.core.localization.resources.Res
-import com.mvorontsov.bonds.core.localization.resources.app_name
-import com.mvorontsov.bonds.core.localization.resources.auth_logged_in_as
-import com.mvorontsov.bonds.core.localization.resources.auth_logout
+import com.mvorontsov.bonds.core.localization.resources.action_back
 import com.mvorontsov.bonds.core.session.SessionStorage
 import com.mvorontsov.bonds.feature.auth.api.AuthComponent
-import com.mvorontsov.bonds.presentation.navigation.HomeRoute
+import com.mvorontsov.bonds.feature.chats.api.ChatsComponent
+import com.mvorontsov.bonds.presentation.navigation.ChatRoomRoute
+import com.mvorontsov.bonds.presentation.navigation.ChatsRoute
 import com.mvorontsov.bonds.presentation.navigation.LoginRoute
 import com.mvorontsov.bonds.presentation.navigation.RegisterRoute
 import org.jetbrains.compose.resources.stringResource
@@ -61,47 +62,55 @@ private fun AppContent() {
     val navController = rememberNavController()
     val session = koinInject<SessionStorage>()
     val auth = koinInject<AuthComponent>()
+    val chats = koinInject<ChatsComponent>()
 
-    val startDestination = if (session.isLoggedIn) HomeRoute else LoginRoute
+    val startDestination = if (session.isLoggedIn) ChatsRoute else LoginRoute
+
+    // Переход на список чатов после входа/регистрации (снести стек авторизации).
+    val toChats: () -> Unit = {
+        navController.navigate(ChatsRoute) {
+            popUpTo(LoginRoute) { inclusive = true }
+        }
+    }
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable<LoginRoute> {
             auth.Login(
-                onLoggedIn = {
-                    navController.navigate(HomeRoute) {
-                        popUpTo(LoginRoute) { inclusive = true }
-                    }
-                },
+                onLoggedIn = toChats,
                 onOpenRegister = { navController.navigate(RegisterRoute) },
             )
         }
         composable<RegisterRoute> {
             auth.Register(
-                onRegistered = {
-                    navController.navigate(HomeRoute) {
-                        popUpTo(LoginRoute) { inclusive = true }
-                    }
-                },
+                onRegistered = toChats,
                 onBack = { navController.popBackStack() },
             )
         }
-        composable<HomeRoute> {
-            HomePlaceholder(
-                username = session.username.orEmpty(),
-                onLogout = {
-                    session.clear()
+        composable<ChatsRoute> {
+            chats.Chats(
+                onOpenChat = { chatId, chatName ->
+                    navController.navigate(ChatRoomRoute(chatId, chatName))
+                },
+                onLoggedOut = {
                     navController.navigate(LoginRoute) {
-                        popUpTo(HomeRoute) { inclusive = true }
+                        popUpTo(ChatsRoute) { inclusive = true }
                     }
                 },
+            )
+        }
+        composable<ChatRoomRoute> { entry ->
+            val route = entry.toRoute<ChatRoomRoute>()
+            ChatRoomPlaceholder(
+                chatName = route.chatName,
+                onBack = { navController.popBackStack() },
             )
         }
     }
 }
 
-/** Временный экран после входа (Фаза 2) — заменится списком чатов в Фазе 3. */
+/** Временный экран чата (Фаза 3) — заменится реальным `feature:chatroom` в Фазе 4. */
 @Composable
-private fun HomePlaceholder(username: String, onLogout: () -> Unit) {
+private fun ChatRoomPlaceholder(chatName: String, onBack: () -> Unit) {
     val colors = BondsTheme.colors
     Column(
         modifier = Modifier
@@ -111,21 +120,15 @@ private fun HomePlaceholder(username: String, onLogout: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text(text = "⚡", fontSize = 64.sp)
+        Text(text = "💬", fontSize = 56.sp)
         Text(
-            text = stringResource(Res.string.app_name),
+            text = chatName,
             style = MaterialTheme.typography.headlineMedium,
             color = colors.primary,
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(Res.string.auth_logged_in_as, username),
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.textSecondary,
-        )
         Spacer(Modifier.height(24.dp))
-        OutlinedButton(onClick = onLogout) {
-            Text(stringResource(Res.string.auth_logout))
+        OutlinedButton(onClick = onBack) {
+            Text(stringResource(Res.string.action_back))
         }
     }
 }
