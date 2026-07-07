@@ -21,4 +21,27 @@
     <!-- Language -->
     <string name="language_title">Language</string>
     <string name="language_system">System</string>
+
+    <!-- Auth -->
+    <string name="auth_tagline">Your bond with loved ones</string>
+    <string name="auth_username_hint">Username</string>
+    <string name="auth_email_hint">Email</string>
+    <string name="auth_password_hint">Password</string>
+    <string name="auth_confirm_password_hint">Confirm password</string>
+    <string name="auth_login">Log in</string>
+    <string name="auth_create_account">Create account</string>
+    <string name="auth_have_account">Already have an account? Log in</string>
+    <string name="auth_join_title">Join</string>
+    <string name="auth_join_subtitle">Create a new account</string>
+    <string name="auth_logout">Log out</string>
+    <string name="auth_logged_in_as">Logged in as %1$s</string>
+
+    <!-- Auth errors -->
+    <string name="error_fill_all_fields">Please fill all fields</string>
+    <string name="error_invalid_credentials">Invalid username or password</string>
+    <string name="error_registration_failed">Registration failed</string>
+    <string name="error_username_too_short">Username must be at least 3 characters</string>
+    <string name="error_email_invalid">Enter a valid email</string>
+    <string name="error_password_too_short">Password must be at least 6 characters</string>
+    <string name="error_passwords_mismatch">Passwords do not match</string>
 </resources>

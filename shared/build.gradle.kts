@@ -30,6 +30,8 @@ kotlin {
             implementation(projects.core.session)
             implementation(projects.core.designsystem)
             implementation(projects.core.localization)
+            implementation(projects.feature.auth.api)
+            implementation(projects.feature.auth.impl)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.navigation.compose)
