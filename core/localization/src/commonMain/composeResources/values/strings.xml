@@ -63,4 +63,19 @@
     <string name="error_load_chats">Failed to load chats</string>
     <string name="error_create_chat">Could not create chat</string>
     <string name="error_delete_chat">Could not delete chat</string>
+
+    <!-- Chat room -->
+    <string name="chatroom_input_hint">Write…</string>
+    <string name="chatroom_cd_photo">Photo</string>
+    <string name="chatroom_cd_voice">Voice message</string>
+    <string name="error_load_messages">Could not load messages</string>
+    <string name="error_send_message">Could not send message</string>
+
+    <!-- Participants -->
+    <string name="participants_title">Add participants</string>
+    <string name="participants_search_hint">Search by name or email…</string>
+    <string name="participants_not_found">No users found</string>
+    <string name="participants_selected">Selected: %1$d</string>
+    <string name="participants_add">Add</string>
+    <string name="error_add_participants">Could not add participants</string>
 </resources>

@@ -25,6 +25,14 @@ data class BondsColors(
     val online: Color,
     val border: Color,
     val danger: Color,
+    val bubbleText: Color,
+    val bubbleBorder: Color,
+    val headerScrim: Color,
+    val inputScrim: Color,
+    val iconButtonBg: Color,
+    val senderAccents: List<Color>,
+    val bubbleMine: List<Color>,
+    val bubbleTheir: List<Color>,
 )
 
 val bondsLightColors: BondsColors = with(BondsPalette) {
@@ -47,6 +55,14 @@ val bondsLightColors: BondsColors = with(BondsPalette) {
         online = Online,
         border = BorderIndigo,
         danger = Danger,
+        bubbleText = CloudText,
+        bubbleBorder = CloudBorder,
+        headerScrim = HeaderScrim,
+        inputScrim = InputScrim,
+        iconButtonBg = IconButtonBg,
+        senderAccents = SenderAccents,
+        bubbleMine = listOf(Beige, BeigeDeep),
+        bubbleTheir = listOf(White, Beige),
     )
 }
 

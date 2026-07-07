@@ -34,6 +34,8 @@ kotlin {
             implementation(projects.feature.auth.impl)
             implementation(projects.feature.chats.api)
             implementation(projects.feature.chats.impl)
+            implementation(projects.feature.chatroom.api)
+            implementation(projects.feature.chatroom.impl)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.navigation.compose)

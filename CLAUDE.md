@@ -21,7 +21,7 @@
 - `build-logic` — included build с convention-плагинами:
   - `bonds.kmp.library` — KMP-таргеты (Android library + iOS), namespace из пути модуля, SDK из catalog
   - `bonds.compose` — Compose-плагины + базовые compose-зависимости
-- `core:network` — Ktor `HttpClient` (base URL, JWT-интерцептор из `core:session`, content-negotiation, логирование), фабрика STOMP-клиента (Krossbow), общая обработка API-ошибок
+- `core:network` — Ktor `HttpClient` (base URL, JWT-интерцептор из `core:session`, content-negotiation, WebSockets), `ApiConfig` (BASE_URL, STOMP_URL). Сам STOMP-клиент (Krossbow) — в `feature:chatroom` (только он его использует)
 - `core:session` — хранение JWT/username на Multiplatform-Settings (`SessionStorage`): пишет `feature:auth`, читает `core:network` (для заголовка) и остальные фичи
 - `core:designsystem` — тема `BondsTheme` (тёплый градиент, цвета/типографика/тени), общие UI-атомы (`FloatingClouds`, `ThoughtBubble` — пузыри сообщений, `TypingIndicator`)
 - `core:localization` — централизованная локализация: строки в `commonMain/composeResources/values*/strings.xml` (база EN + ru), `Res` публичный (`publicResClass`), `LocaleController` + `LocalAppLocale` (expect/actual) для смены языка в рантайме. ВАЖНО: в модуле включён `android { androidResources { enable = true } }` — иначе строки не пакуются в APK

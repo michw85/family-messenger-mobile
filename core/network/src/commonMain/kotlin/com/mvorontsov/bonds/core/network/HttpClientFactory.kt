@@ -5,6 +5,7 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.request.header
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -19,6 +20,8 @@ import kotlinx.serialization.json.Json
  */
 fun createHttpClient(session: SessionStorage): HttpClient = HttpClient {
     expectSuccess = true
+
+    install(WebSockets)
 
     install(ContentNegotiation) {
         json(

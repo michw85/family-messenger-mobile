@@ -63,4 +63,19 @@
     <string name="error_load_chats">Не удалось загрузить чаты</string>
     <string name="error_create_chat">Не удалось создать чат</string>
     <string name="error_delete_chat">Не удалось удалить чат</string>
+
+    <!-- Chat room -->
+    <string name="chatroom_input_hint">Пиши…</string>
+    <string name="chatroom_cd_photo">Фото</string>
+    <string name="chatroom_cd_voice">Голосовое сообщение</string>
+    <string name="error_load_messages">Не удалось загрузить сообщения</string>
+    <string name="error_send_message">Не удалось отправить сообщение</string>
+
+    <!-- Participants -->
+    <string name="participants_title">Добавить участников</string>
+    <string name="participants_search_hint">Поиск по имени или email…</string>
+    <string name="participants_not_found">Пользователи не найдены</string>
+    <string name="participants_selected">Выбрано: %1$d</string>
+    <string name="participants_add">Добавить</string>
+    <string name="error_add_participants">Не удалось добавить участников</string>
 </resources>
