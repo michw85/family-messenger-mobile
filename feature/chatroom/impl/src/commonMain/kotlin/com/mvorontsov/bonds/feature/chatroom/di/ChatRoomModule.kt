@@ -35,7 +35,7 @@ val chatRoomModule: Module = module {
     factory<ParticipantsRepository> { ParticipantsRepositoryImpl(get()) }
     factory { SearchUsersUseCase(get()) }
     factory { AddParticipantsUseCase(get()) }
-    viewModel { (chatId: String) -> ChatRoomViewModel(chatId, get(), get(), get(), get(), get()) }
+    viewModel { (chatId: String) -> ChatRoomViewModel(chatId, get(), get(), get(), get()) }
     viewModel { (chatId: String) -> AddParticipantsViewModel(chatId, get(), get()) }
     single<ChatRoomComponent> { ChatRoomComponentImpl() }
 }

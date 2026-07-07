@@ -23,7 +23,7 @@ internal class ChatRoomRepositoryImpl(
     override suspend fun history(chatId: String, page: Int, size: Int): List<MessageDto> =
         rest.history(chatId, page, size)
 
-    override suspend fun connect() = socket.connect()
+    override suspend fun connect(force: Boolean) = socket.connect(force)
 
     override fun observeMessages(chatId: String): Flow<MessageDto> = flow {
         emitAll(socket.subscribe(chatId).map { json.decodeFromString<MessageDto>(it) })
@@ -33,5 +33,5 @@ internal class ChatRoomRepositoryImpl(
         socket.send(chatId, json.encodeToString(SendMessageDto(content, "TEXT")))
     }
 
-    override suspend fun disconnect() = socket.disconnect()
+    override fun dispose() = socket.dispose()
 }

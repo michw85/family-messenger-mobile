@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -48,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,6 +90,12 @@ internal fun ChatRoomScreen(
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
     }
+    // При появлении клавиатуры область сжимается — доскроллим к последнему сообщению.
+    val density = LocalDensity.current
+    val imeVisible = WindowInsets.ime.getBottom(density) > 0
+    LaunchedEffect(imeVisible) {
+        if (imeVisible && state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
+    }
 
     val colors = BondsTheme.colors
     val dimens = BondsTheme.dimens
@@ -122,7 +130,7 @@ internal fun ChatRoomScreen(
                         contentPadding = PaddingValues(vertical = dimens.lg),
                         verticalArrangement = Arrangement.Bottom,
                     ) {
-                        items(state.messages, key = { it.id }) { message ->
+                        items(state.messages) { message ->
                             MessageBubble(message)
                         }
                     }
