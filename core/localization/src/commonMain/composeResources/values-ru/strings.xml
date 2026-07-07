@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">Bonds</string>
+    <string name="app_tagline">Ваша связь с близкими</string>
+
+    <!-- Common actions -->
+    <string name="action_back">Назад</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="action_retry">Повторить</string>
+    <string name="action_send">Отправить</string>
+    <string name="action_delete">Удалить</string>
+
+    <!-- Common states -->
+    <string name="loading">Загрузка…</string>
+
+    <!-- Errors -->
+    <string name="error_generic">Ошибка</string>
+    <string name="error_network">Ошибка сети. Попробуйте ещё раз</string>
+
+    <!-- Language -->
+    <string name="language_title">Язык</string>
+    <string name="language_system">Системный</string>
+</resources>

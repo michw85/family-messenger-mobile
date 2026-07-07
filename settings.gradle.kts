@@ -31,3 +31,7 @@ dependencyResolutionManagement {
 
 include(":androidApp")
 include(":shared")
+include(":core:network")
+include(":core:session")
+include(":core:designsystem")
+include(":core:localization")

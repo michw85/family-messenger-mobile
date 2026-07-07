@@ -16,25 +16,34 @@
 
 ## Модули
 
-Многомодульная схема core + feature; `shared` — umbrella.
+Многомодульная схема: **`core:*` — только инфраструктура** (сеть, сессия, тема, строки), **`feature:*` — самодостаточные вертикальные срезы** (`data/domain/ui` внутри, включая свои модели); `shared` — umbrella.
 
 - `build-logic` — included build с convention-плагинами:
   - `bonds.kmp.library` — KMP-таргеты (Android library + iOS), namespace из пути модуля, SDK из catalog
   - `bonds.compose` — Compose-плагины + базовые compose-зависимости
-- `core:designsystem` — тема `BondsTheme` (тёплый градиент, цвета/типографика/тени), общие UI-компоненты (`FloatingClouds`, `ThoughtBubble` — пузыри сообщений, `TypingIndicator`)
+- `core:network` — Ktor `HttpClient` (base URL, JWT-интерцептор из `core:session`, content-negotiation, логирование), фабрика STOMP-клиента (Krossbow), общая обработка API-ошибок
+- `core:session` — хранение JWT/username на Multiplatform-Settings (`SessionStorage`): пишет `feature:auth`, читает `core:network` (для заголовка) и остальные фичи
+- `core:designsystem` — тема `BondsTheme` (тёплый градиент, цвета/типографика/тени), общие UI-атомы (`FloatingClouds`, `ThoughtBubble` — пузыри сообщений, `TypingIndicator`)
 - `core:localization` — централизованная локализация: строки в `commonMain/composeResources/values*/strings.xml` (база EN + ru), `Res` публичный (`publicResClass`), `LocaleController` + `LocalAppLocale` (expect/actual) для смены языка в рантайме. ВАЖНО: в модуле включён `android { androidResources { enable = true } }` — иначе строки не пакуются в APK
-- `core:model` — модели для View-слоя (`User`, `Chat`, `Message`)
-- `core:network` — Ktor `HttpClient` (base URL, JWT-интерцептор, content-negotiation, логирование), фабрика STOMP-клиента (Krossbow), общая обработка API-ошибок
-- `core:storage` — сессия и настройки на Multiplatform-Settings (`SessionStorage`: токен/username, язык), expect/actual фабрики
-- `core:database` (позже) — SQLDelight: кэш сообщений, `TrackDto`-аналог `MessageDto`, expect/actual драйверы
-- `feature:auth` — вход/регистрация: domain (`AuthRepository`, use-cases), data (Ktor DataSource, DTO), ui (Login/Register экраны + `AuthViewModel`)
-- `feature:chats` — список чатов: загрузка/создание/удаление, pull-to-refresh, logout; `ChatsViewModel`
-- `feature:chatroom` — экран чата: REST-история + STOMP realtime, отправка текст/фото/голос, участники; `ChatRoomViewModel`
-- `shared` — umbrella: DI-граф, **навигация (CMP Navigation: `NavHost` + type-safe маршруты в `presentation/navigation/Routes.kt`)**, точки входа платформ, iOS-framework `Shared` (static)
+**Каждая фича = ДВА модуля `:api` + `:impl`:**
+- `:feature:X:api` — только интерфейсы/абстракции наружу (публичные контракты для других модулей). Ничего исполняемого. Может быть тонким, пока нет реального кросс-фичевого контракта.
+- `:feature:X:impl` — вся реализация, наружу невидима: `data/` (DataSource, DTO), `domain/` (модели, репозитории, use-cases), `ui/` (экраны + ViewModel), `di/` (Koin-модуль). Зависит от своего `:api` + `core:*`.
+
+Фичи:
+- `feature:auth` — вход/регистрация: `impl` → data (Ktor DataSource, DTO), domain (`AuthUser`, `AuthRepository`, use-cases), ui (Login/Register + `AuthViewModel`)
+- `feature:chats` — список чатов: `impl` → domain (`Chat`), загрузка/создание/удаление, pull-to-refresh, logout, `ChatsViewModel`
+- `feature:chatroom` — экран чата: `impl` → domain (`Message`, `MessageSender`), REST-история + STOMP realtime, отправка текст/фото/голос, участники, `ChatRoomViewModel`
+- `shared` — umbrella и **composition root**: DI-граф (собирает Koin-модули всех `:impl`), **навигация (CMP Navigation: `NavHost` + type-safe маршруты в `presentation/navigation/Routes.kt`)**, точки входа платформ, iOS-framework `Shared` (static)
 - `androidApp` — Android-точка входа (`BondsApp` → Koin, `MainActivity`)
 - `iosApp` — Xcode-проект, SwiftUI-обёртка (`iOSApp.swift` → Koin, `ContentView` → `MainViewControllerKt`)
 
-Правила зависимостей: `feature → core` ✅; `feature → feature` ❌; `shared → все`; приложения → только `shared`. Переиспользуемое между фичами — в `core:*`.
+Правила зависимостей:
+- `feature:A:impl → feature:B:api` ✅ (только абстракции) — на `:impl` другой фичи `никогда` ❌
+- `feature:X:impl → core:*` ✅; `core → core` ✅ (только инфраструктурное)
+- `shared → все` (единственное место, где виден любой `:impl` — для сборки DI + NavHost); приложения → только `shared`
+- Маршруты — централизованно в `shared`; кросс-фичевая навигация поднимается в `shared` через колбэки (`onOpenChat: (roomId, roomName) -> Unit` и т.п.), фичи друг о друге не знают. `:api` фичи держит контракты, а не маршруты.
+
+**Модели живут внутри фич** (`feature:X/domain/model`) — каждая фича описывает ровно ту форму, что ей нужна (напр. `auth` → `AuthUser{id,username,email,status}`, `chatroom` → `MessageSender{id,username,avatarUrl}`). Общего `core:model` НЕТ: данные между фичами передаём через инфраструктуру (токен/username в `core:session`) и примитивы в навигации, а не общими типами. Если когда-нибудь два модуля реально потребуют один типизированный контракт — заводим `core:model` тогда (YAGNI), не раньше. Кэш сообщений (SQLDelight, `core:database`) — тоже позже, по необходимости.
 
 Новый KMP-модуль — это `build.gradle.kts` из двух строк-плагинов + `include` в settings:
 
@@ -47,12 +56,21 @@ plugins {
 
 ## Структура модуля (Clean Architecture)
 
+**Фича `:impl`:**
 ```
-com.mvorontsov.bonds.<module>/
-  presentation/   — Composable UI, ViewModel, UI-state (в shared: App.kt — корень)
-  domain/         — model / repository (интерфейсы) / usecase
-  data/           — remote (Ktor, DTO) / local / repository (реализации)
-  di/             — Koin-модули (в shared: AppModules.kt), initApp() (AppInit.kt)
+com.mvorontsov.bonds.feature.<name>/
+  ui/       — Composable-экраны, ViewModel, контракт State/Event/Effect
+  domain/   — model / repository (интерфейсы) / usecase
+  data/     — remote (Ktor, DTO) / local / repository (реализации)
+  di/       — Koin-модуль фичи
+```
+**Фича `:api`:** только публичные интерфейсы/контракты (`com.mvorontsov.bonds.feature.<name>.api`).
+
+**`shared`:**
+```
+com.mvorontsov.bonds/
+  presentation/   — App.kt (корень), navigation/Routes.kt
+  di/             — AppModules.kt (собирает все :impl-модули), AppInit.kt (initApp())
   core/platform/  — expect/actual Platform
 ```
 
@@ -61,8 +79,8 @@ com.mvorontsov.bonds.<module>/
 ### Нейминг и слои (обязательно)
 
 - `*DataSource` — доступ к источнику данных; `*Repository` — репозитории; `*UseCase` — прослойка между ViewModel и репозиториями (ViewModel НЕ ходит в репозитории напрямую); `*Impl` — реализации интерфейсов
-- Модели: DataSource и Repository оперируют `*Dto`; модели для View — без суффикса (`Message`, `Chat`, `User`)
-- Маппинг Dto → модель происходит **внутри UseCase** (мапперы вида `MessageDto.toMessage()`)
+- Модели: `data`-слой оперирует `*Dto` (`@Serializable`, повторяют JSON бэкенда) — лежат в `feature:X/data/remote`; доменные модели — без суффикса, лежат в `feature:X/domain/model`
+- Маппинг Dto → доменная модель происходит **внутри UseCase** (мапперы вида `MessageDto.toMessage()`)
 - Поток данных: `DataSource(Dto) → RepositoryImpl(Dto) → UseCase —маппер→ ViewModel(модель) → View`
 
 ### Презентация: MVVM + MVI

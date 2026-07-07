@@ -26,6 +26,10 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            implementation(projects.core.network)
+            implementation(projects.core.session)
+            implementation(projects.core.designsystem)
+            implementation(projects.core.localization)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.navigation.compose)
