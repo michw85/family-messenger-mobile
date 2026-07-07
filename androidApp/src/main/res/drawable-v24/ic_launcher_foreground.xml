@@ -1,0 +1,73 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Тёмное тело стеклянной сферы во весь кадр -->
+    <path android:pathData="M54,54 m-52,0 a52,52 0 1,0 104,0 a52,52 0 1,0 -104,0 z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="42"
+                android:centerY="40"
+                android:gradientRadius="78"
+                android:startColor="#34343A"
+                android:endColor="#0C0C0F" />
+        </aapt:attr>
+    </path>
+
+    <!-- Верхний блик — стеклянность -->
+    <path android:pathData="M40,36 m-24,0 a24,24 0 1,0 48,0 a24,24 0 1,0 -48,0 z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="40"
+                android:centerY="36"
+                android:gradientRadius="24"
+                android:startColor="#40FFFFFF"
+                android:endColor="#00FFFFFF" />
+        </aapt:attr>
+    </path>
+
+    <!-- Нота ПОД волной (сероватая), по центру. Правый край ножки = правый край головки -->
+    <!-- головка: правый край на x=60 -->
+    <path
+        android:fillColor="#B5B5B5"
+        android:pathData="M51,74 m-9,0 a9,7 0 1,0 18,0 a9,7 0 1,0 -18,0 z" />
+    <!-- стебель: правый край тоже x=60 -->
+    <path
+        android:fillColor="#B5B5B5"
+        android:pathData="M56,22 h4 v52 h-4 z" />
+    <!-- флажок: верхняя точка = верхний правый угол ножки (60,22), основание с нахлёстом -->
+    <path
+        android:fillColor="#B5B5B5"
+        android:pathData="M60,22 q13,3 13,18 q-4,-11 -16,-10 z" />
+
+    <!-- Звуковая волна: крупные пики по бокам, мелкая рябь в центре над нотой.
+         Неоновое свечение (голубое) + белое ядро. -->
+    <!-- широкое неоновое свечение -->
+    <path
+        android:strokeColor="#5AD1FF"
+        android:strokeAlpha="0.30"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,54 L12,53 L17,55 L24,54 L30,30 L34,54 L38,72 L42,54 L46,50 L50,57 L54,52 L58,56 L62,52 L66,55 L70,54 L76,32 L80,54 L84,72 L88,54 L96,53 L103,54" />
+    <!-- неоновое ядро -->
+    <path
+        android:strokeColor="#9CE9FF"
+        android:strokeAlpha="0.55"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,54 L12,53 L17,55 L24,54 L30,30 L34,54 L38,72 L42,54 L46,50 L50,57 L54,52 L58,56 L62,52 L66,55 L70,54 L76,32 L80,54 L84,72 L88,54 L96,53 L103,54" />
+    <!-- белая тонкая сердцевина -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,54 L12,53 L17,55 L24,54 L30,30 L34,54 L38,72 L42,54 L46,50 L50,57 L54,52 L58,56 L62,52 L66,55 L70,54 L76,32 L80,54 L84,72 L88,54 L96,53 L103,54" />
+</vector>

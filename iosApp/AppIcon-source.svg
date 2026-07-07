@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Исходник иконки приложения: стеклянная сфера с нотой и неоновой звуковой волной.
+  Координаты совпадают с Android-вектором (viewBox 108), рендер в 1024×1024.
+  Экспортировать в PNG и положить как
+  iosApp/iosApp/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png
+  (например: rsvg-convert -w 1024 -h 1024 AppIcon-source.svg > app-icon-1024.png
+   или открыть в Figma/Inkscape и экспортировать 1024×1024).
+-->
+<svg width="1024" height="1024" viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="sphere" gradientUnits="userSpaceOnUse" cx="42" cy="40" r="78">
+      <stop offset="0" stop-color="#34343A"/>
+      <stop offset="1" stop-color="#0C0C0F"/>
+    </radialGradient>
+    <radialGradient id="glint" gradientUnits="userSpaceOnUse" cx="40" cy="36" r="24">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Тёмный фон (на iOS углы обрежет системная маска) -->
+  <rect width="108" height="108" fill="#0E0E0E"/>
+
+  <!-- Тёмное тело стеклянной сферы во весь кадр -->
+  <circle cx="54" cy="54" r="52" fill="url(#sphere)"/>
+  <!-- Верхний блик — стеклянность -->
+  <circle cx="40" cy="36" r="24" fill="url(#glint)"/>
+
+  <!-- Нота ПОД волной (сероватая), по центру -->
+  <g fill="#B5B5B5">
+    <ellipse cx="51" cy="74" rx="9" ry="7"/>
+    <rect x="56" y="22" width="4" height="52"/>
+    <path d="M60,22 q13,3 13,18 q-4,-11 -16,-10 z"/>
+  </g>
+
+  <!-- Звуковая волна: крупные пики по бокам, мелкая рябь в центре над нотой.
+       Неоновое свечение (голубое) + белое ядро. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke="#5AD1FF" stroke-opacity="0.30" stroke-width="8"
+      d="M5,54 L12,53 L17,55 L24,54 L30,30 L34,54 L38,72 L42,54 L46,50 L50,57 L54,52 L58,56 L62,52 L66,55 L70,54 L76,32 L80,54 L84,72 L88,54 L96,53 L103,54"/>
+    <path stroke="#9CE9FF" stroke-opacity="0.55" stroke-width="4"
+      d="M5,54 L12,53 L17,55 L24,54 L30,30 L34,54 L38,72 L42,54 L46,50 L50,57 L54,52 L58,56 L62,52 L66,55 L70,54 L76,32 L80,54 L84,72 L88,54 L96,53 L103,54"/>
+    <path stroke="#FFFFFF" stroke-width="1.8"
+      d="M5,54 L12,53 L17,55 L24,54 L30,30 L34,54 L38,72 L42,54 L46,50 L50,57 L54,52 L58,56 L62,52 L66,55 L70,54 L76,32 L80,54 L84,72 L88,54 L96,53 L103,54"/>
+  </g>
+</svg>
