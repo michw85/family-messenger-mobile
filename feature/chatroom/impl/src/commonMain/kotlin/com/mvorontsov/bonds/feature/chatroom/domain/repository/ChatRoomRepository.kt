@@ -8,5 +8,7 @@ internal interface ChatRoomRepository {
     suspend fun connect(force: Boolean = false)
     fun observeMessages(chatId: String): Flow<MessageDto>
     suspend fun sendText(chatId: String, content: String)
+    suspend fun sendImage(chatId: String, bytes: ByteArray, filename: String)
+    suspend fun sendVoice(chatId: String, bytes: ByteArray, filename: String)
     fun dispose()
 }

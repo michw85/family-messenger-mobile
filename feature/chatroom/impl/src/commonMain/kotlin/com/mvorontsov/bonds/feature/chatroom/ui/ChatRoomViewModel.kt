@@ -8,7 +8,9 @@ import com.mvorontsov.bonds.core.localization.resources.error_send_message
 import com.mvorontsov.bonds.feature.chatroom.domain.usecase.ConnectChatUseCase
 import com.mvorontsov.bonds.feature.chatroom.domain.usecase.GetMessagesUseCase
 import com.mvorontsov.bonds.feature.chatroom.domain.usecase.ObserveMessagesUseCase
+import com.mvorontsov.bonds.feature.chatroom.domain.usecase.SendImageUseCase
 import com.mvorontsov.bonds.feature.chatroom.domain.usecase.SendTextMessageUseCase
+import com.mvorontsov.bonds.feature.chatroom.domain.usecase.SendVoiceUseCase
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
@@ -31,6 +33,8 @@ internal class ChatRoomViewModel(
     private val getMessages: GetMessagesUseCase,
     private val observeMessages: ObserveMessagesUseCase,
     private val sendText: SendTextMessageUseCase,
+    private val sendImage: SendImageUseCase,
+    private val sendVoice: SendVoiceUseCase,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatRoomState())
@@ -76,6 +80,8 @@ internal class ChatRoomViewModel(
         when (event) {
             is ChatRoomEvent.InputChanged -> _state.update { it.copy(input = event.value) }
             ChatRoomEvent.SendText -> send()
+            is ChatRoomEvent.SendImages -> onSendImages(event.images)
+            is ChatRoomEvent.SendVoice -> onSendVoice(event.bytes)
             ChatRoomEvent.Back -> _effect.trySend(ChatRoomEffect.NavigateBack)
         }
     }
@@ -90,6 +96,36 @@ internal class ChatRoomViewModel(
             } catch (e: Exception) {
                 Napier.e("Ошибка отправки", e)
                 _effect.send(ChatRoomEffect.ShowError(Res.string.error_send_message))
+            }
+        }
+    }
+
+    private fun onSendImages(images: List<ByteArray>) {
+        if (images.isEmpty()) return
+        viewModelScope.launch {
+            _state.update { it.copy(isSending = true) }
+            try {
+                images.forEachIndexed { index, bytes -> sendImage(chatId, bytes, "photo_$index.jpg") }
+            } catch (e: Exception) {
+                Napier.e("Ошибка отправки изображения", e)
+                _effect.send(ChatRoomEffect.ShowError(Res.string.error_send_message))
+            } finally {
+                _state.update { it.copy(isSending = false) }
+            }
+        }
+    }
+
+    private fun onSendVoice(bytes: ByteArray) {
+        if (bytes.isEmpty()) return
+        viewModelScope.launch {
+            _state.update { it.copy(isSending = true) }
+            try {
+                sendVoice(chatId, bytes)
+            } catch (e: Exception) {
+                Napier.e("Ошибка отправки голоса", e)
+                _effect.send(ChatRoomEffect.ShowError(Res.string.error_send_message))
+            } finally {
+                _state.update { it.copy(isSending = false) }
             }
         }
     }

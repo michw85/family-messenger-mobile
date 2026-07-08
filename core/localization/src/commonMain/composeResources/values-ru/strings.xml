@@ -69,6 +69,10 @@
     <string name="chatroom_input_hint">Пиши…</string>
     <string name="chatroom_cd_photo">Фото</string>
     <string name="chatroom_cd_voice">Голосовое сообщение</string>
+    <string name="media_camera">Сделать фото</string>
+    <string name="media_gallery">Выбрать из галереи</string>
+    <string name="rec_swipe_cancel">Вправо — отмена →</string>
+    <string name="rec_release_cancel">Отпустите для отмены</string>
     <string name="error_load_messages">Не удалось загрузить сообщения</string>
     <string name="error_send_message">Не удалось отправить сообщение</string>
 

@@ -9,6 +9,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import coil3.ImageLoader
+import coil3.compose.setSingletonImageLoaderFactory
+import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.mvorontsov.bonds.core.designsystem.BondsTheme
 import com.mvorontsov.bonds.core.localization.LocalAppLocale
 import com.mvorontsov.bonds.core.localization.LocaleController
@@ -20,10 +23,17 @@ import com.mvorontsov.bonds.presentation.navigation.ChatRoomRoute
 import com.mvorontsov.bonds.presentation.navigation.ChatsRoute
 import com.mvorontsov.bonds.presentation.navigation.LoginRoute
 import com.mvorontsov.bonds.presentation.navigation.RegisterRoute
+import io.ktor.client.HttpClient
 import org.koin.compose.koinInject
 
 @Composable
 fun App() {
+    val httpClient = koinInject<HttpClient>()
+    setSingletonImageLoaderFactory { context ->
+        ImageLoader.Builder(context)
+            .components { add(KtorNetworkFetcherFactory(httpClient)) }
+            .build()
+    }
     BondsTheme {
         val localeController = koinInject<LocaleController>()
         val language by localeController.language.collectAsState()

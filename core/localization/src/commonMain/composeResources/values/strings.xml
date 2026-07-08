@@ -69,6 +69,10 @@
     <string name="chatroom_input_hint">Write…</string>
     <string name="chatroom_cd_photo">Photo</string>
     <string name="chatroom_cd_voice">Voice message</string>
+    <string name="media_camera">Take a photo</string>
+    <string name="media_gallery">Choose from gallery</string>
+    <string name="rec_swipe_cancel">Right — cancel →</string>
+    <string name="rec_release_cancel">Release to cancel</string>
     <string name="error_load_messages">Could not load messages</string>
     <string name="error_send_message">Could not send message</string>
 

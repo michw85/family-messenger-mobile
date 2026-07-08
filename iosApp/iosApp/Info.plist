@@ -4,5 +4,11 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Нужен доступ к камере, чтобы отправлять фото в чат</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Нужен доступ к фото, чтобы отправлять изображения в чат</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Нужен доступ к микрофону, чтобы записывать голосовые сообщения</string>
 </dict>
 </plist>

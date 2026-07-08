@@ -23,7 +23,11 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.krossbow.stomp.core)
             implementation(libs.krossbow.websocket.ktor)
+            implementation(libs.coil.compose)
             implementation(libs.napier)
+        }
+        androidMain.dependencies {
+            implementation(libs.androidx.activity.compose)
         }
     }
 }

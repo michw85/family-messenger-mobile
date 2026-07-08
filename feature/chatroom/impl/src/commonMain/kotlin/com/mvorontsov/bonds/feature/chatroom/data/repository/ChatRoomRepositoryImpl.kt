@@ -2,6 +2,7 @@ package com.mvorontsov.bonds.feature.chatroom.data.repository
 
 import com.mvorontsov.bonds.feature.chatroom.data.remote.ChatMessagesRemoteDataSource
 import com.mvorontsov.bonds.feature.chatroom.data.remote.ChatSocketDataSource
+import com.mvorontsov.bonds.feature.chatroom.data.remote.FileRemoteDataSource
 import com.mvorontsov.bonds.feature.chatroom.data.remote.MessageDto
 import com.mvorontsov.bonds.feature.chatroom.data.remote.SendMessageDto
 import com.mvorontsov.bonds.feature.chatroom.domain.repository.ChatRoomRepository
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.Json
 internal class ChatRoomRepositoryImpl(
     private val rest: ChatMessagesRemoteDataSource,
     private val socket: ChatSocketDataSource,
+    private val files: FileRemoteDataSource,
 ) : ChatRoomRepository {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -31,6 +33,16 @@ internal class ChatRoomRepositoryImpl(
 
     override suspend fun sendText(chatId: String, content: String) {
         socket.send(chatId, json.encodeToString(SendMessageDto(content, "TEXT")))
+    }
+
+    override suspend fun sendImage(chatId: String, bytes: ByteArray, filename: String) {
+        val url = files.upload("image", bytes, filename, "image/jpeg")
+        socket.send(chatId, json.encodeToString(SendMessageDto("📷 Photo", "IMAGE", url)))
+    }
+
+    override suspend fun sendVoice(chatId: String, bytes: ByteArray, filename: String) {
+        val url = files.upload("voice", bytes, filename, "audio/m4a")
+        socket.send(chatId, json.encodeToString(SendMessageDto("🎤 Voice message", "VOICE", url)))
     }
 
     override fun dispose() = socket.dispose()

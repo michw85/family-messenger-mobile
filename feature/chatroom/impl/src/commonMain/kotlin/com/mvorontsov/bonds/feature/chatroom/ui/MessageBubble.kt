@@ -5,17 +5,23 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,12 +38,21 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.mvorontsov.bonds.core.designsystem.BondsTheme
+import com.mvorontsov.bonds.core.localization.resources.Res
+import com.mvorontsov.bonds.core.localization.resources.chatroom_cd_voice
 import com.mvorontsov.bonds.feature.chatroom.domain.model.Message
+import com.mvorontsov.bonds.feature.chatroom.domain.model.MessageType
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -46,10 +61,18 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 @Composable
-internal fun MessageBubble(message: Message) {
+internal fun MessageBubble(
+    message: Message,
+    showSenderName: Boolean,
+    showTail: Boolean,
+    grouped: Boolean,
+    isVoicePlaying: Boolean = false,
+    onVoiceToggle: () -> Unit = {},
+) {
     val colors = BondsTheme.colors
     val dimens = BondsTheme.dimens
     val brush = Brush.linearGradient(if (message.isMine) colors.bubbleMine else colors.bubbleTheir)
+    val time = message.timestamp?.let { formatTime(it) }
 
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
@@ -59,7 +82,12 @@ internal fun MessageBubble(message: Message) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = dimens.sm, vertical = dimens.sm)
+            .padding(
+                start = dimens.sm,
+                end = dimens.sm,
+                top = if (grouped) 1.dp else dimens.md,
+                bottom = 0.dp,
+            )
             .graphicsLayer {
                 scaleX = appear.value
                 scaleY = appear.value
@@ -68,15 +96,6 @@ internal fun MessageBubble(message: Message) {
             },
         horizontalAlignment = if (message.isMine) Alignment.End else Alignment.Start,
     ) {
-        if (!message.isMine) {
-            Text(
-                text = message.senderUsername,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = senderColor(message.senderUsername, colors.senderAccents),
-                modifier = Modifier.padding(start = dimens.lg, bottom = 2.dp),
-            )
-        }
         Box(
             modifier = Modifier
                 .widthIn(max = 300.dp)
@@ -89,23 +108,137 @@ internal fun MessageBubble(message: Message) {
                     drawPath(path, brush = brush)
                     drawPath(path, color = colors.bubbleBorder, style = Stroke(width = 0.8.dp.toPx()))
                 }
-                .padding(horizontal = dimens.xxl, vertical = dimens.xl),
+                .padding(horizontal = dimens.xxl, vertical = dimens.lg),
         ) {
+            Column {
+                if (showSenderName) {
+                    Text(
+                        text = message.senderUsername,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = senderColor(message.senderUsername, colors.senderAccents),
+                        modifier = Modifier.padding(bottom = 2.dp),
+                    )
+                }
+                when {
+                    message.type == MessageType.IMAGE && message.mediaUrl != null ->
+                        ImageContent(url = message.mediaUrl, time = time, radius = dimens.radiusMedium)
+
+                    message.type == MessageType.VOICE && message.mediaUrl != null ->
+                        VoiceContent(isPlaying = isVoicePlaying, time = time, onToggle = onVoiceToggle)
+
+                    else -> TextWithTime(
+                        text = message.content,
+                        time = time,
+                        textColor = colors.bubbleText,
+                        timeColor = colors.textMuted,
+                    )
+                }
+            }
+        }
+        if (showTail) {
+            Tail(isMine = message.isMine, color = colors.backgroundLight, border = colors.bubbleBorder)
+        }
+    }
+}
+
+/**
+ * Текст + время. Время встаёт в конец ПОСЛЕДНЕЙ строки, если там влезает,
+ * иначе — на отдельную строку снизу справа (как в Telegram).
+ */
+@Composable
+private fun TextWithTime(text: String, time: String?, textColor: Color, timeColor: Color) {
+    if (time == null) {
+        Text(text = text, color = textColor, fontSize = 15.sp, lineHeight = 22.sp)
+        return
+    }
+    SubcomposeLayout { constraints ->
+        val gap = 8.dp.roundToPx()
+        val timePlaceable = subcompose("time") {
+            Text(text = time, fontSize = 11.sp, color = timeColor)
+        }.first().measure(Constraints())
+
+        var lastLineWidth = 0
+        val textPlaceable = subcompose("text") {
             Text(
-                text = message.content,
-                color = colors.bubbleText,
+                text = text,
+                color = textColor,
                 fontSize = 15.sp,
                 lineHeight = 22.sp,
+                onTextLayout = { r -> lastLineWidth = ceil(r.getLineRight(r.lineCount - 1)).toInt() },
+            )
+        }.first().measure(constraints)
+
+        val inline = lastLineWidth + gap + timePlaceable.width <= constraints.maxWidth
+        if (inline) {
+            // время чуть ниже базовой линии текста
+            val drop = 2.dp.roundToPx()
+            val width = maxOf(textPlaceable.width, lastLineWidth + gap + timePlaceable.width)
+            val height = textPlaceable.height + drop
+            layout(width, height) {
+                textPlaceable.place(0, 0)
+                timePlaceable.place(width - timePlaceable.width, height - timePlaceable.height)
+            }
+        } else {
+            val width = maxOf(textPlaceable.width, timePlaceable.width)
+            val height = textPlaceable.height + timePlaceable.height
+            layout(width, height) {
+                textPlaceable.place(0, 0)
+                timePlaceable.place(width - timePlaceable.width, textPlaceable.height)
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoiceContent(isPlaying: Boolean, time: String?, onToggle: () -> Unit) {
+    val colors = BondsTheme.colors
+    val dimens = BondsTheme.dimens
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(colors.primary)
+                .clickable(onClick = onToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = null,
+                tint = colors.textLight,
+                modifier = Modifier.size(20.dp),
             )
         }
-        Tail(isMine = message.isMine, color = colors.backgroundLight, border = colors.bubbleBorder)
-        message.timestamp?.let { ts ->
-            Text(
-                text = formatTime(ts),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textSecondary,
-                modifier = Modifier.padding(horizontal = dimens.lg),
-            )
+        Spacer(Modifier.size(dimens.sm))
+        Text(text = stringResource(Res.string.chatroom_cd_voice), color = colors.bubbleText, fontSize = 15.sp)
+        if (time != null) {
+            Spacer(Modifier.size(dimens.sm))
+            Text(text = time, fontSize = 11.sp, color = colors.textMuted)
+        }
+    }
+}
+
+@Composable
+private fun ImageContent(url: String, time: String?, radius: androidx.compose.ui.unit.Dp) {
+    Box {
+        AsyncImage(
+            model = url,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(220.dp).clip(RoundedCornerShape(radius)),
+        )
+        if (time != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(text = time, fontSize = 10.sp, color = Color.White)
+            }
         }
     }
 }
