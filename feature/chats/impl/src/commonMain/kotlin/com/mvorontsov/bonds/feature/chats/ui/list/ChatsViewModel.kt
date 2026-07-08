@@ -13,6 +13,7 @@ import com.mvorontsov.bonds.feature.chats.domain.usecase.CreateChatUseCase
 import com.mvorontsov.bonds.feature.chats.domain.usecase.DeleteChatUseCase
 import com.mvorontsov.bonds.feature.chats.domain.usecase.GetChatsUseCase
 import com.mvorontsov.bonds.feature.chats.domain.usecase.LogoutUseCase
+import com.mvorontsov.bonds.feature.push.api.PushRegistrar
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -33,6 +34,7 @@ internal class ChatsViewModel(
     observeLanguage: ObserveAppLanguageUseCase,
     private val setLanguage: SetAppLanguageUseCase,
     session: SessionStorage,
+    private val pushRegistrar: PushRegistrar,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ChatsState(username = session.username.orEmpty()))
@@ -46,6 +48,7 @@ internal class ChatsViewModel(
             .onEach { lang -> _state.update { it.copy(language = lang) } }
             .launchIn(viewModelScope)
         loadChats(initial = true)
+        viewModelScope.launch { pushRegistrar.register() }
     }
 
     fun onEvent(event: ChatsEvent) {

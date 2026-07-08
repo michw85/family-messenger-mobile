@@ -22,6 +22,6 @@ val chatsModule: Module = module {
     factory { CreateChatUseCase(get()) }
     factory { DeleteChatUseCase(get()) }
     factory { LogoutUseCase(get()) }
-    viewModel { ChatsViewModel(get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { ChatsViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     single<ChatsComponent> { ChatsComponentImpl() }
 }

@@ -36,6 +36,7 @@ kotlin {
             implementation(projects.feature.chats.impl)
             implementation(projects.feature.chatroom.api)
             implementation(projects.feature.chatroom.impl)
+            implementation(projects.feature.push.impl)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.navigation.compose)

@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import coil3.ImageLoader
+import coil3.annotation.ExperimentalCoilApi
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import com.mvorontsov.bonds.core.designsystem.BondsTheme
@@ -26,6 +27,7 @@ import com.mvorontsov.bonds.presentation.navigation.RegisterRoute
 import io.ktor.client.HttpClient
 import org.koin.compose.koinInject
 
+@OptIn(ExperimentalCoilApi::class)
 @Composable
 fun App() {
     val httpClient = koinInject<HttpClient>()

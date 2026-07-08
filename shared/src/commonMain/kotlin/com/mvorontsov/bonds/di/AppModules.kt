@@ -6,6 +6,7 @@ import com.mvorontsov.bonds.core.session.di.sessionModule
 import com.mvorontsov.bonds.feature.auth.di.authModule
 import com.mvorontsov.bonds.feature.chatroom.di.chatRoomModule
 import com.mvorontsov.bonds.feature.chats.di.chatsModule
+import com.mvorontsov.bonds.feature.push.di.pushModule
 import org.koin.core.module.Module
 import org.koin.dsl.module
 
@@ -27,4 +28,5 @@ val appModules: List<Module> = listOf(
     authModule,
     chatsModule,
     chatRoomModule,
+    pushModule,
 )

@@ -8,6 +8,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(projects.feature.chats.api)
+            implementation(projects.feature.push.api)
             implementation(projects.core.network)
             implementation(projects.core.session)
             implementation(projects.core.localization)
