@@ -7,6 +7,7 @@
     <!-- Common actions -->
     <string name="action_back">Назад</string>
     <string name="action_cancel">Отмена</string>
+    <string name="action_ok">ОК</string>
     <string name="action_retry">Повторить</string>
     <string name="action_send">Отправить</string>
     <string name="action_delete">Удалить</string>

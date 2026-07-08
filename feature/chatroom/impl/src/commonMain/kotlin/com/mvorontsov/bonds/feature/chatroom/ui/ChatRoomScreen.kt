@@ -30,12 +30,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mvorontsov.bonds.core.designsystem.BondsTheme
+import com.mvorontsov.bonds.core.designsystem.ErrorDialog
 import com.mvorontsov.bonds.core.designsystem.FloatingClouds
 import com.mvorontsov.bonds.core.localization.resources.Res
 import com.mvorontsov.bonds.core.localization.resources.action_back
@@ -62,7 +60,7 @@ import com.mvorontsov.bonds.core.localization.resources.chatroom_cd_photo
 import com.mvorontsov.bonds.core.localization.resources.chatroom_cd_voice
 import com.mvorontsov.bonds.core.localization.resources.chatroom_input_hint
 import com.mvorontsov.bonds.feature.chatroom.ui.participants.AddParticipantsSheet
-import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -75,17 +73,21 @@ internal fun ChatRoomScreen(
     viewModel: ChatRoomViewModel = koinViewModel { parametersOf(chatId) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
     var showParticipants by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<StringResource?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
                 ChatRoomEffect.NavigateBack -> onBack()
-                is ChatRoomEffect.ShowError -> snackbarHostState.showSnackbar(getString(effect.message))
+                is ChatRoomEffect.ShowError -> errorMessage = effect.message
             }
         }
+    }
+
+    errorMessage?.let { message ->
+        ErrorDialog(message = message, onDismiss = { errorMessage = null })
     }
     LaunchedEffect(state.messages.size) {
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
@@ -103,7 +105,6 @@ internal fun ChatRoomScreen(
     Scaffold(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { _ ->
         Box(
             modifier = Modifier

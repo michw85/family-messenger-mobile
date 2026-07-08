@@ -17,13 +17,13 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,7 +43,8 @@ import com.mvorontsov.bonds.core.localization.resources.auth_login
 import com.mvorontsov.bonds.core.localization.resources.auth_password_hint
 import com.mvorontsov.bonds.core.localization.resources.auth_tagline
 import com.mvorontsov.bonds.core.localization.resources.auth_username_hint
-import org.jetbrains.compose.resources.getString
+import com.mvorontsov.bonds.core.designsystem.ErrorDialog
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -54,16 +55,20 @@ internal fun LoginScreen(
     viewModel: LoginViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
+    var errorMessage by remember { mutableStateOf<StringResource?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
                 LoginEffect.LoggedIn -> onLoggedIn()
                 LoginEffect.NavigateToRegister -> onOpenRegister()
-                is LoginEffect.ShowError -> snackbarHostState.showSnackbar(getString(effect.message))
+                is LoginEffect.ShowError -> errorMessage = effect.message
             }
         }
+    }
+
+    errorMessage?.let { message ->
+        ErrorDialog(message = message, onDismiss = { errorMessage = null })
     }
 
     val colors = BondsTheme.colors
@@ -71,7 +76,6 @@ internal fun LoginScreen(
 
     Scaffold(
         containerColor = Color.Transparent,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Box(
             modifier = Modifier

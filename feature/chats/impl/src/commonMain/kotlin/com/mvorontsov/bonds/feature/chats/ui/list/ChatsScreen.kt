@@ -25,8 +25,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mvorontsov.bonds.core.designsystem.BondsTheme
+import com.mvorontsov.bonds.core.designsystem.ErrorDialog
 import com.mvorontsov.bonds.core.localization.resources.Res
 import com.mvorontsov.bonds.core.localization.resources.action_cancel
 import com.mvorontsov.bonds.core.localization.resources.action_delete
@@ -63,7 +62,7 @@ import com.mvorontsov.bonds.core.localization.resources.logout_confirm_message
 import com.mvorontsov.bonds.core.localization.resources.logout_confirm_title
 import com.mvorontsov.bonds.feature.chats.domain.model.Chat
 import com.mvorontsov.bonds.feature.chats.domain.model.ChatType
-import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -75,18 +74,22 @@ internal fun ChatsScreen(
     viewModel: ChatsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     var deleteTarget by remember { mutableStateOf<Chat?>(null) }
     var showLogoutConfirm by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<StringResource?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
                 is ChatsEffect.OpenChat -> onOpenChat(effect.chatId, effect.chatName)
                 ChatsEffect.LoggedOut -> onLoggedOut()
-                is ChatsEffect.ShowError -> snackbarHostState.showSnackbar(getString(effect.message))
+                is ChatsEffect.ShowError -> errorMessage = effect.message
             }
         }
+    }
+
+    errorMessage?.let { message ->
+        ErrorDialog(message = message, onDismiss = { errorMessage = null })
     }
 
     val colors = BondsTheme.colors
@@ -94,7 +97,6 @@ internal fun ChatsScreen(
 
     Scaffold(
         containerColor = Color.Transparent,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.onEvent(ChatsEvent.CreateClicked) },

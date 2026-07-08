@@ -27,6 +27,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mvorontsov.bonds.core.designsystem.BondsTheme
+import com.mvorontsov.bonds.core.designsystem.ErrorDialog
 import com.mvorontsov.bonds.core.localization.resources.Res
 import com.mvorontsov.bonds.core.localization.resources.participants_add
 import com.mvorontsov.bonds.core.localization.resources.participants_not_found
@@ -42,6 +46,7 @@ import com.mvorontsov.bonds.core.localization.resources.participants_search_hint
 import com.mvorontsov.bonds.core.localization.resources.participants_selected
 import com.mvorontsov.bonds.core.localization.resources.participants_title
 import com.mvorontsov.bonds.feature.chatroom.domain.model.SearchUser
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -56,15 +61,20 @@ internal fun AddParticipantsSheet(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val sheetState = rememberModalBottomSheetState()
+    var errorMessage by remember { mutableStateOf<StringResource?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
                 AddParticipantsEffect.Added -> onAdded()
                 AddParticipantsEffect.Dismissed -> onDismiss()
-                is AddParticipantsEffect.ShowError -> Unit
+                is AddParticipantsEffect.ShowError -> errorMessage = effect.message
             }
         }
+    }
+
+    errorMessage?.let { message ->
+        ErrorDialog(message = message, onDismiss = { errorMessage = null })
     }
 
     val colors = BondsTheme.colors
