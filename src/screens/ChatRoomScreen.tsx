@@ -22,22 +22,26 @@ import {
     TouchableWithoutFeedback,
     ActivityIndicator,
     KeyboardAvoidingView,
+    Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';
 import { Audio } from 'expo-av';
 import ThoughtBubble from '../components/ThoughtBubble';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
-import { fetchMessages, uploadFile } from '../services/api';
+import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage } from '../services/api';
 import { connectWebSocket, subscribeToRoom, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
 import { useKeyboard } from '../hooks/useKeyboard';
 import ImageView from 'react-native-image-viewing';
-import { formatMessageTime } from '../utils/dateTime';
+import { formatMessageTime, formatMessageDate } from '../utils/dateTime';
+
+const MESSAGES_PAGE_SIZE = 30;
 
 /**
  * Интерфейс сообщения (соответствует DTO бэкенда)
@@ -55,6 +59,8 @@ interface Message {
     mediaUrl?: string;
     timestamp: string;
     grouped?: boolean;
+    edited?: boolean;
+    deleted?: boolean;
 }
 
 /**
@@ -79,6 +85,21 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const { keyboardHeight, isKeyboardVisible } = useKeyboard();
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    // Пагинация истории / Message history pagination
+    const [page, setPage] = useState(0);
+    const [hasMoreMessages, setHasMoreMessages] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+
+    // Поиск по чату / Search within the chat
+    const [searchVisible, setSearchVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<Message[]>([]);
+    const [searching, setSearching] = useState(false);
+
+    // Редактирование сообщения / Message editing
+    const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+    const [editText, setEditText] = useState('');
 
     /**
      * Сообщения с флагом группировки: true, если предыдущее сообщение от того
@@ -105,14 +126,16 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const subscriptionRef = useRef<any>(null);
 
     /**
-     * Загрузка истории сообщений через REST API
-     * Load message history via REST API
+     * Загрузка истории сообщений через REST API (первая страница - самые новые)
+     * Load message history via REST API (first page - the newest)
      */
     const loadMessages = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await fetchMessages(roomId);
-            setMessages(response.data.reverse());
+            const response = await fetchMessages(roomId, 0, MESSAGES_PAGE_SIZE);
+            setMessages([...response.data].reverse());
+            setPage(0);
+            setHasMoreMessages(response.data.length === MESSAGES_PAGE_SIZE);
         } catch (error) {
             console.error('Failed to load messages:', error);
             Alert.alert(t('error'), 'Could not load messages');
@@ -120,6 +143,46 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             setLoading(false);
         }
     }, [roomId, t]);
+
+    /**
+     * Подгрузка более старых сообщений при прокрутке вверх
+     * Load older messages when scrolling up
+     */
+    const loadMoreMessages = useCallback(async () => {
+        if (loadingMore || !hasMoreMessages) return;
+        setLoadingMore(true);
+        try {
+            const nextPage = page + 1;
+            const response = await fetchMessages(roomId, nextPage, MESSAGES_PAGE_SIZE);
+            if (response.data.length === 0) {
+                setHasMoreMessages(false);
+                return;
+            }
+            setMessages(prev => [...[...response.data].reverse(), ...prev]);
+            setPage(nextPage);
+            setHasMoreMessages(response.data.length === MESSAGES_PAGE_SIZE);
+        } catch (error) {
+            console.error('Failed to load more messages:', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [roomId, page, loadingMore, hasMoreMessages]);
+
+    /**
+     * Применяет пришедшее по WebSocket/REST сообщение: если оно уже есть в
+     * списке (по id) - заменяет его (правка/удаление), иначе добавляет новое
+     * Applies a message from WebSocket/REST: if it already exists in the list
+     * (by id) - replaces it (edit/delete), otherwise appends a new one
+     */
+    const applyMessageUpdate = useCallback((incoming: Message) => {
+        setMessages(prev => {
+            const idx = prev.findIndex(m => m.id === incoming.id);
+            if (idx === -1) return [...prev, incoming];
+            const next = [...prev];
+            next[idx] = incoming;
+            return next;
+        });
+    }, []);
 
     /**
      * Получение имени текущего пользователя
@@ -147,14 +210,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             // Подписываемся на топик комнаты
             const sub = subscribeToRoom(roomId, (newMessage: Message) => {
                 console.log('New message received:', newMessage);
-                setMessages(prev => [...prev, newMessage]);
+                applyMessageUpdate(newMessage);
                 setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
             });
             subscriptionRef.current = sub;
         } catch (error) {
             console.error('WebSocket connection failed:', error);
         }
-    }, [roomId]);
+    }, [roomId, applyMessageUpdate]);
 
     // Загрузка данных при монтировании
     useEffect(() => {
@@ -296,6 +359,127 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     }, [recording, roomId, t]);
 
     /**
+     * Поиск по тексту сообщений в чате (с debounce)
+     * Search message content within the chat (debounced)
+     */
+    useEffect(() => {
+        if (!searchVisible || !searchQuery.trim()) {
+            setSearchResults([]);
+            return;
+        }
+        const timeout = setTimeout(async () => {
+            setSearching(true);
+            try {
+                const response = await searchMessages(roomId, searchQuery.trim());
+                setSearchResults(response.data);
+            } catch (error) {
+                console.error('Search failed:', error);
+            } finally {
+                setSearching(false);
+            }
+        }, 300);
+        return () => clearTimeout(timeout);
+    }, [searchQuery, searchVisible, roomId]);
+
+    /**
+     * Переход к найденному сообщению (если оно уже загружено на экране)
+     * Jump to a found message (if it's already loaded on screen)
+     */
+    const handleSelectSearchResult = useCallback((result: Message) => {
+        setSearchVisible(false);
+        setSearchQuery('');
+        setSearchResults([]);
+
+        const displayData = [...messagesWithGrouping].reverse();
+        const index = displayData.findIndex(m => m.id === result.id);
+        if (index === -1) {
+            Alert.alert(
+                t('error') === 'Error' ? 'Not loaded yet' : 'Пока не загружено',
+                `${formatMessageDate(result.timestamp)}, ${formatMessageTime(result.timestamp)}: ${result.content}\n\n` +
+                'Прокрутите чат вверх, чтобы подгрузить более старые сообщения / Scroll up to load older messages'
+            );
+            return;
+        }
+        flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+    }, [messagesWithGrouping, t]);
+
+    /**
+     * Копирование, редактирование и удаление сообщения (долгое нажатие)
+     * Copy, edit and delete a message (long press)
+     */
+    const handleMessageLongPress = useCallback((item: Message) => {
+        if (item.deleted) return;
+
+        const isMine = item.sender.username === currentUsername;
+        const options: any[] = [];
+
+        if (item.type === 'TEXT' && item.content) {
+            options.push({
+                text: 'Копировать / Copy',
+                onPress: () => Clipboard.setStringAsync(item.content),
+            });
+        }
+        if (isMine && item.type === 'TEXT') {
+            options.push({
+                text: 'Редактировать / Edit',
+                onPress: () => {
+                    setEditingMessage(item);
+                    setEditText(item.content);
+                },
+            });
+        }
+        if (isMine) {
+            options.push({
+                text: 'Удалить / Delete',
+                style: 'destructive',
+                onPress: () => {
+                    Alert.alert(
+                        'Удалить сообщение? / Delete message?',
+                        '',
+                        [
+                            { text: 'Отмена / Cancel', style: 'cancel' },
+                            {
+                                text: 'Удалить / Delete',
+                                style: 'destructive',
+                                onPress: async () => {
+                                    try {
+                                        const response = await deleteMessage(roomId, item.id);
+                                        applyMessageUpdate(response.data);
+                                    } catch (error) {
+                                        console.error('Failed to delete message:', error);
+                                        Alert.alert(t('error'), 'Не удалось удалить сообщение / Could not delete message');
+                                    }
+                                },
+                            },
+                        ]
+                    );
+                },
+            });
+        }
+
+        if (options.length === 0) return;
+        options.push({ text: 'Отмена / Cancel', style: 'cancel' });
+        Alert.alert('', '', options);
+    }, [currentUsername, roomId, applyMessageUpdate, t]);
+
+    /**
+     * Сохранение отредактированного текста сообщения
+     * Save the edited message text
+     */
+    const saveEditedMessage = useCallback(async () => {
+        if (!editingMessage || !editText.trim()) return;
+        try {
+            const response = await editMessage(roomId, editingMessage.id, editText.trim());
+            applyMessageUpdate(response.data);
+            setEditingMessage(null);
+            setEditText('');
+        } catch (error) {
+            console.error('Failed to edit message:', error);
+            Alert.alert(t('error'), 'Не удалось изменить сообщение / Could not edit message');
+        }
+    }, [editingMessage, editText, roomId, applyMessageUpdate, t]);
+
+    /**
      * Рендер одного сообщения
      * Render a single message
      */
@@ -307,21 +491,24 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     setImageViewerVisible(true);
                 }
             }}
+            onLongPress={() => handleMessageLongPress(item)}
             activeOpacity={item.type === 'IMAGE' ? 0.7 : 1}
         >
             <ThoughtBubble
-                content={item.content}
+                content={item.deleted ? 'Сообщение удалено / Message deleted' : item.content}
                 sender={item.sender.username}
                 timestamp={formatMessageTime(item.timestamp)}
                 isMyMessage={item.sender.username === currentUsername}
-                type={item.type}
-                mediaUrl={item.mediaUrl}
+                type={item.deleted ? 'TEXT' : item.type}
+                mediaUrl={item.deleted ? undefined : item.mediaUrl}
                 grouped={item.grouped}
+                edited={item.edited}
+                deletedPlaceholder={item.deleted}
             />
         </TouchableOpacity>
-    ), [currentUsername]);
+    ), [currentUsername, handleMessageLongPress]);
 
-    const keyExtractor = useCallback((item: Message, index: number) => `${index}-${item.id}`, []);
+    const keyExtractor = useCallback((item: Message) => item.id, []);
 
     // Обработчики клавиатуры для плавной прокрутки
     useEffect(() => {
@@ -368,14 +555,64 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
                         {/* Заголовок чата — прозрачный с тенью */}
                         <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-                            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                                <Text style={styles.backButtonText}>←</Text>
-                            </TouchableOpacity>
-                            <Text style={styles.headerTitle}>{roomName}</Text>
-                            <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
-                                <Text style={styles.addButtonText}>+</Text>
-                            </TouchableOpacity>
+                            {searchVisible ? (
+                                <>
+                                    <TextInput
+                                        style={styles.searchInput}
+                                        value={searchQuery}
+                                        onChangeText={setSearchQuery}
+                                        placeholder="Поиск по чату / Search chat"
+                                        placeholderTextColor={colors.textMuted}
+                                        autoFocus
+                                    />
+                                    <TouchableOpacity
+                                        onPress={() => { setSearchVisible(false); setSearchQuery(''); setSearchResults([]); }}
+                                        style={styles.addButton}
+                                    >
+                                        <Text style={styles.addButtonText}>✕</Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : (
+                                <>
+                                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                                        <Text style={styles.backButtonText}>←</Text>
+                                    </TouchableOpacity>
+                                    <Text style={styles.headerTitle}>{roomName}</Text>
+                                    <TouchableOpacity onPress={() => setSearchVisible(true)} style={styles.iconHeaderButton}>
+                                        <Text style={styles.iconText}>🔍</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
+                                        <Text style={styles.addButtonText}>+</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
                         </View>
+
+                        {/* Выпадающий список результатов поиска / Search results dropdown */}
+                        {searchVisible && searchQuery.trim().length > 0 && (
+                            <View style={styles.searchResultsBox}>
+                                {searching ? (
+                                    <ActivityIndicator size="small" color={colors.primary} style={{ padding: spacing.md }} />
+                                ) : searchResults.length === 0 ? (
+                                    <Text style={styles.searchEmptyText}>Ничего не найдено / Nothing found</Text>
+                                ) : (
+                                    <FlatList
+                                        data={searchResults}
+                                        keyExtractor={(item) => item.id}
+                                        style={{ maxHeight: 260 }}
+                                        renderItem={({ item }) => (
+                                            <TouchableOpacity style={styles.searchResultItem} onPress={() => handleSelectSearchResult(item)}>
+                                                <Text style={styles.searchResultSender}>{item.sender.username}</Text>
+                                                <Text style={styles.searchResultContent} numberOfLines={1}>{item.content}</Text>
+                                                <Text style={styles.searchResultDate}>
+                                                    {formatMessageDate(item.timestamp)}, {formatMessageTime(item.timestamp)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    />
+                                )}
+                            </View>
+                        )}
 
                         <FlatList
                             ref={flatListRef}
@@ -389,6 +626,12 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             showsVerticalScrollIndicator={false}
                             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
                             onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                            onEndReached={loadMoreMessages}
+                            onEndReachedThreshold={0.3}
+                            onScrollToIndexFailed={() => { }}
+                            ListFooterComponent={loadingMore ? (
+                                <ActivityIndicator size="small" color={colors.primary} style={{ padding: spacing.md }} />
+                            ) : null}
                         />
 
                         {/* Панель ввода с новыми цветами */}
@@ -445,6 +688,35 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         visible={imageViewerVisible}
                         onRequestClose={() => setImageViewerVisible(false)}
                     />
+
+                    {/* Модалка редактирования сообщения / Message editing modal */}
+                    <Modal
+                        visible={!!editingMessage}
+                        transparent
+                        animationType="fade"
+                        onRequestClose={() => setEditingMessage(null)}
+                    >
+                        <View style={styles.editModalOverlay}>
+                            <View style={styles.editModalBox}>
+                                <Text style={styles.editModalTitle}>Редактировать сообщение / Edit message</Text>
+                                <TextInput
+                                    style={styles.editModalInput}
+                                    value={editText}
+                                    onChangeText={setEditText}
+                                    multiline
+                                    autoFocus
+                                />
+                                <View style={styles.editModalButtons}>
+                                    <TouchableOpacity onPress={() => setEditingMessage(null)} style={styles.editModalCancelButton}>
+                                        <Text style={styles.editModalCancelText}>Отмена / Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={saveEditedMessage} style={styles.editModalSaveButton}>
+                                        <Text style={styles.editModalSaveText}>Сохранить / Save</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </View>
+                    </Modal>
                 </View>
             </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
@@ -586,6 +858,112 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: '600',
         marginTop: -2,
+    },
+    // Поиск / Search
+    iconHeaderButton: {
+        padding: 8,
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        backgroundColor: colors.backgroundLight,
+        fontSize: 15,
+        color: colors.text,
+        marginRight: spacing.sm,
+    },
+    searchResultsBox: {
+        backgroundColor: 'rgba(255,255,255,0.97)',
+        marginHorizontal: spacing.md,
+        borderRadius: borderRadius.medium,
+        ...shadows.medium,
+        zIndex: 10,
+    },
+    searchEmptyText: {
+        padding: spacing.lg,
+        textAlign: 'center',
+        color: colors.textMuted,
+        fontSize: 13,
+    },
+    searchResultItem: {
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.borderLight,
+    },
+    searchResultSender: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: colors.primary,
+    },
+    searchResultContent: {
+        fontSize: 14,
+        color: colors.text,
+        marginTop: 2,
+    },
+    searchResultDate: {
+        fontSize: 10,
+        color: colors.textMuted,
+        marginTop: 2,
+    },
+    // Модалка редактирования / Edit modal
+    editModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(26, 37, 48, 0.4)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: spacing.xl,
+    },
+    editModalBox: {
+        width: '100%',
+        backgroundColor: colors.backgroundLight,
+        borderRadius: borderRadius.large,
+        padding: spacing.lg,
+        ...shadows.large,
+    },
+    editModalTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: colors.primary,
+        marginBottom: spacing.md,
+    },
+    editModalInput: {
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: borderRadius.medium,
+        padding: spacing.md,
+        fontSize: 15,
+        color: colors.text,
+        minHeight: 60,
+        maxHeight: 160,
+    },
+    editModalButtons: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: spacing.md,
+        marginTop: spacing.lg,
+    },
+    editModalCancelButton: {
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+    },
+    editModalCancelText: {
+        color: colors.textSecondary,
+        fontWeight: '600',
+    },
+    editModalSaveButton: {
+        backgroundColor: colors.primary,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        borderRadius: borderRadius.medium,
+    },
+    editModalSaveText: {
+        color: colors.textLight,
+        fontWeight: '600',
     },
 });
 

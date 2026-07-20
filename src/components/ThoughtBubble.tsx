@@ -18,6 +18,7 @@ import {
     Dimensions,
     TouchableOpacity,
     Alert,
+    Linking,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
@@ -44,7 +45,34 @@ interface ThoughtBubbleProps {
      * sent recently - reduces the top margin (groups consecutive messages)
      */
     grouped?: boolean;
+    /** Было ли сообщение отредактировано / Whether the message was edited */
+    edited?: boolean;
+    /** Отрисовать как плейсхолдер удалённого сообщения / Render as a deleted-message placeholder */
+    deletedPlaceholder?: boolean;
 }
+
+/**
+ * Находит URL в тексте и делает их кликабельными (синий цвет, открытие в браузере)
+ * Finds URLs in text and makes them clickable (blue color, opens in browser)
+ */
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+const LinkifiedText: React.FC<{ text: string; textStyle: any; linkStyle: any }> = ({ text, textStyle, linkStyle }) => {
+    const parts = text.split(URL_REGEX);
+    return (
+        <Text style={textStyle}>
+            {parts.map((part, i) =>
+                /^https?:\/\//.test(part) ? (
+                    <Text key={i} style={linkStyle} onPress={() => Linking.openURL(part)}>
+                        {part}
+                    </Text>
+                ) : (
+                    <Text key={i}>{part}</Text>
+                )
+            )}
+        </Text>
+    );
+};
 
 /**
  * Генерация акцентного цвета для имени отправителя
@@ -184,6 +212,8 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     mediaUrl,
     userColor,
     grouped = false,
+    edited = false,
+    deletedPlaceholder = false,
 }) => {
     // Анимации (сохранены из предыдущей версии)
     const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -335,12 +365,20 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                             {isPlaying ? 'Остановить' : 'Голосовое сообщение'}
                         </Text>
                     </TouchableOpacity>
+                ) : deletedPlaceholder ? (
+                    <Text style={styles.deletedText}>{content}</Text>
                 ) : (
-                    <Text style={[styles.messageText, isMyMessage && styles.myText]}>{content}</Text>
+                    <LinkifiedText
+                        text={content}
+                        textStyle={[styles.messageText, isMyMessage && styles.myText]}
+                        linkStyle={styles.linkText}
+                    />
                 )}
             </View>
             <TailDots isMyMessage={isMyMessage} />
-            <Text style={[styles.timestamp, isMyMessage ? styles.timestampRight : styles.timestampLeft]}>{timestamp}</Text>
+            <Text style={[styles.timestamp, isMyMessage ? styles.timestampRight : styles.timestampLeft]}>
+                {edited && !deletedPlaceholder ? 'изменено · ' : ''}{timestamp}
+            </Text>
         </Animated.View>
     );
 };
@@ -367,6 +405,16 @@ const styles = StyleSheet.create({
      * Text for my messages — same dark color
      */
     myText: { color: '#2C3E50' },
+    /**
+     * Ссылки в тексте — синие и подчёркнутые, как в обычных мессенджерах
+     * Links in text — blue and underlined, like standard messengers
+     */
+    linkText: { color: '#2563EB', textDecorationLine: 'underline' },
+    /**
+     * Плейсхолдер удалённого сообщения — курсив, приглушённый цвет
+     * Deleted message placeholder — italic, muted color
+     */
+    deletedText: { fontSize: 15, lineHeight: 22, color: '#95A5A6', fontStyle: 'italic' },
     /**
      * Время отправки — тёмно-серый для всех
      * Timestamp — dark gray for all

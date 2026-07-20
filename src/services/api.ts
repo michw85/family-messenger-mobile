@@ -137,6 +137,15 @@ export const deleteChat = (chatId: string) => api.delete(`/chats/${chatId}`);
 export const fetchMessages = (chatId: string, page = 0, size = 30) =>
   api.get(`/chats/${chatId}/messages`, { params: { page, size } });
 
+export const searchMessages = (chatId: string, query: string) =>
+  api.get(`/chats/${chatId}/messages/search`, { params: { query } });
+
+export const editMessage = (chatId: string, messageId: string, content: string) =>
+  api.put(`/chats/${chatId}/messages/${messageId}`, { content });
+
+export const deleteMessage = (chatId: string, messageId: string) =>
+  api.delete(`/chats/${chatId}/messages/${messageId}`);
+
 // Files
 export const uploadFile = (formData: FormData, type: 'image' | 'voice') =>
   api.post(`/files/upload/${type}`, formData, {
