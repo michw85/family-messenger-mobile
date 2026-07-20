@@ -17,7 +17,6 @@ import {
     Image,
     Dimensions,
     TouchableOpacity,
-    Linking,
     Alert,
 } from 'react-native';
 import { Audio } from 'expo-av';
@@ -324,9 +323,11 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
             <View style={[styles.contentOverlay, { width: dimensions.width - 25, paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
                 {!isMyMessage && <Text style={[styles.senderName, { color: colors.primary }]}>{sender}</Text>}
                 {type === 'IMAGE' && mediaUrl ? (
-                    <TouchableOpacity onPress={() => Linking.openURL(mediaUrl)}>
-                        <Image source={{ uri: mediaUrl }} style={styles.image} />
-                    </TouchableOpacity>
+                    // Открытие по нажатию обрабатывает родитель (ChatRoomScreen) - показывает
+                    // картинку во встроенном просмотрщике, а не в системном браузере
+                    // Tap is handled by the parent (ChatRoomScreen) - opens the image in the
+                    // built-in viewer instead of the system browser
+                    <Image source={{ uri: mediaUrl }} style={styles.image} />
                 ) : type === 'VOICE' ? (
                     <TouchableOpacity onPress={() => playVoice(mediaUrl || '')} style={styles.voiceRow} disabled={!mediaUrl}>
                         <Text style={styles.voiceIcon}>{isPlaying ? '⏹️' : '▶️'}</Text>

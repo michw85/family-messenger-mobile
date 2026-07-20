@@ -28,6 +28,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { register, updateFcmToken } from '../services/api';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
+import { isPasswordStrong, PASSWORD_RULES_MESSAGE } from '../utils/password';
 import { colors, spacing, borderRadius, shadows } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -79,8 +80,8 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
             Alert.alert(t('error'), 'Введите корректный email');
             return false;
         }
-        if (password.length < 6) {
-            Alert.alert(t('error'), 'Пароль должен содержать минимум 6 символов');
+        if (!isPasswordStrong(password)) {
+            Alert.alert(t('error'), PASSWORD_RULES_MESSAGE);
             return false;
         }
         if (password !== confirmPassword) {
@@ -99,9 +100,12 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
         setLoading(true);
         try {
             const response = await register(username, email, password);
-            const { token, user } = response.data;
+            const { token, refreshToken, user } = response.data;
             // await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
             await AsyncStorage.setItem('token', token);
+            if (refreshToken) {
+                await AsyncStorage.setItem('refreshToken', refreshToken);
+            }
             // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
             await AsyncStorage.setItem('username', user.username);
             console.log('Registration successful');
@@ -114,9 +118,10 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
                  console.warn('FCM token registration skipped:', e);
              }*/
             navigation.replace('RoomSelect');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Registration error:', error);
-            Alert.alert(t('error'), 'Не удалось зарегистрироваться / Registration failed');
+            const serverMessage = typeof error?.response?.data === 'string' ? error.response.data : null;
+            Alert.alert(t('error'), serverMessage || 'Не удалось зарегистрироваться / Registration failed');
         } finally {
             setLoading(false);
         }

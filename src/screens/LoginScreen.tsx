@@ -22,11 +22,9 @@ import {
     Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
-import { login, updateFcmToken } from '../services/api'; // Импорт реального API
-import { registerForPushNotificationsAsync } from '../utils/notifications';
+import { login } from '../services/api'; // Импорт реального API
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -79,35 +77,21 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
         try {
             // Реальный вызов бэкенда / Actual backend call
             const response = await login(username, password);
-            const { token, user } = response.data;
 
-            // Сохраняем полученные данные / Save received data
-            // await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
-            await AsyncStorage.setItem('token', token);
-            // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
-            await AsyncStorage.setItem('username', user.username);
-
-            /* const pushToken = await registerForPushNotificationsAsync();
-             if (pushToken) {
-                 await updateFcmToken(pushToken);
-             }*/
-
-            console.log('Login successful – token saved');
-            // Переход на экран выбора чатов / Navigate to chat selection
-            navigation.replace('RoomSelect');
-        } catch (error) {
+            // Пароль верный - бэкенд отправил код подтверждения на email (2FA)
+            // Password is correct - backend sent a verification code to email (2FA)
+            if (response.data?.otpRequired) {
+                navigation.navigate('OtpVerify', { username });
+            }
+        } catch (error: any) {
             console.error('Login error:', error);
-            Alert.alert(t('error'), 'Неверное имя пользователя или пароль / Invalid username or password');
+            if (error?.response?.status === 429) {
+                Alert.alert(t('error'), 'Слишком много неудачных попыток входа. Попробуйте позже / Too many failed login attempts. Try again later');
+            } else {
+                Alert.alert(t('error'), 'Неверное имя пользователя или пароль / Invalid username or password');
+            }
         } finally {
             setLoading(false);
-        }
-
-        // FCM отдельно, не блокирует логин
-        try {
-            const pushToken = await registerForPushNotificationsAsync();
-            if (pushToken) await updateFcmToken(pushToken);
-        } catch (e) {
-            console.warn('FCM skipped:', e);
         }
     };
 

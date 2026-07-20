@@ -19,6 +19,7 @@ import {
     Alert,
     TextInput,
     TouchableOpacity,
+    TouchableWithoutFeedback,
     ActivityIndicator,
     KeyboardAvoidingView,
 } from 'react-native';
@@ -34,6 +35,9 @@ import { fetchMessages, uploadFile } from '../services/api';
 import { connectWebSocket, subscribeToRoom, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
+import { useKeyboard } from '../hooks/useKeyboard';
+import ImageView from 'react-native-image-viewing';
+import { formatMessageTime } from '../utils/dateTime';
 
 /**
  * Интерфейс сообщения (соответствует DTO бэкенда)
@@ -56,7 +60,7 @@ interface Message {
  * Экран чата
  * Chat screen component
  */
-const ChatRoomScreen: React.FC<any> = ({ route }) => {
+const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const { roomId, roomName } = route.params || { roomId: 'family-chat', roomName: 'Family Chat' };
     const { t } = useLanguage();
     const insets = useSafeAreaInsets();
@@ -71,6 +75,9 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     const [sending, setSending] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [addParticipantsVisible, setAddParticipantsVisible] = useState(false);
+    const { keyboardHeight, isKeyboardVisible } = useKeyboard();
+    const [imageViewerVisible, setImageViewerVisible] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
     // Refs
     const flatListRef = useRef<FlatList>(null);
@@ -273,14 +280,24 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
      * Render a single message
      */
     const renderMessage = useCallback(({ item }: { item: Message }) => (
-        <ThoughtBubble
-            content={item.content}
-            sender={item.sender.username}
-            timestamp={new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            isMyMessage={item.sender.username === currentUsername}
-            type={item.type}
-            mediaUrl={item.mediaUrl}
-        />
+        <TouchableOpacity
+            onPress={() => {
+                if (item.type === 'IMAGE' && item.mediaUrl) {
+                    setSelectedImage(item.mediaUrl);
+                    setImageViewerVisible(true);
+                }
+            }}
+            activeOpacity={item.type === 'IMAGE' ? 0.7 : 1}
+        >
+            <ThoughtBubble
+                content={item.content}
+                sender={item.sender.username}
+                timestamp={formatMessageTime(item.timestamp)}
+                isMyMessage={item.sender.username === currentUsername}
+                type={item.type}
+                mediaUrl={item.mediaUrl}
+            />
+        </TouchableOpacity>
     ), [currentUsername]);
 
     const keyExtractor = useCallback((item: Message, index: number) => `${index}-${item.id}`, []);
@@ -310,83 +327,106 @@ const ChatRoomScreen: React.FC<any> = ({ route }) => {
     }
 
     return (
-        <View
+
+        <KeyboardAvoidingView
             style={{ flex: 1 }}
-        // behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-        // keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-            <View style={styles.container}>
-                {/* Тёплый градиент Bonds вместо холодного */}
-                <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']}
-                    style={StyleSheet.absoluteFillObject} />
-                <FloatingClouds />
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                <View
+                    style={{ flex: 1 }}
+                // behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+                // keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
+                >
+                    <View style={styles.container}>
+                        {/* Тёплый градиент Bonds вместо холодного */}
+                        <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']}
+                            style={StyleSheet.absoluteFillObject} />
+                        <FloatingClouds />
 
-                {/* Заголовок чата — прозрачный с тенью */}
-                <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-                    <Text style={styles.headerTitle}>{roomName}</Text>
-                    <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
-                        <Text style={styles.addButtonText}>+</Text>
-                    </TouchableOpacity>
-                </View>
+                        {/* Заголовок чата — прозрачный с тенью */}
+                        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+                            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                                <Text style={styles.backButtonText}>←</Text>
+                            </TouchableOpacity>
+                            <Text style={styles.headerTitle}>{roomName}</Text>
+                            <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
+                                <Text style={styles.addButtonText}>+</Text>
+                            </TouchableOpacity>
+                        </View>
 
-                <FlatList
-                    ref={flatListRef}
-                    data={messages}
-                    keyExtractor={keyExtractor}
-                    renderItem={renderMessage}
-                    style={styles.messageList}
-                    contentContainerStyle={styles.messageListContent}
-                    showsVerticalScrollIndicator={false}
-                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                    onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
-                />
-
-                {/* Панель ввода с новыми цветами */}
-                {/* <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 12 }]}> */}
-                <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 8 }]}>
-                    <View style={styles.inputContainer}>
-                        {/* Кнопка фото */}
-                        <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
-                            <Text style={styles.iconText}>📷</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPressIn={startRecording}
-                            onPressOut={stopRecording}
-                            style={[styles.iconButton, isRecording && styles.recordingActive]}
-                        >
-                            <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
-                        </TouchableOpacity>
-                        <TextInput
-                            style={styles.input}
-                            value={inputText}
-                            onChangeText={setInputText}
-                            placeholder={t('placeholder')}
-                            placeholderTextColor={colors.textMuted}
-                            onSubmitEditing={sendTextMessage}
-                            returnKeyType="send"
-                            multiline
+                        <FlatList
+                            ref={flatListRef}
+                            // data={messages}
+                            data={[...messages].reverse()} // Инвертируем массив
+                            keyExtractor={keyExtractor}
+                            renderItem={renderMessage}
+                            inverted={true} // КЛЮЧЕВОЙ ПАРАМЕТР!
+                            style={styles.messageList}
+                            contentContainerStyle={styles.messageListContent}
+                            showsVerticalScrollIndicator={false}
+                            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
                         />
-                        <TouchableOpacity
-                            style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
-                            onPress={sendTextMessage}
-                            disabled={!inputText.trim() || sending}
-                        >
-                            <Text style={styles.sendButtonText}>↑</Text>
-                        </TouchableOpacity>
+
+                        {/* Панель ввода с новыми цветами */}
+                        {/* <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 12 }]}> */}
+                        <View style={[styles.inputWrapper, {
+                            // paddingBottom: insets.bottom + 8 
+                            paddingBottom: isKeyboardVisible ? keyboardHeight + 12 : insets.bottom + 12
+                        }]}>
+                            <View style={styles.inputContainer}>
+                                {/* Кнопка фото */}
+                                <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
+                                    <Text style={styles.iconText}>📷</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPressIn={startRecording}
+                                    onPressOut={stopRecording}
+                                    style={[styles.iconButton, isRecording && styles.recordingActive]}
+                                >
+                                    <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
+                                </TouchableOpacity>
+                                <TextInput
+                                    style={styles.input}
+                                    value={inputText}
+                                    onChangeText={setInputText}
+                                    placeholder={t('placeholder')}
+                                    placeholderTextColor={colors.textMuted}
+                                    onSubmitEditing={sendTextMessage}
+                                    returnKeyType="send"
+                                    multiline
+                                />
+                                <TouchableOpacity
+                                    style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
+                                    onPress={sendTextMessage}
+                                    disabled={!inputText.trim() || sending}
+                                >
+                                    <Text style={styles.sendButtonText}>↑</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        {/* Модалка добавления участников */}
+                        <AddParticipantsModal
+                            visible={addParticipantsVisible}
+                            onClose={() => setAddParticipantsVisible(false)}
+                            chatId={roomId}
+                            onParticipantsAdded={() => {
+                                Alert.alert('Участники добавлены');
+                                // При необходимости можно перезагрузить список участников
+                            }}
+                        />
                     </View>
+                    <ImageView
+                        images={[{ uri: selectedImage || '' }]}
+                        imageIndex={0}
+                        visible={imageViewerVisible}
+                        onRequestClose={() => setImageViewerVisible(false)}
+                    />
                 </View>
-                {/* Модалка добавления участников */}
-                <AddParticipantsModal
-                    visible={addParticipantsVisible}
-                    onClose={() => setAddParticipantsVisible(false)}
-                    chatId={roomId}
-                    onParticipantsAdded={() => {
-                        Alert.alert('Участники добавлены');
-                        // При необходимости можно перезагрузить список участников
-                    }}
-                />
-            </View>
-        </View>
+            </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
     );
 };
 
@@ -419,6 +459,19 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: colors.primary, // индиго
         letterSpacing: 0.5,
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    backButton: {
+        padding: 8,
+        marginRight: 12,
+    },
+    backButtonText: {
+        fontSize: 28,
+        color: colors.primary,
     },
     /**
      * Кнопка добавления участников

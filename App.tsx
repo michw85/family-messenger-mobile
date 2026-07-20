@@ -9,20 +9,28 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import OtpVerifyScreen from './src/screens/OtpVerifyScreen';
 import RoomSelectScreen from './src/screens/RoomSelectScreen';
 import ChatRoomScreen from './src/screens/ChatRoomScreen';
 import { colors } from './src/styles/theme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { setAuthExpiredHandler } from './src/utils/authEvents';
 
 
 const Stack = createNativeStackNavigator();
+
+// Ref навигации, чтобы можно было сбросить на экран логина из любого места
+// (например, когда refresh-токен истёк и api.ts вызывает triggerAuthExpired())
+// Navigation ref so we can reset to the Login screen from anywhere
+// (e.g. when the refresh token has expired and api.ts calls triggerAuthExpired())
+const navigationRef = createNavigationContainerRef();
 
 /**
  * Ключи для хранения данных в AsyncStorage
@@ -190,6 +198,19 @@ const Navigation = () => {
         checkLoginStatus();
     }, []);
 
+    useEffect(() => {
+        // Когда refresh-токен истёк/отозван, api.ts очищает AsyncStorage и вызывает
+        // triggerAuthExpired() — здесь сбрасываем навигацию на экран логина.
+        // When the refresh token has expired/been revoked, api.ts clears AsyncStorage
+        // and calls triggerAuthExpired() — here we reset navigation back to Login.
+        setAuthExpiredHandler(() => {
+            setIsLoggedIn(false);
+            if (navigationRef.isReady()) {
+                navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+            }
+        });
+    }, []);
+
     // Показываем индикатор загрузки во время проверки / Show loading indicator during check
     if (isChecking) {
         return (
@@ -204,7 +225,7 @@ const Navigation = () => {
     console.log('Navigation - initialRoute:', isLoggedIn ? 'RoomSelect' : 'Login');
 
     return (
-        <NavigationContainer>
+        <NavigationContainer ref={navigationRef}>
             <Stack.Navigator
                 // initialRouteName="Login"
                 initialRouteName={isLoggedIn ? "RoomSelect" : "Login"}
@@ -218,6 +239,9 @@ const Navigation = () => {
 
                 {/* Экран регистрации - всегда должен быть доступен / Register screen - should always be available */}
                 <Stack.Screen name="Register" component={RegisterScreen} />
+
+                {/* Экран ввода кода из email (2FA) / Email code entry screen (2FA) */}
+                <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
 
                 {/* Экран выбора чата - только для авторизованных / Room select screen - only for authorized */}
                 <Stack.Screen name="RoomSelect" component={RoomSelectScreen} />
