@@ -20,7 +20,7 @@ import {
     Alert,
 } from 'react-native';
 import { Audio } from 'expo-av';
-import Svg, { Path, Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -37,6 +37,13 @@ interface ThoughtBubbleProps {
     type?: 'TEXT' | 'IMAGE' | 'VOICE';
     mediaUrl?: string;
     userColor?: string;
+    /**
+     * true, если предыдущее сообщение в чате от того же отправителя и отправлено
+     * недавно - тогда отступ сверху меньше (группировка сообщений подряд)
+     * true if the previous message in the chat is from the same sender and was
+     * sent recently - reduces the top margin (groups consecutive messages)
+     */
+    grouped?: boolean;
 }
 
 /**
@@ -59,118 +66,110 @@ const getAccentColor = (name: string): string => {
 };
 
 /**
- * SVG-форма облака для своих сообщений (справа)
- * Cloud shape for my messages (right side)
+ * Радиус "шишечек" по контуру облака
+ * Radius of the bumps around the cloud outline
  */
-const MyCloudShape: React.FC<{ width: number; height: number }> = ({ width, height }) => (
-    <Svg width={width + 35} height={height + 35} viewBox={`0 0 ${width + 35} ${height + 35}`}>
-        <Defs>
-            <LinearGradient id="myGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                <Stop offset="100%" stopColor="#F5E6CA" stopOpacity="0.95" />
-            </LinearGradient>
-        </Defs>
-
-        <Path
-            d={`
-                M 20 15
-                Q 10 15 10 25
-                Q 10 35 20 40
-                Q 15 50 25 55
-                Q 30 70 60 65
-                Q 80 85 120 80
-                Q 150 95 ${width - 15} 85
-                Q ${width + 5} 75 ${width} 60
-                Q ${width + 10} 45 ${width} 35
-                Q ${width - 5} 20 ${width - 20} 15
-                Z
-            `}
-            fill="rgba(0,0,0,0.06)"
-            transform="translate(2, 3)"
-        />
-
-        <Path
-            d={`
-                M 20 15
-                Q 10 15 10 25
-                Q 10 35 20 40
-                Q 15 50 25 55
-                Q 30 70 60 65
-                Q 80 85 120 80
-                Q 150 95 ${width - 15} 85
-                Q ${width + 5} 75 ${width} 60
-                Q ${width + 10} 45 ${width} 35
-                Q ${width - 5} 20 ${width - 20} 15
-                Z
-            `}
-            fill="url(#myGradient)"
-            stroke="#E8E8E8"
-            strokeWidth="0.5"
-        />
-
-        <Circle cx={width - 12} cy={height - 2} r="7" fill="#FFFFFF" opacity="0.95" stroke="#E8E8E8" strokeWidth="0.5" />
-        <Circle cx={width - 5} cy={height + 4} r="5" fill="#FFFFFF" opacity="0.85" />
-        <Circle cx={width} cy={height + 9} r="3.5" fill="#FFFFFF" opacity="0.7" />
-        <Circle cx={width + 3} cy={height + 13} r="2" fill="#FFFFFF" opacity="0.5" />
-    </Svg>
-);
+const CLOUD_BUMP = 17.5;
 
 /**
- * SVG-форма облака для чужих сообщений (слева)
- * Cloud shape for others' messages (left side)
+ * Строит рваный ("облачный") контур: скруглённый прямоугольник со случайными
+ * шишечками по периметру. Портировано из Kotlin-версии (алгоритм scallop),
+ * но пересчитывается под любой размер, а не захардкожено под конкретный текст.
+ * Builds a scalloped "cloud" outline: a rounded rect with bumps around the
+ * perimeter. Ported from the Kotlin version's scallop algorithm, but
+ * recomputed for any size instead of being hardcoded for specific text.
  */
-const TheirCloudShape: React.FC<{ width: number; height: number }> = ({ width, height }) => (
-    <Svg width={width + 35} height={height + 35} viewBox={`0 0 ${width + 35} ${height + 35}`}>
-        <Defs>
-            <LinearGradient id="theirGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                <Stop offset="100%" stopColor="#F5E6CA" stopOpacity="0.95" />
-            </LinearGradient>
-        </Defs>
+const buildCloudPath = (width: number, height: number, bump: number): string => {
+    const tl = { x: bump, y: bump };
+    const tr = { x: width - bump, y: bump };
+    const br = { x: width - bump, y: height - bump };
+    const bl = { x: bump, y: height - bump };
 
-        <Path
-            d={`
-                M ${width - 20} 15
-                Q ${width - 10} 15 ${width - 10} 25
-                Q ${width - 10} 35 ${width - 20} 40
-                Q ${width - 15} 50 ${width - 25} 55
-                Q ${width - 30} 70 ${width - 60} 65
-                Q ${width - 80} 85 ${width - 120} 80
-                Q ${width - 150} 95 15 85
-                Q 5 75 10 60
-                Q 0 45 10 35
-                Q 15 20 20 15
-                Z
-            `}
-            fill="rgba(0,0,0,0.06)"
-            transform="translate(-2, 3)"
-        />
+    const scallop = (from: { x: number; y: number }, to: { x: number; y: number }, nx: number, ny: number) => {
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const len = Math.hypot(dx, dy);
+        const count = Math.max(1, Math.round(len / (bump * 2)));
+        let segment = '';
+        for (let i = 1; i <= count; i++) {
+            const t0 = (i - 1) / count;
+            const t1 = i / count;
+            const sx = from.x + dx * t0;
+            const sy = from.y + dy * t0;
+            const ex = from.x + dx * t1;
+            const ey = from.y + dy * t1;
+            const mx = (sx + ex) / 2 + nx * bump;
+            const my = (sy + ey) / 2 + ny * bump;
+            segment += `Q ${mx} ${my} ${ex} ${ey} `;
+        }
+        return segment;
+    };
 
-        <Path
-            d={`
-                M ${width - 20} 15
-                Q ${width - 10} 15 ${width - 10} 25
-                Q ${width - 10} 35 ${width - 20} 40
-                Q ${width - 15} 50 ${width - 25} 55
-                Q ${width - 30} 70 ${width - 60} 65
-                Q ${width - 80} 85 ${width - 120} 80
-                Q ${width - 150} 95 15 85
-                Q 5 75 10 60
-                Q 0 45 10 35
-                Q 15 20 20 15
-                Z
-            `}
-            fill="url(#theirGradient)"
-            stroke="#E8E8E8"
-            strokeWidth="0.5"
-        />
+    return (
+        `M ${tl.x} ${tl.y} ` +
+        scallop(tl, tr, 0, -1) +
+        scallop(tr, br, 1, 0) +
+        scallop(br, bl, 0, 1) +
+        scallop(bl, tl, -1, 0) +
+        'Z'
+    );
+};
 
-        <Circle cx={22} cy={height - 2} r="7" fill="#FFFFFF" opacity="0.95" stroke="#E8E8E8" strokeWidth="0.5" />
-        <Circle cx={15} cy={height + 4} r="5" fill="#FFFFFF" opacity="0.85" />
-        <Circle cx={10} cy={height + 9} r="3.5" fill="#FFFFFF" opacity="0.7" />
-        <Circle cx={7} cy={height + 13} r="2" fill="#FFFFFF" opacity="0.5" />
-    </Svg>
-);
+/**
+ * Облачный пузырь: своим сообщениям — бежевый градиент, чужим — светлый
+ * (те же цвета, что в Kotlin-версии/остальном приложении)
+ * Cloud bubble: beige gradient for my messages, light gradient for others'
+ * (same colors as the Kotlin version / rest of the app)
+ */
+const CloudShape: React.FC<{ width: number; height: number; isMyMessage: boolean }> = ({ width, height, isMyMessage }) => {
+    const w = width + CLOUD_BUMP * 2;
+    const h = height + CLOUD_BUMP * 2;
+    const path = useMemo(() => buildCloudPath(w, h, CLOUD_BUMP), [w, h]);
+    const gradientId = isMyMessage ? 'myGradient' : 'theirGradient';
+    const gradientFrom = isMyMessage ? '#F5E6CA' : '#FFFFFF';
+    const gradientTo = isMyMessage ? '#E8D5B8' : '#F5E6CA';
+
+    return (
+        <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+            <Defs>
+                <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                    <Stop offset="0%" stopColor={gradientFrom} stopOpacity="1" />
+                    <Stop offset="100%" stopColor={gradientTo} stopOpacity="1" />
+                </LinearGradient>
+            </Defs>
+            <Path d={path} fill="rgba(0,0,0,0.06)" transform={`translate(${isMyMessage ? 2 : -2}, 3)`} />
+            <Path d={path} fill={`url(#${gradientId})`} stroke="#E8E8E8" strokeWidth={0.6} />
+        </Svg>
+    );
+};
+
+/**
+ * Хвостик из трёх уменьшающихся кружков под последним сообщением группы
+ * (вместо наплывов, встроенных в контур облака)
+ * Tail of three shrinking dots under the last message of a group
+ * (instead of bumps baked into the cloud outline)
+ */
+const TailDots: React.FC<{ isMyMessage: boolean }> = ({ isMyMessage }) => {
+    const sizes = isMyMessage ? [9, 6, 3] : [3, 6, 9];
+    return (
+        <View style={[styles.tailRow, isMyMessage ? styles.tailRowMine : styles.tailRowTheirs]}>
+            {sizes.map((s, i) => (
+                <View
+                    key={i}
+                    style={{
+                        width: s,
+                        height: s,
+                        borderRadius: s / 2,
+                        backgroundColor: '#FFFFFF',
+                        borderWidth: 0.6,
+                        borderColor: '#E8E8E8',
+                        marginLeft: i === 0 ? 0 : 3,
+                    }}
+                />
+            ))}
+        </View>
+    );
+};
 
 /**
  * Главный компонент облака мысли
@@ -184,6 +183,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     type = 'TEXT',
     mediaUrl,
     userColor,
+    grouped = false,
 }) => {
     // Анимации (сохранены из предыдущей версии)
     const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -308,20 +308,20 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     const translateYVal = translateY;
 
     return (
-        <Animated.View style={[styles.wrapper, isMyMessage ? styles.myWrapper : styles.theirWrapper, { opacity, transform : [
-                { scale },
-                { translateY},
-                // { rotate: rotateAnim },
-            ],}]}>
+        <Animated.View style={[
+            styles.wrapper,
+            isMyMessage ? styles.myWrapper : styles.theirWrapper,
+            { marginTop: grouped ? 2 : spacing.xl, opacity, transform: [{ scale }, { translateY }] },
+        ]}>
             <View style={styles.svgContainer} pointerEvents="none">
-                {isMyMessage ? (
-                    <MyCloudShape width={dimensions.width} height={dimensions.height} />
-                ) : (
-                    <TheirCloudShape width={dimensions.width} height={dimensions.height} />
-                )}
+                <CloudShape width={dimensions.width} height={dimensions.height} isMyMessage={isMyMessage} />
             </View>
-            <View style={[styles.contentOverlay, { width: dimensions.width - 25, paddingHorizontal: spacing.lg, paddingVertical: spacing.md }]}>
-                {!isMyMessage && <Text style={[styles.senderName, { color: colors.primary }]}>{sender}</Text>}
+            <View style={[styles.contentOverlay, {
+                width: dimensions.width - 25,
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.md,
+            }]}>
+                {!isMyMessage && !grouped && <Text style={[styles.senderName, { color: accentColor }]}>{sender}</Text>}
                 {type === 'IMAGE' && mediaUrl ? (
                     // Открытие по нажатию обрабатывает родитель (ChatRoomScreen) - показывает
                     // картинку во встроенном просмотрщике, а не в системном браузере
@@ -339,6 +339,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                     <Text style={[styles.messageText, isMyMessage && styles.myText]}>{content}</Text>
                 )}
             </View>
+            <TailDots isMyMessage={isMyMessage} />
             <Text style={[styles.timestamp, isMyMessage ? styles.timestampRight : styles.timestampLeft]}>{timestamp}</Text>
         </Animated.View>
     );
@@ -350,7 +351,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
  * Все цвета текста тёмные, так как фон облаков светлый
  */
 const styles = StyleSheet.create({
-    wrapper: { marginBottom: spacing.xxl, position: 'relative' },
+    wrapper: { position: 'relative' },
     myWrapper: { alignSelf: 'flex-end', marginRight: spacing.sm },
     theirWrapper: { alignSelf: 'flex-start', marginLeft: spacing.sm },
     svgContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
@@ -373,6 +374,9 @@ const styles = StyleSheet.create({
     timestamp: { fontSize: 11, fontWeight: '500', marginTop: spacing.xs, color: '#6B7A8A' },
     timestampLeft: { marginLeft: 20 },
     timestampRight: { marginRight: 20, textAlign: 'right' },
+    tailRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: -4 },
+    tailRowMine: { alignSelf: 'flex-end', marginRight: 14 },
+    tailRowTheirs: { alignSelf: 'flex-start', marginLeft: 14 },
     image: { width: 200, height: 200, borderRadius: borderRadius.medium, marginVertical: spacing.xs },
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     voiceIcon: { fontSize: 22 },

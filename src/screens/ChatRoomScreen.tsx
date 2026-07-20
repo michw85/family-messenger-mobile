@@ -54,6 +54,7 @@ interface Message {
     type: 'TEXT' | 'IMAGE' | 'VOICE';
     mediaUrl?: string;
     timestamp: string;
+    grouped?: boolean;
 }
 
 /**
@@ -78,6 +79,25 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const { keyboardHeight, isKeyboardVisible } = useKeyboard();
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    /**
+     * Сообщения с флагом группировки: true, если предыдущее сообщение от того
+     * же отправителя отправлено не позже чем через 2 минуты - тогда пузыри
+     * рисуются плотнее, без повтора имени (как в Telegram/WhatsApp)
+     * Messages with a grouping flag: true if the previous message is from the
+     * same sender and was sent within 2 minutes - renders tighter bubbles
+     * without repeating the sender name (like Telegram/WhatsApp)
+     */
+    const messagesWithGrouping = React.useMemo(() => {
+        const GROUP_WINDOW_MS = 2 * 60 * 1000;
+        return messages.map((msg, idx) => {
+            const prev = messages[idx - 1];
+            const grouped = !!prev
+                && prev.sender.username === msg.sender.username
+                && (new Date(msg.timestamp).getTime() - new Date(prev.timestamp).getTime()) < GROUP_WINDOW_MS;
+            return { ...msg, grouped };
+        });
+    }, [messages]);
 
     // Refs
     const flatListRef = useRef<FlatList>(null);
@@ -296,6 +316,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 isMyMessage={item.sender.username === currentUsername}
                 type={item.type}
                 mediaUrl={item.mediaUrl}
+                grouped={item.grouped}
             />
         </TouchableOpacity>
     ), [currentUsername]);
@@ -359,7 +380,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         <FlatList
                             ref={flatListRef}
                             // data={messages}
-                            data={[...messages].reverse()} // Инвертируем массив
+                            data={[...messagesWithGrouping].reverse()} // Инвертируем массив
                             keyExtractor={keyExtractor}
                             renderItem={renderMessage}
                             inverted={true} // КЛЮЧЕВОЙ ПАРАМЕТР!
