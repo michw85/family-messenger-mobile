@@ -13,6 +13,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -22,6 +23,18 @@ import ChatRoomScreen from './src/screens/ChatRoomScreen';
 import { colors } from './src/styles/theme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setAuthExpiredHandler } from './src/utils/authEvents';
+
+// Как показывать уведомление, когда приложение открыто на переднем плане
+// How to display a notification while the app is in the foreground
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+    }),
+});
 
 
 const Stack = createNativeStackNavigator();
@@ -170,6 +183,7 @@ const Initializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const Navigation = () => {
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
     const [isChecking, setIsChecking] = useState(true);
+    const [navReady, setNavReady] = useState(false);
 
     useEffect(() => {
         const checkLoginStatus = async () => {
@@ -211,6 +225,46 @@ const Navigation = () => {
         });
     }, []);
 
+    useEffect(() => {
+        // Ждём, пока навигация будет готова и проверка логина завершится,
+        // прежде чем пытаться открыть чат из уведомления
+        // Wait for navigation to be ready and the login check to finish
+        // before trying to open a chat from a notification
+        if (!navReady || isChecking) return;
+
+        const openRoomFromNotification = async (data: any) => {
+            const roomId = data?.roomId;
+            if (!roomId) return;
+
+            const token = await AsyncStorage.getItem('token');
+            if (!token) return; // не залогинен - открываем как обычно, без глубокой ссылки
+
+            navigationRef.reset({
+                index: 1,
+                routes: [
+                    { name: 'RoomSelect' },
+                    { name: 'ChatRoom', params: { roomId, roomName: data?.roomName || '' } },
+                ],
+            });
+        };
+
+        // Приложение было закрыто и запущено нажатием на уведомление
+        // The app was closed and launched by tapping a notification
+        Notifications.getLastNotificationResponseAsync().then((response) => {
+            if (response) {
+                openRoomFromNotification(response.notification.request.content.data);
+            }
+        });
+
+        // Приложение уже открыто (на переднем плане или в фоне) - нажатие на уведомление
+        // The app is already open (foreground or background) - notification tap
+        const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+            openRoomFromNotification(response.notification.request.content.data);
+        });
+
+        return () => subscription.remove();
+    }, [navReady, isChecking]);
+
     // Показываем индикатор загрузки во время проверки / Show loading indicator during check
     if (isChecking) {
         return (
@@ -225,7 +279,7 @@ const Navigation = () => {
     console.log('Navigation - initialRoute:', isLoggedIn ? 'RoomSelect' : 'Login');
 
     return (
-        <NavigationContainer ref={navigationRef}>
+        <NavigationContainer ref={navigationRef} onReady={() => setNavReady(true)}>
             <Stack.Navigator
                 // initialRouteName="Login"
                 initialRouteName={isLoggedIn ? "RoomSelect" : "Login"}
