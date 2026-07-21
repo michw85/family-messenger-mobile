@@ -11,10 +11,11 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
+import { View, ActivityIndicator, Text, TouchableOpacity, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
+import * as NavigationBar from 'expo-navigation-bar';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import LoginScreen from './src/screens/LoginScreen';
@@ -311,13 +312,25 @@ const Navigation = () => {
 
 /**
  * Иконки статус-бара (сеть, заряд, часы) должны быть тёмными на светлой теме
- * и светлыми на тёмной, иначе они сливаются с фоном и их не видно
+ * и светлыми на тёмной, иначе они сливаются с фоном и их не видно. На Android
+ * заодно перекрашиваем и нижнюю навигационную панель - иначе она остаётся
+ * системного (светлого) цвета и на тёмной теме выглядит как светлая полоса
+ * внизу экрана.
  * Status bar icons (signal, battery, clock) need to be dark on the light
  * theme and light on the dark one, otherwise they blend into the background
- * and become unreadable
+ * and become unreadable. On Android we also recolor the bottom navigation
+ * bar - otherwise it stays the system's (light) color and shows up as a
+ * light stripe at the bottom of the screen on the dark theme.
  */
 const ThemedStatusBar: React.FC = () => {
-    const { theme } = useTheme();
+    const { theme, colors } = useTheme();
+
+    useEffect(() => {
+        if (Platform.OS !== 'android') return;
+        NavigationBar.setBackgroundColorAsync(colors.background).catch(() => {});
+        NavigationBar.setButtonStyleAsync(theme === 'dark' ? 'light' : 'dark').catch(() => {});
+    }, [theme, colors.background]);
+
     return <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />;
 };
 
