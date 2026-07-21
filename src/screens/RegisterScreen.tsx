@@ -119,8 +119,17 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
              }*/
             navigation.replace('RoomSelect');
         } catch (error: any) {
-            console.error('Registration error:', error);
-            const serverMessage = typeof error?.response?.data === 'string' ? error.response.data : null;
+            console.error('Registration error:', error, JSON.stringify(error?.response?.data));
+            const data = error?.response?.data;
+            // Бэкенд обычно шлёт причину простой строкой (напр. "Email уже зарегистрирован"),
+            // но при неожиданных ошибках Spring возвращает JSON-объект вида { message } / { error } -
+            // тоже показываем его, а не глухое "Registration failed"
+            // The backend usually sends the reason as a plain string (e.g. "Email already
+            // registered"), but on unexpected errors Spring returns a JSON object shaped like
+            // { message } / { error } - show that too instead of a blind "Registration failed"
+            const serverMessage = typeof data === 'string'
+                ? data
+                : (data?.message || data?.error || null);
             Alert.alert(t('error'), serverMessage || 'Не удалось зарегистрироваться / Registration failed');
         } finally {
             setLoading(false);

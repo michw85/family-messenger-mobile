@@ -21,7 +21,7 @@
     "android": {
       "package": "com.mvorontsov.bonds",
       "googleServicesFile": "./google-services.json",
-      "softwareKeyboardLayoutMode": "resize",
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2C3E7A"

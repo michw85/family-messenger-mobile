@@ -14,7 +14,9 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { StatusBar } from 'expo-status-bar';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import OtpVerifyScreen from './src/screens/OtpVerifyScreen';
@@ -308,17 +310,32 @@ const Navigation = () => {
 };
 
 /**
+ * Иконки статус-бара (сеть, заряд, часы) должны быть тёмными на светлой теме
+ * и светлыми на тёмной, иначе они сливаются с фоном и их не видно
+ * Status bar icons (signal, battery, clock) need to be dark on the light
+ * theme and light on the dark one, otherwise they blend into the background
+ * and become unreadable
+ */
+const ThemedStatusBar: React.FC = () => {
+    const { theme } = useTheme();
+    return <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />;
+};
+
+/**
  * Главный компонент приложения
  * Main app component
  */
 export default function App() {
     return (
         <SafeAreaProvider>
-            <LanguageProvider>
-                <Initializer>
-                    <Navigation />
-                </Initializer>
-            </LanguageProvider>
+            <ThemeProvider>
+                <ThemedStatusBar />
+                <LanguageProvider>
+                    <Initializer>
+                        <Navigation />
+                    </Initializer>
+                </LanguageProvider>
+            </ThemeProvider>
         </SafeAreaProvider>
     );
 }

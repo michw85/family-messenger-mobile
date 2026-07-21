@@ -8,7 +8,7 @@
  * @license MIT
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -23,9 +23,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { fetchChats, createChat, deleteChat } from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
-import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
+import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
@@ -47,6 +48,8 @@ interface ChatRoom {
  */
 const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const { t, language, setLanguage } = useLanguage();
+    const { theme, colors, toggleTheme } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
     const insets = useSafeAreaInsets();
     const [chats, setChats] = useState<ChatRoom[]>([]);
     const [currentUsername, setCurrentUsername] = useState<string>('');
@@ -199,7 +202,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     };
 
     return (
-        <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']} style={styles.container}>
+        <LinearGradient colors={colors.backgroundGradient as [string, string, string]} style={styles.container}>
             <FloatingClouds />
             <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.header}>
@@ -207,6 +210,9 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                         <Text style={[styles.greeting, { flex: 1 }]}>
                             {t('greeting')}, {currentUsername || t('friend')}! 👋
                         </Text>
+                        <TouchableOpacity onPress={toggleTheme} style={styles.langButton}>
+                            <Text style={styles.langText}>{theme === 'dark' ? '☀️' : '🌙'}</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
                             <Text style={styles.langText}>{language === 'ru' ? 'EN' : 'RU'}</Text>
                         </TouchableOpacity>
@@ -248,7 +254,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
     container: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: 60 },
@@ -258,7 +264,7 @@ const styles = StyleSheet.create({
     langButton: {
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs,
-        backgroundColor: 'rgba(255,255,255,0.8)',
+        backgroundColor: colors.pillBackground,
         borderRadius: borderRadius.medium,
         ...shadows.soft,
     },
@@ -310,7 +316,7 @@ const styles = StyleSheet.create({
     logoutButton: {
         padding: 8,
         borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.05)', // легкий фон для тактильности
+        backgroundColor: colors.subtleOverlay, // легкий фон для тактильности
     },
     logoutText: {
         fontSize: 24,

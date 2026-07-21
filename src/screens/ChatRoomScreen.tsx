@@ -8,7 +8,7 @@
  * @license MIT
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -33,11 +33,11 @@ import { Audio } from 'expo-av';
 import ThoughtBubble from '../components/ThoughtBubble';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage } from '../services/api';
 import { connectWebSocket, subscribeToRoom, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
-import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
+import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
-import { useKeyboard } from '../hooks/useKeyboard';
 import ImageView from 'react-native-image-viewing';
 import { formatMessageTime, formatMessageDate } from '../utils/dateTime';
 
@@ -70,6 +70,8 @@ interface Message {
 const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const { roomId, roomName } = route.params || { roomId: 'family-chat', roomName: 'Family Chat' };
     const { t } = useLanguage();
+    const { theme, colors } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
     const insets = useSafeAreaInsets();
 
     // Состояния
@@ -82,7 +84,6 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [sending, setSending] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [addParticipantsVisible, setAddParticipantsVisible] = useState(false);
-    const { keyboardHeight, isKeyboardVisible } = useKeyboard();
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -122,6 +123,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
     // Refs
     const flatListRef = useRef<FlatList>(null);
+    const isNearBottomRef = useRef(true);
     const stompClientRef = useRef<any>(null);
     const subscriptionRef = useRef<any>(null);
 
@@ -162,7 +164,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             setPage(nextPage);
             setHasMoreMessages(response.data.length === MESSAGES_PAGE_SIZE);
         } catch (error) {
+            // Останавливаем догрузку, иначе onEndReached тут же вызовет её
+            // заново и при устойчивой ошибке (напр. протухший токен) уйдём в
+            // бесконечный цикл одинаковых неудачных запросов
+            // Stop further pagination, otherwise onEndReached would call this
+            // again right away and, on a persistent error (e.g. an expired
+            // token), we'd loop forever on the same failing request
             console.error('Failed to load more messages:', error);
+            setHasMoreMessages(false);
         } finally {
             setLoadingMore(false);
         }
@@ -510,15 +519,22 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
     const keyExtractor = useCallback((item: Message) => item.id, []);
 
-    // Обработчики клавиатуры для плавной прокрутки
+    // Обработчики клавиатуры: держим высоту для отступа под инпутом и мягко
+    // докручиваем к новым сообщениям. Список инвертирован - offset 0 это
+    // самые новые сообщения (низ экрана), а scrollToEnd() уводил бы к самым
+    // старым, поэтому используем именно scrollToOffset(0).
+    // Keyboard handlers: track visibility (for the input's bottom safe-area
+    // padding) and gently scroll to the newest messages. The list is
+    // inverted - offset 0 is the newest messages (bottom of the screen),
+    // while scrollToEnd() would jump to the oldest ones, hence
+    // scrollToOffset(0) here.
     useEffect(() => {
         const showSub = Keyboard.addListener('keyboardDidShow', () => {
             setKeyboardVisible(true);
-            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 300);
+            setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 300);
         });
         const hideSub = Keyboard.addListener('keyboardDidHide', () => {
             setKeyboardVisible(false);
-            setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         });
         return () => {
             showSub.remove();
@@ -538,23 +554,35 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
         <KeyboardAvoidingView
             style={{ flex: 1 }}
+            // Раньше здесь одновременно работали и системный ресайз окна
+            // (windowSoftInputMode=adjustResize), и KeyboardAvoidingView, и
+            // ручной паддинг на высоту клавиатуры - три механизма сразу
+            // конфликтовали друг с другом (то дублируя сдвиг, то не давая
+            // никакого эффекта). Оставляем только один: манифест теперь
+            // adjustPan (окно не ресайзится системой), а весь сдвиг под
+            // клавиатуру делает KeyboardAvoidingView.
+            // Previously the system window resize (windowSoftInputMode=
+            // adjustResize), KeyboardAvoidingView, and manual keyboard-height
+            // padding were all active at once - three mechanisms fighting each
+            // other (sometimes doubling the shift, sometimes cancelling it
+            // out). Keeping exactly one now: the manifest is adjustPan (the
+            // system no longer resizes the window), and KeyboardAvoidingView
+            // alone handles the shift.
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View
                     style={{ flex: 1 }}
-                // behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
-                // keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
                 >
                     <View style={styles.container}>
                         {/* Тёплый градиент Bonds вместо холодного */}
-                        <LinearGradient colors={['#FDF8F0', '#F5E6CA', '#E8D5B8']}
+                        <LinearGradient colors={colors.backgroundGradient as [string, string, string]}
                             style={StyleSheet.absoluteFillObject} />
                         <FloatingClouds />
 
                         {/* Заголовок чата — прозрачный с тенью */}
-                        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+                        <View style={[styles.header, { paddingTop: insets.top + 6 }]}>
                             {searchVisible ? (
                                 <>
                                     <TextInput
@@ -624,21 +652,48 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             style={styles.messageList}
                             contentContainerStyle={styles.messageListContent}
                             showsVerticalScrollIndicator={false}
-                            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                            // Список инвертирован, поэтому offset 0 - это САМЫЕ НОВЫЕ сообщения
+                            // (визуально низ экрана) - это и есть нужное положение по умолчанию,
+                            // scrollToEnd() здесь наоборот уводил бы к самым старым. Автопрокрутку
+                            // к новым сообщениям делаем только если пользователь и так уже внизу -
+                            // иначе она перебивала бы ручную прокрутку истории вверх.
+                            // The list is inverted, so offset 0 is the NEWEST messages (visually
+                            // the bottom of the screen) - that's the correct default position;
+                            // scrollToEnd() would instead jump to the oldest ones. We only
+                            // auto-scroll to new messages when the user is already near the
+                            // bottom - otherwise it would fight manual scrolling through history.
+                            onScroll={(e) => {
+                                isNearBottomRef.current = e.nativeEvent.contentOffset.y < 100;
+                            }}
+                            scrollEventThrottle={200}
+                            onContentSizeChange={() => {
+                                if (isNearBottomRef.current) {
+                                    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+                                }
+                            }}
                             onEndReached={loadMoreMessages}
                             onEndReachedThreshold={0.3}
                             onScrollToIndexFailed={() => { }}
+                            // Доп. защита от произвольных прыжков скролла при изменении
+                            // размеров контейнера (напр. открытие клавиатуры)
+                            // Extra guard against arbitrary scroll jumps when the
+                            // container is resized (e.g. the keyboard opening)
+                            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
                             ListFooterComponent={loadingMore ? (
                                 <ActivityIndicator size="small" color={colors.primary} style={{ padding: spacing.md }} />
                             ) : null}
                         />
 
-                        {/* Панель ввода с новыми цветами */}
-                        {/* <View style={[styles.inputWrapper, { paddingBottom: insets.bottom + 12 }]}> */}
+                        {/* Панель ввода. Сдвиг над клавиатурой целиком делает
+                            KeyboardAvoidingView - здесь только safe-area снизу
+                            в состоянии покоя (когда клавиатура открыта, этот
+                            отступ не нужен - её место и так занято клавиатурой) */}
+                        {/* The lift above the keyboard is handled entirely by
+                            KeyboardAvoidingView - this is only the resting
+                            safe-area (when the keyboard is open, that space is
+                            already occupied by the keyboard itself) */}
                         <View style={[styles.inputWrapper, {
-                            // paddingBottom: insets.bottom + 8 
-                            paddingBottom: isKeyboardVisible ? keyboardHeight + 12 : insets.bottom + 12
+                            paddingBottom: keyboardVisible ? 6 : insets.bottom + 6
                         }]}>
                             <View style={styles.inputContainer}>
                                 {/* Кнопка фото */}
@@ -727,7 +782,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
  * Стили экрана чата в стиле Bonds
  * Chat screen styles in Bonds style
 */
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background, // теперь кремовый
@@ -739,19 +794,22 @@ const styles = StyleSheet.create({
     },
     // Заголовок стал чуть прозрачнее и теплее
     header: {
-        backgroundColor: 'rgba(255, 248, 240, 0.85)',
-        paddingHorizontal: spacing.xl,
-        paddingBottom: spacing.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.panelBackground,
+        paddingHorizontal: spacing.lg,
+        paddingBottom: spacing.sm,
         borderBottomLeftRadius: borderRadius.large,
         borderBottomRightRadius: borderRadius.large,
-        alignItems: 'center',
         ...shadows.soft,
     },
     headerTitle: {
+        flex: 1,
         fontSize: 18,
         fontWeight: '600',
         color: colors.primary, // индиго
         letterSpacing: 0.5,
+        textAlign: 'center',
     },
     headerLeft: {
         flexDirection: 'row',
@@ -759,11 +817,11 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     backButton: {
-        padding: 8,
-        marginRight: 12,
+        padding: 4,
+        marginRight: 8,
     },
     backButtonText: {
-        fontSize: 28,
+        fontSize: 24,
         color: colors.primary,
     },
     /**
@@ -798,10 +856,9 @@ const styles = StyleSheet.create({
     inputWrapper: {
         borderTopWidth: 1,
         borderTopColor: colors.border,
-        backgroundColor: 'rgba(255, 248, 240, 0.96)',
+        backgroundColor: colors.panelBackgroundSolid,
         paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        paddingBottom: spacing.md,
+        paddingVertical: spacing.xs,
     },
     inputContainer: {
         flexDirection: 'row',
@@ -810,20 +867,20 @@ const styles = StyleSheet.create({
     },
     // Иконки — теперь с мягким фоном
     iconButton: {
-        padding: spacing.sm,
-        backgroundColor: '#F5F0EA',
+        padding: spacing.xs,
+        backgroundColor: colors.iconButtonBackground,
         borderRadius: borderRadius.circle,
         justifyContent: 'center',
         alignItems: 'center',
-        width: 44,
-        height: 44,
+        width: 38,
+        height: 38,
         ...shadows.soft,
     },
     iconText: {
-        fontSize: 20,
+        fontSize: 18,
     },
     recordingActive: {
-        backgroundColor: '#FFE8E0',
+        backgroundColor: colors.recordingActiveBackground,
     },
     // Поле ввода — светлое с тёплой границей
     input: {
@@ -832,18 +889,19 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
         borderRadius: borderRadius.xlarge,
         paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
+        paddingVertical: 6,
         backgroundColor: colors.backgroundLight,
         fontSize: 15,
         color: colors.text,
         maxHeight: 80,
+        minHeight: 38,
         ...shadows.soft,
     },
     // Кнопка отправки — индиго
     sendButton: {
         backgroundColor: colors.primary,
-        width: 44,
-        height: 44,
+        width: 38,
+        height: 38,
         borderRadius: borderRadius.circle,
         justifyContent: 'center',
         alignItems: 'center',
@@ -877,7 +935,7 @@ const styles = StyleSheet.create({
         marginRight: spacing.sm,
     },
     searchResultsBox: {
-        backgroundColor: 'rgba(255,255,255,0.97)',
+        backgroundColor: colors.backgroundLight,
         marginHorizontal: spacing.md,
         borderRadius: borderRadius.medium,
         ...shadows.medium,

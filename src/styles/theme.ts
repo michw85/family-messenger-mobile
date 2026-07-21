@@ -13,54 +13,180 @@ import { StyleSheet, Platform, Dimensions } from 'react-native';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 /**
- * Цветовая схема приложения Bonds
- * Bonds application color scheme
- * 
+ * Цветовая схема приложения Bonds (светлая тема)
+ * Bonds application color scheme (light theme)
+ *
  * Основная идея: тёплый дом, уют, доверие, связь (bonds)
  * Main idea: warm home, coziness, trust, connection (bonds)
  */
-export const colors = {
+export const lightColors = {
     // Основные цвета / Primary colors
     primary: '#2C3E7A' as const,           // Глубокий индиго – символ стабильности и связи / Deep indigo – symbol of stability and connection
     primaryLight: '#4A6FA5' as const,      // Светлый индиго для второстепенных элементов / Light indigo for secondary elements
     primaryDark: '#1A2530' as const,       // Тёмный акцент для текста / Dark accent for text
-    
+
     // Акцентный цвет / Accent color
     accent: '#D4AF37' as const,            // Мягкое золото – теплота и ценность отношений / Soft gold – warmth and value of relationships
     accentLight: '#F0E0B8' as const,       // Светлое золото для фонов и подсветок / Light gold for backgrounds and highlights
-    
+
     // Фоновые цвета / Background colors
     background: '#FDF8F0' as const,        // Тёплый кремовый – основа уюта / Warm cream – foundation of coziness
     backgroundLight: '#FFFFFF' as const,   // Белый для карточек и полей / White for cards and fields
     backgroundWarm: '#F5E6CA' as const,    // Тёплый бежевый для облаков сообщений / Warm beige for message bubbles
     backgroundGradient: ['#FDF8F0', '#F5E6CA', '#E8D5B8'] as const, // Градиент фона / Background gradient
-    
+
+    // Облако "моего" сообщения (заметно темнее фона, чтобы не сливалось) /
+    // "My message" cloud (noticeably darker than the background so it doesn't blend in)
+    myBubbleGradient: ['#EDD9A8', '#D9BF95'] as const,
+    // Облако сообщения собеседника / Other person's message cloud
+    theirBubbleGradient: ['#FFFFFF', '#F5E6CA'] as const,
+
     // Цвета сообщений / Message colors
     myMessage: '#2C3E7A' as const,         // Мои сообщения – глубокий синий / My messages – deep blue
     theirMessage: '#44b054' as const,      // Сообщения других – тёплый бежевый / Others' messages – warm beige
-    
+
     // Текст / Text colors
     text: '#1A2530' as const,              // Основной текст – почти чёрный с синевой / Main text – almost black with blue tint
     textLight: '#FFFFFF' as const,         // Светлый текст для тёмных фонов / Light text for dark backgrounds
     textSecondary: '#6B7A8A' as const,     // Второстепенный текст – мягкий серый / Secondary text – soft gray
     textMuted: '#95A5A6' as const,         // Приглушённый текст / Muted text
     textDark: '#0D1B2A' as const,          // Тёмный текст для времени / Dark text for timestamp
-    
+
     // Статусы / Status colors
     online: '#4CAF50' as const,            // Зелёный онлайн / Online green
     offline: '#B0BEC5' as const,           // Серый офлайн / Offline gray
     typing: '#2C3E7A' as const,            // Синий индикатор печати / Blue typing indicator
-    
+
     // Границы и разделители / Borders and dividers
     border: 'rgba(44, 62, 122, 0.08)' as const,  // Полупрозрачный синий для границ / Semi-transparent blue for borders
     borderLight: 'rgba(44, 62, 122, 0.04)' as const, // Очень светлая граница / Very light border
-    
+
     // Эффекты / Effects
     shadow: 'rgba(44, 62, 122, 0.08)' as const,   // Тень с синим оттенком / Shadow with blue tint
     shadowLight: 'rgba(44, 62, 122, 0.04)' as const, // Лёгкая тень / Light shadow
 
     placeholder: '#A0B0C0' as const,
+
+    // Полупрозрачные "пилюли" для кнопок поверх градиентного фона /
+    // Translucent "pill" backgrounds for buttons over the gradient background
+    pillBackground: 'rgba(255, 255, 255, 0.8)' as const,
+    subtleOverlay: 'rgba(0, 0, 0, 0.05)' as const,
+
+    // Полупрозрачные панели шапки/инпута поверх градиента чата /
+    // Translucent header/input panels over the chat gradient
+    panelBackground: 'rgba(255, 248, 240, 0.85)' as const,
+    panelBackgroundSolid: 'rgba(255, 248, 240, 0.96)' as const,
+    iconButtonBackground: '#F5F0EA' as const,
+    recordingActiveBackground: '#FFE8E0' as const,
+
+    statusBarStyle: 'dark' as const,
 };
+
+/**
+ * Тёмная тема - та же структура, приглушённые тёплые акценты на глубоком
+ * тёмно-синем фоне вместо кремового
+ * Dark theme - same shape, muted warm accents on a deep navy background
+ * instead of cream
+ */
+export const darkColors = {
+    primary: '#8AA0E6' as const,
+    primaryLight: '#A9BAF0' as const,
+    primaryDark: '#2C3E7A' as const,
+
+    accent: '#E0BE5C' as const,
+    accentLight: '#3A3320' as const,
+
+    background: '#14151F' as const,
+    backgroundLight: '#1E2030' as const,
+    backgroundWarm: '#242742' as const,
+    backgroundGradient: ['#14151F', '#191B2A', '#20233A'] as const,
+
+    myBubbleGradient: ['#31447F', '#212E5C'] as const,
+    theirBubbleGradient: ['#2A2D3D', '#20222E'] as const,
+
+    myMessage: '#8AA0E6' as const,
+    theirMessage: '#5FBE73' as const,
+
+    text: '#EDEFF5' as const,
+    textLight: '#FFFFFF' as const,
+    textSecondary: '#A7B0C0' as const,
+    textMuted: '#6B7280' as const,
+    textDark: '#0D1B2A' as const,
+
+    online: '#4CAF50' as const,
+    offline: '#5A6472' as const,
+    typing: '#8AA0E6' as const,
+
+    border: 'rgba(255, 255, 255, 0.08)' as const,
+    borderLight: 'rgba(255, 255, 255, 0.04)' as const,
+
+    shadow: 'rgba(0, 0, 0, 0.4)' as const,
+    shadowLight: 'rgba(0, 0, 0, 0.2)' as const,
+
+    placeholder: '#5C6472' as const,
+
+    pillBackground: 'rgba(255, 255, 255, 0.08)' as const,
+    subtleOverlay: 'rgba(255, 255, 255, 0.08)' as const,
+
+    panelBackground: 'rgba(30, 32, 48, 0.85)' as const,
+    panelBackgroundSolid: 'rgba(30, 32, 48, 0.96)' as const,
+    iconButtonBackground: '#2A2D3D' as const,
+    recordingActiveBackground: '#4A2A28' as const,
+
+    statusBarStyle: 'light' as const,
+};
+
+/**
+ * Общая форма палитры (не строгие литералы, чтобы light/dark можно было
+ * взаимозаменять по типу)
+ * Common palette shape (widened, not strict literals, so light/dark are
+ * interchangeable by type)
+ */
+export interface AppColors {
+    primary: string;
+    primaryLight: string;
+    primaryDark: string;
+    accent: string;
+    accentLight: string;
+    background: string;
+    backgroundLight: string;
+    backgroundWarm: string;
+    backgroundGradient: readonly string[];
+    myBubbleGradient: readonly string[];
+    theirBubbleGradient: readonly string[];
+    myMessage: string;
+    theirMessage: string;
+    text: string;
+    textLight: string;
+    textSecondary: string;
+    textMuted: string;
+    textDark: string;
+    online: string;
+    offline: string;
+    typing: string;
+    border: string;
+    borderLight: string;
+    shadow: string;
+    shadowLight: string;
+    placeholder: string;
+    pillBackground: string;
+    subtleOverlay: string;
+    panelBackground: string;
+    panelBackgroundSolid: string;
+    iconButtonBackground: string;
+    recordingActiveBackground: string;
+    statusBarStyle: 'light' | 'dark';
+}
+
+/**
+ * Цвета текущей (по умолчанию светлой) темы - для файлов/стилей, ещё не
+ * переведённых на useTheme(). Как только экран переходит на useTheme(),
+ * он берёт colors оттуда, а не отсюда.
+ * Current (default light) theme colors - for files/styles not yet migrated
+ * to useTheme(). Once a screen switches to useTheme(), it reads colors from
+ * there instead of here.
+ */
+export const colors = lightColors;
 
 /**
  * Отступы и размеры

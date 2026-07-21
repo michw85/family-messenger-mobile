@@ -22,7 +22,8 @@ import {
 } from 'react-native';
 import { Audio } from 'expo-av';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
-import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
+import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
+import { useTheme } from '../context/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -149,13 +150,12 @@ const buildCloudPath = (width: number, height: number, bump: number): string => 
  * Cloud bubble: beige gradient for my messages, light gradient for others'
  * (same colors as the Kotlin version / rest of the app)
  */
-const CloudShape: React.FC<{ width: number; height: number; isMyMessage: boolean }> = ({ width, height, isMyMessage }) => {
+const CloudShape: React.FC<{ width: number; height: number; isMyMessage: boolean; colors: AppColors }> = ({ width, height, isMyMessage, colors }) => {
     const w = width + CLOUD_BUMP * 2;
     const h = height + CLOUD_BUMP * 2;
     const path = useMemo(() => buildCloudPath(w, h, CLOUD_BUMP), [w, h]);
     const gradientId = isMyMessage ? 'myGradient' : 'theirGradient';
-    const gradientFrom = isMyMessage ? '#F5E6CA' : '#FFFFFF';
-    const gradientTo = isMyMessage ? '#E8D5B8' : '#F5E6CA';
+    const [gradientFrom, gradientTo] = isMyMessage ? colors.myBubbleGradient : colors.theirBubbleGradient;
 
     return (
         <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
@@ -166,7 +166,7 @@ const CloudShape: React.FC<{ width: number; height: number; isMyMessage: boolean
                 </LinearGradient>
             </Defs>
             <Path d={path} fill="rgba(0,0,0,0.06)" transform={`translate(${isMyMessage ? 2 : -2}, 3)`} />
-            <Path d={path} fill={`url(#${gradientId})`} stroke="#E8E8E8" strokeWidth={0.6} />
+            <Path d={path} fill={`url(#${gradientId})`} stroke={colors.border} strokeWidth={0.6} />
         </Svg>
     );
 };
@@ -177,10 +177,10 @@ const CloudShape: React.FC<{ width: number; height: number; isMyMessage: boolean
  * Tail of three shrinking dots under the last message of a group
  * (instead of bumps baked into the cloud outline)
  */
-const TailDots: React.FC<{ isMyMessage: boolean }> = ({ isMyMessage }) => {
+const TailDots: React.FC<{ isMyMessage: boolean; colors: AppColors }> = ({ isMyMessage, colors }) => {
     const sizes = isMyMessage ? [9, 6, 3] : [3, 6, 9];
     return (
-        <View style={[styles.tailRow, isMyMessage ? styles.tailRowMine : styles.tailRowTheirs]}>
+        <View style={[layoutStyles.tailRow, isMyMessage ? layoutStyles.tailRowMine : layoutStyles.tailRowTheirs]}>
             {sizes.map((s, i) => (
                 <View
                     key={i}
@@ -188,9 +188,9 @@ const TailDots: React.FC<{ isMyMessage: boolean }> = ({ isMyMessage }) => {
                         width: s,
                         height: s,
                         borderRadius: s / 2,
-                        backgroundColor: '#FFFFFF',
+                        backgroundColor: colors.backgroundLight,
                         borderWidth: 0.6,
-                        borderColor: '#E8E8E8',
+                        borderColor: colors.border,
                         marginLeft: i === 0 ? 0 : 3,
                     }}
                 />
@@ -215,6 +215,9 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     edited = false,
     deletedPlaceholder = false,
 }) => {
+    const { colors } = useTheme();
+    const styles = useMemo(() => createStyles(colors), [colors]);
+
     // Анимации (сохранены из предыдущей версии)
     const scaleAnim = useRef(new Animated.Value(0)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -290,52 +293,71 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     };
 
     /**
-     * Расчёт размеров облака
-     * Calculate cloud size
+     * Фиксированный размер облака для фото/голоса (для текста размер не
+     * угадывается заранее - облако рисуется по реально измеренному размеру
+     * блока с текстом, см. ниже cloudSize/onLayout)
+     * Fixed cloud size for photo/voice (for text the size isn't guessed
+     * ahead of time - the cloud is drawn from the actually measured size of
+     * the text block, see cloudSize/onLayout below)
      */
-    const dimensions = useMemo(() => {
+    const fixedDimensions = useMemo(() => {
         if (type === 'IMAGE') return { width: 260, height: 240 };
         if (type === 'VOICE') return { width: 220, height: 80 };
+        return null;
+    }, [type]);
 
-        const maxWidth = Math.min(screenWidth * 0.75, 280);
-        const charWidth = 6.5;
-        const maxCharsPerLine = Math.floor(maxWidth / charWidth);
+    const maxTextWidth = Math.min(screenWidth * 0.75, 280);
 
-        const wrapText = (text: string, maxLength: number): string[] => {
-            const words = text.split(' ');
-            const lines: string[] = [];
-            let currentLine = '';
+    // Реально измеренный размер контента текстового сообщения. Пока не
+    // измерен - контент невидим (opacity 0), чтобы не мелькало облако
+    // неправильного размера.
+    // Actually measured size of a text message's content. Until measured,
+    // the content stays invisible (opacity 0) so a wrong-sized cloud never
+    // flashes on screen.
+    const [measuredSize, setMeasuredSize] = useState<{ width: number; height: number } | null>(null);
 
-            for (const word of words) {
-                if (word.length > maxLength) {
-                    if (currentLine) lines.push(currentLine);
-                    for (let i = 0; i < word.length; i += maxLength) {
-                        lines.push(word.substr(i, maxLength));
-                    }
-                    currentLine = '';
-                } else if ((currentLine + ' ' + word).length <= maxLength) {
-                    currentLine = currentLine ? `${currentLine} ${word}` : word;
-                } else {
-                    if (currentLine) lines.push(currentLine);
-                    currentLine = word;
-                }
-            }
-            if (currentLine) lines.push(currentLine);
-            return lines;
-        };
+    const handleContentLayout = (e: { nativeEvent: { layout: { width: number; height: number } } }) => {
+        const { width, height } = e.nativeEvent.layout;
+        setMeasuredSize(prev => {
+            if (prev && Math.abs(prev.width - width) < 0.5 && Math.abs(prev.height - height) < 0.5) return prev;
+            return { width, height };
+        });
+    };
 
-        const lines = wrapText(content, maxCharsPerLine);
-        const lineCount = Math.max(1, lines.length);
-        const textHeight = Math.max(50, lineCount * 22 + 30);
-        const textWidth = Math.min(maxWidth, Math.max(...lines.map(l => l.length * charWidth), 80));
-
-        return { width: textWidth + 45, height: textHeight };
-    }, [content, type]);
+    const cloudSize = fixedDimensions || measuredSize;
 
     // Интерполяция
     const scale = scaleAnim;
     const opacity = opacityAnim;
     const translateYVal = translateY;
+
+    const renderContent = () => (
+        <>
+            {!isMyMessage && !grouped && <Text style={[styles.senderName, { color: accentColor }]}>{sender}</Text>}
+            {type === 'IMAGE' && mediaUrl ? (
+                // Открытие по нажатию обрабатывает родитель (ChatRoomScreen) - показывает
+                // картинку во встроенном просмотрщике, а не в системном браузере
+                // Tap is handled by the parent (ChatRoomScreen) - opens the image in the
+                // built-in viewer instead of the system browser
+                <Image source={{ uri: mediaUrl }} style={styles.image} />
+            ) : type === 'VOICE' ? (
+                <TouchableOpacity onPress={() => playVoice(mediaUrl || '')} style={styles.voiceRow} disabled={!mediaUrl}>
+                    <Text style={styles.voiceIcon}>{isPlaying ? '⏹️' : '▶️'}</Text>
+                    <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]}>
+                        {isPlaying ? 'Остановить' : 'Голосовое сообщение'}
+                    </Text>
+                </TouchableOpacity>
+            ) : deletedPlaceholder ? (
+                <Text style={styles.deletedText}>{content}</Text>
+            ) : (
+                <LinkifiedText
+                    text={content}
+                    textStyle={[styles.messageText, isMyMessage && styles.myText]}
+                    linkStyle={styles.linkText}
+                />
+            )}
+        </>
+    );
 
     return (
         <Animated.View style={[
@@ -343,39 +365,48 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
             isMyMessage ? styles.myWrapper : styles.theirWrapper,
             { marginTop: grouped ? 2 : spacing.xl, opacity, transform: [{ scale }, { translateY }] },
         ]}>
-            <View style={styles.svgContainer} pointerEvents="none">
-                <CloudShape width={dimensions.width} height={dimensions.height} isMyMessage={isMyMessage} />
-            </View>
-            <View style={[styles.contentOverlay, {
-                width: dimensions.width - 25,
-                paddingHorizontal: spacing.lg,
-                paddingVertical: spacing.md,
-            }]}>
-                {!isMyMessage && !grouped && <Text style={[styles.senderName, { color: accentColor }]}>{sender}</Text>}
-                {type === 'IMAGE' && mediaUrl ? (
-                    // Открытие по нажатию обрабатывает родитель (ChatRoomScreen) - показывает
-                    // картинку во встроенном просмотрщике, а не в системном браузере
-                    // Tap is handled by the parent (ChatRoomScreen) - opens the image in the
-                    // built-in viewer instead of the system browser
-                    <Image source={{ uri: mediaUrl }} style={styles.image} />
-                ) : type === 'VOICE' ? (
-                    <TouchableOpacity onPress={() => playVoice(mediaUrl || '')} style={styles.voiceRow} disabled={!mediaUrl}>
-                        <Text style={styles.voiceIcon}>{isPlaying ? '⏹️' : '▶️'}</Text>
-                        <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]}>
-                            {isPlaying ? 'Остановить' : 'Голосовое сообщение'}
-                        </Text>
-                    </TouchableOpacity>
-                ) : deletedPlaceholder ? (
-                    <Text style={styles.deletedText}>{content}</Text>
-                ) : (
-                    <LinkifiedText
-                        text={content}
-                        textStyle={[styles.messageText, isMyMessage && styles.myText]}
-                        linkStyle={styles.linkText}
-                    />
-                )}
-            </View>
-            <TailDots isMyMessage={isMyMessage} />
+            {cloudSize ? (
+                // Облако уже измерено (или размер известен заранее для фото/голоса) -
+                // рисуем "хост"-контейнер ровно по размеру SVG (с запасом под шишечки
+                // bump с каждой стороны), чтобы он полностью учитывался в потоке разметки
+                // и точки/время никогда не наезжали на облако и не обрезали его.
+                // The cloud size is now known (measured, or fixed upfront for photo/voice) -
+                // draw a "host" container sized exactly to the SVG (including the bump
+                // padding on every side) so it's fully accounted for in layout flow and the
+                // dots/timestamp never overlap or clip the cloud.
+                <View style={{ width: cloudSize.width + CLOUD_BUMP * 2, height: cloudSize.height + CLOUD_BUMP * 2 }}>
+                    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+                        <CloudShape width={cloudSize.width} height={cloudSize.height} isMyMessage={isMyMessage} colors={colors} />
+                    </View>
+                    <View style={[styles.contentOverlay, {
+                        position: 'absolute',
+                        top: CLOUD_BUMP,
+                        left: CLOUD_BUMP,
+                        width: cloudSize.width,
+                        paddingHorizontal: spacing.lg,
+                        paddingVertical: spacing.md,
+                    }]}>
+                        {renderContent()}
+                    </View>
+                </View>
+            ) : (
+                // Первый проход - невидимый блок только для измерения реального
+                // размера текста (см. handleContentLayout)
+                // First pass - an invisible block used only to measure the text's
+                // real size (see handleContentLayout)
+                <View
+                    onLayout={handleContentLayout}
+                    style={[styles.contentOverlay, {
+                        maxWidth: maxTextWidth,
+                        paddingHorizontal: spacing.lg,
+                        paddingVertical: spacing.md,
+                        opacity: 0,
+                    }]}
+                >
+                    {renderContent()}
+                </View>
+            )}
+            <TailDots isMyMessage={isMyMessage} colors={colors} />
             <Text style={[styles.timestamp, isMyMessage ? styles.timestampRight : styles.timestampLeft]}>
                 {edited && !deletedPlaceholder ? 'изменено · ' : ''}{timestamp}
             </Text>
@@ -386,25 +417,25 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
 /**
  * Стили компонента ThoughtBubble
  * ThoughtBubble component styles
- * Все цвета текста тёмные, так как фон облаков светлый
+ * Цвет текста берётся из текущей темы (тёмный на светлом облаке, светлый на тёмном)
+ * Text color comes from the current theme (dark on a light cloud, light on a dark one)
  */
-const styles = StyleSheet.create({
+const createStyles = (colors: AppColors) => StyleSheet.create({
     wrapper: { position: 'relative' },
     myWrapper: { alignSelf: 'flex-end', marginRight: spacing.sm },
     theirWrapper: { alignSelf: 'flex-start', marginLeft: spacing.sm },
-    svgContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-    contentOverlay: { zIndex: 2 },
+    contentOverlay: { zIndex: 2, alignSelf: 'flex-start' },
     senderName: { fontSize: 11, fontWeight: '700', marginBottom: spacing.xs, letterSpacing: 0.3 },
     /**
-     * Основной текст сообщения — тёмный для всех
-     * Main message text — dark for all
+     * Основной текст сообщения
+     * Main message text
      */
-    messageText: { fontSize: 15, lineHeight: 22, color: '#2C3E50', letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
+    messageText: { fontSize: 15, lineHeight: 22, color: colors.text, letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
     /**
-     * Текст для своих сообщений — такой же тёмный
-     * Text for my messages — same dark color
+     * Текст для своих сообщений — тот же цвет
+     * Text for my messages — same color
      */
-    myText: { color: '#2C3E50' },
+    myText: { color: colors.text },
     /**
      * Ссылки в тексте — синие и подчёркнутые, как в обычных мессенджерах
      * Links in text — blue and underlined, like standard messengers
@@ -414,22 +445,33 @@ const styles = StyleSheet.create({
      * Плейсхолдер удалённого сообщения — курсив, приглушённый цвет
      * Deleted message placeholder — italic, muted color
      */
-    deletedText: { fontSize: 15, lineHeight: 22, color: '#95A5A6', fontStyle: 'italic' },
+    deletedText: { fontSize: 15, lineHeight: 22, color: colors.textMuted, fontStyle: 'italic' },
     /**
-     * Время отправки — тёмно-серый для всех
-     * Timestamp — dark gray for all
+     * Время отправки
+     * Timestamp
      */
-    timestamp: { fontSize: 11, fontWeight: '500', marginTop: spacing.xs, color: '#6B7A8A' },
+    timestamp: { fontSize: 11, fontWeight: '500', marginTop: spacing.xs, color: colors.textSecondary },
     timestampLeft: { marginLeft: 20 },
     timestampRight: { marginRight: 20, textAlign: 'right' },
-    tailRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: -4 },
-    tailRowMine: { alignSelf: 'flex-end', marginRight: 14 },
-    tailRowTheirs: { alignSelf: 'flex-start', marginLeft: 14 },
     image: { width: 200, height: 200, borderRadius: borderRadius.medium, marginVertical: spacing.xs },
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     voiceIcon: { fontSize: 22 },
-    voiceText: { fontSize: 14, color: '#2C3E50' },
-    voiceTextMy: { color: '#2C3E50' },
+    voiceText: { fontSize: 14, color: colors.text },
+    voiceTextMy: { color: colors.text },
+});
+
+/**
+ * Чисто раскладочные (не зависящие от темы) стили хвостика точек - вынесены
+ * отдельно, т.к. используются в TailDots, который рендерится до вычисления
+ * основных стилей темы
+ * Purely layout (theme-independent) styles for the dot tail - kept separate
+ * since they're used by TailDots, which renders before the theme-based
+ * styles are computed
+ */
+const layoutStyles = StyleSheet.create({
+    tailRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: -4 },
+    tailRowMine: { alignSelf: 'flex-end', marginRight: 14 },
+    tailRowTheirs: { alignSelf: 'flex-start', marginLeft: 14 },
 });
 
 export default ThoughtBubble;
