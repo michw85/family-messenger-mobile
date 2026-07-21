@@ -32,6 +32,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Audio } from 'expo-av';
 import ThoughtBubble from '../components/ThoughtBubble';
 import FloatingClouds from '../components/FloatingClouds';
+import ParticipantsModal from '../components/ParticipantsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage } from '../services/api';
@@ -83,6 +84,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [sending, setSending] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [addParticipantsVisible, setAddParticipantsVisible] = useState(false);
+    const [participantsVisible, setParticipantsVisible] = useState(false);
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -601,7 +603,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                                         <Text style={styles.backButtonText}>←</Text>
                                     </TouchableOpacity>
-                                    <Text style={styles.headerTitle}>{roomName}</Text>
+                                    <TouchableOpacity style={{ flex: 1 }} onPress={() => setParticipantsVisible(true)} activeOpacity={0.7}>
+                                        <Text style={styles.headerTitle}>{roomName}</Text>
+                                    </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setSearchVisible(true)} style={styles.iconHeaderButton}>
                                         <Text style={styles.iconText}>🔍</Text>
                                     </TouchableOpacity>
@@ -730,6 +734,17 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             onParticipantsAdded={() => {
                                 Alert.alert('Участники добавлены');
                                 // При необходимости можно перезагрузить список участников
+                            }}
+                        />
+                        {/* Модалка со списком текущих участников (открывается по нажатию на название чата) */}
+                        <ParticipantsModal
+                            visible={participantsVisible}
+                            onClose={() => setParticipantsVisible(false)}
+                            chatId={roomId}
+                            currentUsername={currentUsername}
+                            onAddPress={() => {
+                                setParticipantsVisible(false);
+                                setAddParticipantsVisible(true);
                             }}
                         />
                     </View>
