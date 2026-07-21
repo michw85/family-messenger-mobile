@@ -79,7 +79,6 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [inputText, setInputText] = useState<string>('');
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [currentUsername, setCurrentUsername] = useState<string>('');
-    const [keyboardVisible, setKeyboardVisible] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(true);
     const [sending, setSending] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -219,8 +218,16 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             // Подписываемся на топик комнаты
             const sub = subscribeToRoom(roomId, (newMessage: Message) => {
                 console.log('New message received:', newMessage);
+                // Прокрутку к новым сообщениям делает FlatList.onContentSizeChange
+                // (см. ниже) - он же учитывает isNearBottomRef, поэтому здесь
+                // отдельный scrollToEnd() не нужен (и уводил бы не туда - см.
+                // комментарий у onContentSizeChange)
+                // Scrolling to new messages is handled by
+                // FlatList.onContentSizeChange (below), which also respects
+                // isNearBottomRef - a separate scrollToEnd() here isn't needed
+                // (and would scroll the wrong way anyway - see the comment
+                // next to onContentSizeChange)
                 applyMessageUpdate(newMessage);
-                setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
             });
             subscriptionRef.current = sub;
         } catch (error) {
@@ -239,11 +246,6 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             disconnectWebSocket();
         };
     }, [loadCurrentUser, loadMessages, setupWebSocket]);
-
-    // Автоматическая прокрутка при новых сообщениях
-    useEffect(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-    }, [messages]);
 
     /**
      * Отправка текстового сообщения через WebSocket
@@ -519,26 +521,20 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
     const keyExtractor = useCallback((item: Message) => item.id, []);
 
-    // Обработчики клавиатуры: держим высоту для отступа под инпутом и мягко
-    // докручиваем к новым сообщениям. Список инвертирован - offset 0 это
-    // самые новые сообщения (низ экрана), а scrollToEnd() уводил бы к самым
-    // старым, поэтому используем именно scrollToOffset(0).
-    // Keyboard handlers: track visibility (for the input's bottom safe-area
-    // padding) and gently scroll to the newest messages. The list is
-    // inverted - offset 0 is the newest messages (bottom of the screen),
-    // while scrollToEnd() would jump to the oldest ones, hence
+    // При открытии клавиатуры мягко докручиваем к новым сообщениям. Список
+    // инвертирован - offset 0 это самые новые сообщения (низ экрана), а
+    // scrollToEnd() уводил бы к самым старым, поэтому используем именно
+    // scrollToOffset(0).
+    // When the keyboard opens, gently scroll to the newest messages. The
+    // list is inverted - offset 0 is the newest messages (bottom of the
+    // screen), while scrollToEnd() would jump to the oldest ones, hence
     // scrollToOffset(0) here.
     useEffect(() => {
         const showSub = Keyboard.addListener('keyboardDidShow', () => {
-            setKeyboardVisible(true);
             setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 300);
-        });
-        const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-            setKeyboardVisible(false);
         });
         return () => {
             showSub.remove();
-            hideSub.remove();
         };
     }, []);
 
@@ -674,26 +670,26 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             onEndReached={loadMoreMessages}
                             onEndReachedThreshold={0.3}
                             onScrollToIndexFailed={() => { }}
-                            // Доп. защита от произвольных прыжков скролла при изменении
-                            // размеров контейнера (напр. открытие клавиатуры)
-                            // Extra guard against arbitrary scroll jumps when the
-                            // container is resized (e.g. the keyboard opening)
-                            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
                             ListFooterComponent={loadingMore ? (
                                 <ActivityIndicator size="small" color={colors.primary} style={{ padding: spacing.md }} />
                             ) : null}
                         />
 
-                        {/* Панель ввода. Сдвиг над клавиатурой целиком делает
-                            KeyboardAvoidingView - здесь только safe-area снизу
-                            в состоянии покоя (когда клавиатура открыта, этот
-                            отступ не нужен - её место и так занято клавиатурой) */}
-                        {/* The lift above the keyboard is handled entirely by
-                            KeyboardAvoidingView - this is only the resting
-                            safe-area (when the keyboard is open, that space is
-                            already occupied by the keyboard itself) */}
+                        {/* Панель ввода. Отступ снизу всегда постоянный (safe-area) -
+                            сдвиг над клавиатурой целиком делает KeyboardAvoidingView.
+                            Раньше здесь была условная логика по keyboardVisible,
+                            которая иногда рассинхронизировалась с собственной
+                            анимацией KeyboardAvoidingView и оставляла инпут
+                            "подвешенным" после скрытия клавиатуры - убрали её. */}
+                        {/* Input panel. The bottom padding is always constant
+                            (safe-area) - the lift above the keyboard is handled
+                            entirely by KeyboardAvoidingView. This used to have
+                            conditional logic based on keyboardVisible, which
+                            sometimes fell out of sync with KeyboardAvoidingView's
+                            own animation and left the input "stuck" after the
+                            keyboard closed - removed it. */}
                         <View style={[styles.inputWrapper, {
-                            paddingBottom: keyboardVisible ? 6 : insets.bottom + 6
+                            paddingBottom: insets.bottom + 6
                         }]}>
                             <View style={styles.inputContainer}>
                                 {/* Кнопка фото */}
