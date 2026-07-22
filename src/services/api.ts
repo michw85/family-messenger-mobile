@@ -132,6 +132,9 @@ export const fetchChats = () => api.get('/chats');
 export const createChat = (name: string, type: 'GROUP' | 'FAMILY') =>
   api.post('/chats', { name, type });
 export const deleteChat = (chatId: string) => api.delete(`/chats/${chatId}`);
+// Покинуть чат (группа) / удалить чат только у себя (личный чат)
+// Leave a chat (group) / delete a chat for yourself only (personal chat)
+export const leaveChat = (chatId: string) => api.post(`/chats/${chatId}/leave`);
 
 // Messages
 export const fetchMessages = (chatId: string, page = 0, size = 30) =>

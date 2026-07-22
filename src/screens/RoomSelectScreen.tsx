@@ -25,7 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { fetchChats, createChat, deleteChat } from '../services/api';
+import { fetchChats, createChat, deleteChat, leaveChat } from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,7 +39,8 @@ interface ChatRoom {
     id: string;
     name: string;
     type: 'GROUP' | 'DIRECT' | 'FAMILY';
-    participants: Array<{ username: string; avatarUrl?: string | null }>;
+    createdBy: number;
+    participants: Array<{ id: number; username: string; avatarUrl?: string | null }>;
     createdAt: string;
     lastActivityAt: string;
 }
@@ -131,27 +132,54 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     };
 
     /**
-     * Удаление чата (только для создателя)
-     * Delete chat (creator only)
-     * @param chatId - идентификатор чата
-     * @param chatName - название чата (для сообщения подтверждения)
+     * Покинуть чат (группа) / удалить чат у себя (личный) - доступно любому
+     * участнику. Создатель группового чата дополнительно может удалить его
+     * целиком для всех.
+     * Leave a chat (group) / delete a chat for yourself (personal) -
+     * available to any participant. A group chat's creator additionally
+     * gets the option to delete it entirely for everyone.
+     * @param item - чат, по которому был долгий тап
      */
-    const handleDeleteChat = (chatId: string, chatName: string) => {
-        Alert.alert(
-            'Удалить чат? / Delete chat?',
-            `Вы уверены, что хотите удалить "${chatName}"? Это действие нельзя отменить.\n\nAre you sure? This action cannot be undone.`,
-            [
-                { text: 'Отмена / Cancel', style: 'cancel' },
-                {
-                    text: 'Удалить / Delete',
+    const handleChatLongPress = (item: ChatRoom) => {
+        const myId = item.participants.find((p) => p.username === currentUsername)?.id;
+        const isCreator = myId !== undefined && myId === item.createdBy;
+        const isGroup = item.type === 'GROUP';
+
+        const buttons: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> = [
+            { text: 'Отмена / Cancel', style: 'cancel' },
+        ];
+
+        if (isGroup) {
+            buttons.push({
+                text: 'Покинуть чат / Leave chat',
+                style: 'destructive',
+                onPress: async () => {
+                    await leaveChat(item.id);
+                    await loadChats();
+                },
+            });
+            if (isCreator) {
+                buttons.push({
+                    text: 'Удалить для всех / Delete for everyone',
                     style: 'destructive',
                     onPress: async () => {
-                        await deleteChat(chatId);
+                        await deleteChat(item.id);
                         await loadChats();
                     },
+                });
+            }
+        } else {
+            buttons.push({
+                text: 'Удалить чат / Delete chat',
+                style: 'destructive',
+                onPress: async () => {
+                    await leaveChat(item.id);
+                    await loadChats();
                 },
-            ]
-        );
+            });
+        }
+
+        Alert.alert(item.name, undefined, buttons);
     };
 
     /**
@@ -191,7 +219,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         <TouchableOpacity
             style={styles.chatCard}
             onPress={() => navigation.navigate('ChatRoom', { roomId: item.id, roomName: item.name })}
-            onLongPress={() => handleDeleteChat(item.id, item.name)}
+            onLongPress={() => handleChatLongPress(item)}
             delayLongPress={500}
             activeOpacity={0.7}
         >
