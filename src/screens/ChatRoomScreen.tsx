@@ -23,7 +23,7 @@ import {
     ActivityIndicator,
     Modal,
 } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -74,6 +74,13 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const { theme, colors } = useTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
     const insets = useSafeAreaInsets();
+    // Надёжный флаг видимости клавиатуры из той же библиотеки, что и
+    // KeyboardAvoidingView - чтобы не добавлять safe-area отступ снизу ещё
+    // раз, когда клавиатура и так уже впритык к панели ввода
+    // Reliable keyboard-visible flag from the same library as
+    // KeyboardAvoidingView - so we don't add the bottom safe-area padding
+    // again when the keyboard is already flush against the input panel
+    const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
 
     // Состояния
     const [messages, setMessages] = useState<Message[]>([]);
@@ -694,13 +701,18 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         />
 
                         {/* Панель ввода. Подъём над клавиатурой на обеих платформах
-                            делает KeyboardAvoidingView (см. выше) - здесь только
-                            safe-area отступ в состоянии покоя. */}
+                            делает KeyboardAvoidingView (см. выше). Safe-area отступ
+                            снизу нужен только в покое - когда клавиатура открыта,
+                            под ней и так нет системной панели жестов, так что этот
+                            отступ создавал бы просто лишний зазор. */}
                         {/* Input panel. The lift above the keyboard on both
                             platforms is handled by KeyboardAvoidingView (see
-                            above) - this is just the resting safe-area padding. */}
+                            above). The bottom safe-area padding is only needed at
+                            rest - when the keyboard is open there's no gesture bar
+                            underneath it anyway, so this padding would just be an
+                            extra gap. */}
                         <View style={[styles.inputWrapper, {
-                            paddingBottom: insets.bottom + 6
+                            paddingBottom: isKeyboardVisible ? 6 : insets.bottom + 6
                         }]}>
                             <View style={styles.inputContainer}>
                                 {/* Кнопка фото */}
