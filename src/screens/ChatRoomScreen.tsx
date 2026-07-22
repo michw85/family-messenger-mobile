@@ -78,16 +78,6 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     // Состояния
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState<string>('');
-    const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
-    // Последняя реально измеренная высота клавиатуры - используется как
-    // мгновенная оценка при фокусе на поле ввода, пока не пришло само событие
-    // keyboardDidShow (иначе между тапом по полю и этим событием есть
-    // заметная задержка, во время которой инпут ещё не поднят)
-    // Last actually measured keyboard height - used as an instant estimate on
-    // input focus, before the keyboardDidShow event itself arrives (otherwise
-    // there's a noticeable gap between tapping the field and that event,
-    // during which the input isn't lifted yet)
-    const lastKnownKeyboardHeightRef = useRef(280);
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [currentUsername, setCurrentUsername] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(true);
@@ -533,30 +523,28 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
     const keyExtractor = useCallback((item: Message) => item.id, []);
 
-    // Обработчики клавиатуры: на Android вручную считаем высоту клавиатуры
-    // для отступа под инпутом (см. inputWrapper ниже - KeyboardAvoidingView
-    // там отключён, см. комментарий у него). Заодно при открытии клавиатуры
-    // мягко докручиваем к новым сообщениям. Список инвертирован - offset 0
+    // Клавиатуру теперь целиком отрабатывает система (windowSoftInputMode=
+    // adjustResize в манифесте) - вручную считать её высоту в JS больше не
+    // нужно (несколько раундов ручного JS-трекинга по событиям Keyboard
+    // оказались ненадёжны на Android - на повторном фокусе на поле высота
+    // иногда приходила неверной). Здесь только докручиваем к новым
+    // сообщениям при открытии клавиатуры. Список инвертирован - offset 0
     // это самые новые сообщения (низ экрана), а scrollToEnd() уводил бы к
     // самым старым, поэтому используем именно scrollToOffset(0).
-    // Keyboard handlers: on Android we manually track the keyboard height for
-    // the input's bottom padding (see inputWrapper below - KeyboardAvoidingView
-    // is disabled there, see the comment next to it). Also gently scroll to
-    // the newest messages when the keyboard opens. The list is inverted -
-    // offset 0 is the newest messages (bottom of the screen), while
-    // scrollToEnd() would jump to the oldest ones, hence scrollToOffset(0).
+    // The keyboard is now handled entirely by the system (windowSoftInputMode=
+    // adjustResize in the manifest) - manually tracking its height in JS is no
+    // longer needed (several rounds of manual JS tracking via Keyboard events
+    // proved unreliable on Android - on a repeat focus the height sometimes
+    // came back wrong). This just scrolls to the newest messages when the
+    // keyboard opens. The list is inverted - offset 0 is the newest messages
+    // (bottom of the screen), while scrollToEnd() would jump to the oldest
+    // ones, hence scrollToOffset(0).
     useEffect(() => {
-        const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
-            lastKnownKeyboardHeightRef.current = e.endCoordinates.height;
-            setKeyboardHeight(e.endCoordinates.height);
+        const showSub = Keyboard.addListener('keyboardDidShow', () => {
             setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 300);
-        });
-        const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-            setKeyboardHeight(0);
         });
         return () => {
             showSub.remove();
-            hideSub.remove();
         };
     }, []);
 
@@ -572,30 +560,25 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
         <KeyboardAvoidingView
             style={{ flex: 1 }}
-            // На Android KeyboardAvoidingView с behavior="height" оказался сам
-            // по себе нестабилен: его внутреннее вычисление высоты иногда
-            // "залипает" в сжатом состоянии даже после закрытия клавиатуры
-            // (известная проблема компонента на Android). Поэтому на Android
-            // используем только ручной расчёт отступа под клавиатуру
-            // (см. keyboardHeight ниже), а сам KeyboardAvoidingView там ничего
-            // не делает. На iOS такой проблемы не было - оставлен как есть.
-            // On Android, KeyboardAvoidingView's behavior="height" turned out
-            // to be unstable on its own: its internal height calculation
-            // sometimes gets "stuck" in a shrunk state even after the keyboard
-            // closes (a known issue with the component on Android). So on
-            // Android we rely only on the manual keyboard-height padding (see
-            // keyboardHeight below), and KeyboardAvoidingView is a no-op there.
-            // iOS wasn't affected by this, so it's left unchanged.
-            // На Android манифест теперь windowSoftInputMode="adjustNothing" -
-            // система тоже ничего не делает сама, чтобы полностью исключить
-            // конфликт с этим ручным расчётом (app.json поддерживает только
-            // "resize"/"pan", поэтому adjustNothing выставлен прямо в нативном
-            // AndroidManifest.xml).
-            // On Android the manifest is now windowSoftInputMode="adjustNothing" -
-            // the system does nothing automatically either, to fully rule out
-            // any conflict with this manual calculation (app.json only supports
-            // "resize"/"pan", so adjustNothing is set directly in the native
-            // AndroidManifest.xml).
+            // Несколько раундов JS-обхода клавиатуры на Android (adjustPan +
+            // KeyboardAvoidingView, adjustNothing + ручной расчёт по событиям
+            // Keyboard) оказались ненадёжны - события Keyboard на повторном
+            // фокусе иногда приходили с неверной высотой. Вернулись к самому
+            // стандартному варианту: манифест windowSoftInputMode="adjustResize",
+            // система сама ужимает окно под клавиатуру, а на Android
+            // KeyboardAvoidingView ничего не делает (behavior не задан) -
+            // никакого JS-вмешательства в раскладку больше нет. На iOS такой
+            // проблемы не было - оставлен как есть.
+            // Several rounds of JS-side keyboard handling on Android
+            // (adjustPan + KeyboardAvoidingView, adjustNothing + manual
+            // calculation from Keyboard events) proved unreliable - the
+            // Keyboard events sometimes reported the wrong height on a repeat
+            // focus. Reverted to the most standard approach: manifest
+            // windowSoftInputMode="adjustResize", the system itself shrinks
+            // the window for the keyboard, and KeyboardAvoidingView is a
+            // no-op on Android (no behavior set) - no JS involvement in the
+            // layout at all anymore. iOS wasn't affected by this, so it's
+            // left unchanged.
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
@@ -710,19 +693,16 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         />
 
                         {/* Панель ввода. На iOS KeyboardAvoidingView (padding) сам
-                            поднимает её над клавиатурой - здесь только safe-area
-                            в покое. На Android KeyboardAvoidingView отключён (см.
-                            выше), поэтому там высоту клавиатуры добавляем к
-                            отступу вручную по keyboardHeight. */}
+                            поднимает её над клавиатурой. На Android под клавиатуру
+                            подстраивается сама система (adjustResize, см. выше) -
+                            здесь везде только safe-area отступ в покое. */}
                         {/* Input panel. On iOS, KeyboardAvoidingView (padding)
-                            lifts it above the keyboard itself - only the resting
-                            safe-area matters here. On Android, KeyboardAvoidingView
-                            is disabled (see above), so the keyboard height is
-                            added to the padding manually via keyboardHeight. */}
+                            lifts it above the keyboard itself. On Android, the
+                            system itself adjusts for the keyboard (adjustResize,
+                            see above) - this is just the resting safe-area padding
+                            everywhere. */}
                         <View style={[styles.inputWrapper, {
-                            paddingBottom: Platform.OS === 'android' && keyboardHeight > 0
-                                ? keyboardHeight + 6
-                                : insets.bottom + 6
+                            paddingBottom: insets.bottom + 6
                         }]}>
                             <View style={styles.inputContainer}>
                                 {/* Кнопка фото */}
@@ -745,17 +725,6 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     onSubmitEditing={sendTextMessage}
                                     returnKeyType="send"
                                     multiline
-                                    onFocus={() => {
-                                        // Не ждём keyboardDidShow - применяем последнюю известную
-                                        // высоту клавиатуры сразу по фокусу, чтобы инпут не
-                                        // "прыгал" в момент между тапом и самим событием
-                                        // Don't wait for keyboardDidShow - apply the last known
-                                        // keyboard height right on focus, so the input doesn't
-                                        // "jump" in the gap between the tap and the event itself
-                                        if (Platform.OS === 'android') {
-                                            setKeyboardHeight(lastKnownKeyboardHeightRef.current);
-                                        }
-                                    }}
                                 />
                                 <TouchableOpacity
                                     style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
