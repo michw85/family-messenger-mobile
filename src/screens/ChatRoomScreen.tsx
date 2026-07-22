@@ -279,7 +279,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             return;
         }
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             quality: 0.3,
         });
         if (!result.canceled && result.assets[0]) {

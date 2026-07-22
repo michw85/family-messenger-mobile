@@ -314,23 +314,27 @@ const Navigation = () => {
 /**
  * Иконки статус-бара (сеть, заряд, часы) должны быть тёмными на светлой теме
  * и светлыми на тёмной, иначе они сливаются с фоном и их не видно. На Android
- * заодно перекрашиваем и нижнюю навигационную панель - иначе она остаётся
- * системного (светлого) цвета и на тёмной теме выглядит как светлая полоса
- * внизу экрана.
+ * заодно перекрашиваем иконки нижней навигационной панели - сам фон панели
+ * там не задаём: приложение собрано с edgeToEdgeEnabled=true, а
+ * setBackgroundColorAsync под edge-to-edge не поддерживается (только спамит
+ * предупреждением в консоль) - на edge-to-edge фон под панелью и так даёт
+ * содержимое экрана (наш градиент), панель прозрачна по умолчанию.
  * Status bar icons (signal, battery, clock) need to be dark on the light
  * theme and light on the dark one, otherwise they blend into the background
  * and become unreadable. On Android we also recolor the bottom navigation
- * bar - otherwise it stays the system's (light) color and shows up as a
- * light stripe at the bottom of the screen on the dark theme.
+ * bar's icons - we don't set the bar's own background there: the app is
+ * built with edgeToEdgeEnabled=true, and setBackgroundColorAsync isn't
+ * supported under edge-to-edge (it just spams a console warning) - on
+ * edge-to-edge the screen's own content (our gradient) already shows through
+ * behind the bar, which is transparent by default.
  */
 const ThemedStatusBar: React.FC = () => {
-    const { theme, colors } = useTheme();
+    const { theme } = useTheme();
 
     useEffect(() => {
         if (Platform.OS !== 'android') return;
-        NavigationBar.setBackgroundColorAsync(colors.background).catch(() => {});
         NavigationBar.setButtonStyleAsync(theme === 'dark' ? 'light' : 'dark').catch(() => {});
-    }, [theme, colors.background]);
+    }, [theme]);
 
     return <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />;
 };
