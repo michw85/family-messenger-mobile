@@ -36,7 +36,8 @@ import ParticipantsModal from '../components/ParticipantsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage } from '../services/api';
-import { connectWebSocket, subscribeToRoom, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
+import { connectWebSocket, subscribeToRoom, subscribeToTyping, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
+import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
 import ImageView from 'react-native-image-viewing';
@@ -124,6 +125,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [participantsVisible, setParticipantsVisible] = useState(false);
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [typingUser, setTypingUser] = useState<string | null>(null);
 
     // Пагинация истории / Message history pagination
     const [page, setPage] = useState(0);
@@ -164,6 +166,12 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const isNearBottomRef = useRef(true);
     const stompClientRef = useRef<any>(null);
     const subscriptionRef = useRef<any>(null);
+    const typingSubscriptionRef = useRef<any>(null);
+    const typingClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const lastTypingSentRef = useRef(0);
+    // Актуальное имя пользователя внутри колбэков вебсокета, подписанных один раз
+    // Latest username inside websocket callbacks, subscribed only once
+    const currentUsernameRef = useRef('');
 
     /**
      * Загрузка истории сообщений через REST API (первая страница - самые новые)
@@ -237,7 +245,10 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      */
     const loadCurrentUser = useCallback(async () => {
         const name = await AsyncStorage.getItem('username');
-        if (name) setCurrentUsername(name);
+        if (name) {
+            setCurrentUsername(name);
+            currentUsernameRef.current = name;
+        }
     }, []);
 
     /**
@@ -269,6 +280,20 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 applyMessageUpdate(newMessage);
             });
             subscriptionRef.current = sub;
+
+            // Индикатор "печатает" - показываем только для чужих событий
+            // Typing indicator - only show it for someone else's events
+            const typingSub = subscribeToTyping(roomId, ({ user, typing }) => {
+                if (!typing || user === currentUsernameRef.current) return;
+                setTypingUser(user);
+                if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
+                // Бэкенд не шлёт отдельное событие "перестал печатать", поэтому
+                // просто гасим индикатор, если новых событий не было 3 секунды
+                // The backend doesn't send a separate "stopped typing" event, so
+                // just clear the indicator if no new events arrive within 3s
+                typingClearTimeoutRef.current = setTimeout(() => setTypingUser(null), 3000);
+            });
+            typingSubscriptionRef.current = typingSub;
         } catch (error) {
             console.error('WebSocket connection failed:', error);
         }
@@ -282,6 +307,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         // Отписка при размонтировании
         return () => {
             if (subscriptionRef.current) subscriptionRef.current.unsubscribe();
+            if (typingSubscriptionRef.current) typingSubscriptionRef.current.unsubscribe();
+            if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
             disconnectWebSocket();
         };
     }, [loadCurrentUser, loadMessages, setupWebSocket]);
@@ -297,6 +324,21 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         setInputText('');
         setSending(false);
     }, [inputText, roomId]);
+
+    /**
+     * Изменение текста в поле ввода - параллельно шлёт событие "печатает"
+     * не чаще раза в 2 секунды, чтобы не спамить сервер на каждый символ
+     * Input text change - also sends a "typing" event, throttled to once
+     * every 2 seconds so we don't spam the server on every keystroke
+     */
+    const handleInputChange = useCallback((text: string) => {
+        setInputText(text);
+        const now = Date.now();
+        if (now - lastTypingSentRef.current > 2000) {
+            sendTyping(roomId);
+            lastTypingSentRef.current = now;
+        }
+    }, [roomId]);
 
     /**
      * Отправка изображения (загрузка на сервер, затем WebSocket)
@@ -728,6 +770,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             ) : null}
                         />
 
+                        {typingUser && <TypingIndicator username={typingUser} />}
+
                         {/* Панель ввода. Подъём над клавиатурой на обеих платформах
                             делает KeyboardAvoidingView (см. выше). Safe-area отступ
                             снизу нужен только в покое - когда клавиатура открыта,
@@ -757,7 +801,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                 <TextInput
                                     style={styles.input}
                                     value={inputText}
-                                    onChangeText={setInputText}
+                                    onChangeText={handleInputChange}
                                     placeholder={t('placeholder')}
                                     placeholderTextColor={colors.textMuted}
                                     onSubmitEditing={sendTextMessage}

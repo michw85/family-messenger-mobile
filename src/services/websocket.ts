@@ -64,6 +64,35 @@ export const subscribeToRoom = (roomId: string, onMessage: (msg: any) => void) =
 };
 
 /**
+ * Подписка на индикатор печати в комнате чата
+ * Subscribe to the room's typing indicator
+ * @param roomId - идентификатор комнаты
+ * @param onTyping - колбэк, вызываемый когда кто-то печатает
+ */
+export const subscribeToTyping = (roomId: string, onTyping: (data: { user: string; typing: boolean }) => void) => {
+    if (!stompClient?.connected) {
+        console.warn('STOMP not connected, cannot subscribe to typing');
+        return null;
+    }
+    return stompClient.subscribe(`/topic/room/${roomId}/typing`, (message) => {
+        onTyping(JSON.parse(message.body));
+    });
+};
+
+/**
+ * Уведомление о том, что текущий пользователь печатает
+ * Notify that the current user is typing
+ * @param roomId - идентификатор комнаты
+ */
+export const sendTyping = (roomId: string) => {
+    if (!stompClient?.connected) return;
+    stompClient.publish({
+        destination: `/app/typing/${roomId}`,
+        body: '',
+    });
+};
+
+/**
  * Отправка сообщения в комнату
  * Send message to room
  * @param roomId - идентификатор комнаты
