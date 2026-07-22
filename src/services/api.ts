@@ -160,6 +160,9 @@ export const editMessage = (chatId: string, messageId: string, content: string) 
 export const deleteMessage = (chatId: string, messageId: string) =>
   api.delete(`/chats/${chatId}/messages/${messageId}`);
 
+export const toggleReaction = (chatId: string, messageId: string, emoji: string) =>
+  api.post(`/chats/${chatId}/messages/${messageId}/reactions`, { emoji });
+
 // Files
 export const uploadFile = (formData: FormData, type: 'image' | 'voice') =>
   api.post(`/files/upload/${type}`, formData, {

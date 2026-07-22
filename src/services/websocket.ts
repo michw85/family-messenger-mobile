@@ -109,6 +109,25 @@ export const subscribeToRead = (roomId: string, onRead: (data: { username: strin
 };
 
 /**
+ * Подписка на изменения реакций в комнате чата
+ * Subscribe to reaction changes in the chat room
+ * @param roomId - идентификатор комнаты
+ * @param onReactions - колбэк с обновлённым списком реакций для сообщения
+ */
+export const subscribeToReactions = (
+    roomId: string,
+    onReactions: (data: { messageId: string; reactions: { emoji: string; count: number; usernames: string[] }[] }) => void
+) => {
+    if (!stompClient?.connected) {
+        console.warn('STOMP not connected, cannot subscribe to reactions');
+        return null;
+    }
+    return stompClient.subscribe(`/topic/room/${roomId}/reactions`, (message) => {
+        onReactions(JSON.parse(message.body));
+    });
+};
+
+/**
  * Отправка сообщения в комнату
  * Send message to room
  * @param roomId - идентификатор комнаты

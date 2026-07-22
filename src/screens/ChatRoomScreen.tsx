@@ -35,8 +35,8 @@ import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead } from '../services/api';
-import { connectWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
+import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction } from '../services/api';
+import { connectWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
 import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
@@ -102,7 +102,10 @@ interface Message {
         type: 'TEXT' | 'IMAGE' | 'VOICE';
         deleted: boolean;
     } | null;
+    reactions?: { emoji: string; count: number; usernames: string[] }[];
 }
+
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
 
 /**
  * Экран чата
@@ -178,6 +181,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const subscriptionRef = useRef<any>(null);
     const typingSubscriptionRef = useRef<any>(null);
     const readSubscriptionRef = useRef<any>(null);
+    const reactionsSubscriptionRef = useRef<any>(null);
     const typingClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastTypingSentRef = useRef(0);
     // Актуальное имя пользователя внутри колбэков вебсокета, подписанных один раз
@@ -311,6 +315,13 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             });
             readSubscriptionRef.current = readSub;
 
+            // Реакции на сообщения - обновляем сводку по конкретному сообщению
+            // Message reactions - update the summary for the specific message
+            const reactionsSub = subscribeToReactions(roomId, ({ messageId, reactions }) => {
+                setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, reactions } : m)));
+            });
+            reactionsSubscriptionRef.current = reactionsSub;
+
             // Индикатор "печатает" - показываем только для чужих событий
             // Typing indicator - only show it for someone else's events
             const typingSub = subscribeToTyping(roomId, ({ user, typing }) => {
@@ -339,6 +350,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             if (subscriptionRef.current) subscriptionRef.current.unsubscribe();
             if (typingSubscriptionRef.current) typingSubscriptionRef.current.unsubscribe();
             if (readSubscriptionRef.current) readSubscriptionRef.current.unsubscribe();
+            if (reactionsSubscriptionRef.current) reactionsSubscriptionRef.current.unsubscribe();
             if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
             disconnectWebSocket();
         };
@@ -529,11 +541,30 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      * Копирование, редактирование и удаление сообщения (долгое нажатие)
      * Copy, edit and delete a message (long press)
      */
+    /**
+     * Поставить/снять/заменить свою реакцию на сообщение
+     * Toggle your own reaction on a message
+     */
+    const handleToggleReaction = useCallback(async (messageId: string, emoji: string) => {
+        try {
+            await toggleReaction(roomId, messageId, emoji);
+        } catch (error) {
+            console.error('Failed to toggle reaction:', error);
+        }
+    }, [roomId]);
+
     const handleMessageLongPress = useCallback((item: Message) => {
         if (item.deleted) return;
 
         const isMine = item.sender.username === currentUsername;
         const options: any[] = [];
+
+        QUICK_REACTIONS.forEach((emoji) => {
+            options.push({
+                text: emoji,
+                onPress: () => handleToggleReaction(item.id, emoji),
+            });
+        });
 
         options.push({
             text: 'Ответить / Reply',
@@ -587,7 +618,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         if (options.length === 0) return;
         options.push({ text: 'Отмена / Cancel', style: 'cancel' });
         Alert.alert('', '', options);
-    }, [currentUsername, roomId, applyMessageUpdate, t]);
+    }, [currentUsername, roomId, applyMessageUpdate, handleToggleReaction, t]);
 
     /**
      * Сохранение отредактированного текста сообщения
@@ -610,32 +641,50 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      * Рендер одного сообщения
      * Render a single message
      */
-    const renderMessage = useCallback(({ item }: { item: Message }) => (
-        <TouchableOpacity
-            onPress={() => {
-                if (item.type === 'IMAGE' && item.mediaUrl) {
-                    setSelectedImage(item.mediaUrl);
-                    setImageViewerVisible(true);
-                }
-            }}
-            onLongPress={() => handleMessageLongPress(item)}
-            activeOpacity={item.type === 'IMAGE' ? 0.7 : 1}
-        >
-            <ThoughtBubble
-                content={item.deleted ? 'Сообщение удалено / Message deleted' : item.content}
-                sender={item.sender.username}
-                timestamp={formatMessageTime(item.timestamp)}
-                isMyMessage={item.sender.username === currentUsername}
-                type={item.deleted ? 'TEXT' : item.type}
-                mediaUrl={item.deleted ? undefined : item.mediaUrl}
-                grouped={item.grouped}
-                edited={item.edited}
-                deletedPlaceholder={item.deleted}
-                read={item.read}
-                replyTo={item.replyTo}
-            />
-        </TouchableOpacity>
-    ), [currentUsername, handleMessageLongPress]);
+    const renderMessage = useCallback(({ item }: { item: Message }) => {
+        const isMyMessage = item.sender.username === currentUsername;
+        return (
+        <View>
+            <TouchableOpacity
+                onPress={() => {
+                    if (item.type === 'IMAGE' && item.mediaUrl) {
+                        setSelectedImage(item.mediaUrl);
+                        setImageViewerVisible(true);
+                    }
+                }}
+                onLongPress={() => handleMessageLongPress(item)}
+                activeOpacity={item.type === 'IMAGE' ? 0.7 : 1}
+            >
+                <ThoughtBubble
+                    content={item.deleted ? 'Сообщение удалено / Message deleted' : item.content}
+                    sender={item.sender.username}
+                    timestamp={formatMessageTime(item.timestamp)}
+                    isMyMessage={isMyMessage}
+                    type={item.deleted ? 'TEXT' : item.type}
+                    mediaUrl={item.deleted ? undefined : item.mediaUrl}
+                    grouped={item.grouped}
+                    edited={item.edited}
+                    deletedPlaceholder={item.deleted}
+                    read={item.read}
+                    replyTo={item.replyTo}
+                />
+            </TouchableOpacity>
+            {!!item.reactions?.length && (
+                <View style={[styles.reactionsRow, isMyMessage ? styles.reactionsRowMy : styles.reactionsRowTheirs]}>
+                    {item.reactions.map((r) => (
+                        <TouchableOpacity
+                            key={r.emoji}
+                            style={[styles.reactionPill, r.usernames.includes(currentUsername) && styles.reactionPillMine]}
+                            onPress={() => handleToggleReaction(item.id, r.emoji)}
+                        >
+                            <Text style={styles.reactionPillText}>{r.emoji} {r.count}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+        </View>
+        );
+    }, [currentUsername, handleMessageLongPress, handleToggleReaction, styles]);
 
     const keyExtractor = useCallback((item: Message) => item.id, []);
 
@@ -1043,6 +1092,30 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     replyPreviewBarText: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
     replyPreviewBarClose: { padding: spacing.xs },
     replyPreviewBarCloseText: { fontSize: 14, color: colors.textSecondary },
+    reactionsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.xs,
+        marginTop: -spacing.md,
+        marginBottom: spacing.xs,
+        paddingHorizontal: spacing.lg,
+    },
+    reactionsRowMy: { justifyContent: 'flex-end' },
+    reactionsRowTheirs: { justifyContent: 'flex-start' },
+    reactionPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.iconButtonBackground,
+        borderRadius: borderRadius.circle,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 2,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    reactionPillMine: {
+        borderColor: colors.primary,
+    },
+    reactionPillText: { fontSize: 12, color: colors.text },
     // Иконки — теперь с мягким фоном
     iconButton: {
         padding: spacing.xs,
