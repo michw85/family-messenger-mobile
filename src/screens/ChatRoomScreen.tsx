@@ -21,9 +21,9 @@ import {
     TouchableOpacity,
     TouchableWithoutFeedback,
     ActivityIndicator,
-    KeyboardAvoidingView,
     Modal,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -560,26 +560,27 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
         <KeyboardAvoidingView
             style={{ flex: 1 }}
-            // Несколько раундов JS-обхода клавиатуры на Android (adjustPan +
-            // KeyboardAvoidingView, adjustNothing + ручной расчёт по событиям
-            // Keyboard) оказались ненадёжны - события Keyboard на повторном
-            // фокусе иногда приходили с неверной высотой. Вернулись к самому
-            // стандартному варианту: манифест windowSoftInputMode="adjustResize",
-            // система сама ужимает окно под клавиатуру, а на Android
-            // KeyboardAvoidingView ничего не делает (behavior не задан) -
-            // никакого JS-вмешательства в раскладку больше нет. На iOS такой
-            // проблемы не было - оставлен как есть.
-            // Several rounds of JS-side keyboard handling on Android
-            // (adjustPan + KeyboardAvoidingView, adjustNothing + manual
-            // calculation from Keyboard events) proved unreliable - the
-            // Keyboard events sometimes reported the wrong height on a repeat
-            // focus. Reverted to the most standard approach: manifest
-            // windowSoftInputMode="adjustResize", the system itself shrinks
-            // the window for the keyboard, and KeyboardAvoidingView is a
-            // no-op on Android (no behavior set) - no JS involvement in the
-            // layout at all anymore. iOS wasn't affected by this, so it's
-            // left unchanged.
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            // Несколько раундов настройки windowSoftInputMode
+            // (adjustResize/adjustPan/adjustNothing) не дали стабильного
+            // результата на Android - оказалось, что проект собран с
+            // edgeToEdgeEnabled=true (android/gradle.properties), а на
+            // edge-to-edge Android этот механизм в принципе ненадёжен.
+            // KeyboardAvoidingView теперь импортируется из
+            // react-native-keyboard-controller - эта библиотека получает
+            // высоту клавиатуры напрямую через нативные IME-инсеты
+            // (WindowInsetsCompat), а не через windowSoftInputMode, поэтому
+            // работает одинаково надёжно на обеих платформах.
+            // Several rounds of tuning windowSoftInputMode
+            // (adjustResize/adjustPan/adjustNothing) never gave stable
+            // results on Android - it turned out the project is built with
+            // edgeToEdgeEnabled=true (android/gradle.properties), and that
+            // mechanism is fundamentally unreliable on edge-to-edge Android.
+            // KeyboardAvoidingView is now imported from
+            // react-native-keyboard-controller - this library gets the
+            // keyboard height directly from native IME insets
+            // (WindowInsetsCompat) instead of windowSoftInputMode, so it
+            // works equally reliably on both platforms.
+            behavior="padding"
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -692,15 +693,12 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             ) : null}
                         />
 
-                        {/* Панель ввода. На iOS KeyboardAvoidingView (padding) сам
-                            поднимает её над клавиатурой. На Android под клавиатуру
-                            подстраивается сама система (adjustResize, см. выше) -
-                            здесь везде только safe-area отступ в покое. */}
-                        {/* Input panel. On iOS, KeyboardAvoidingView (padding)
-                            lifts it above the keyboard itself. On Android, the
-                            system itself adjusts for the keyboard (adjustResize,
-                            see above) - this is just the resting safe-area padding
-                            everywhere. */}
+                        {/* Панель ввода. Подъём над клавиатурой на обеих платформах
+                            делает KeyboardAvoidingView (см. выше) - здесь только
+                            safe-area отступ в состоянии покоя. */}
+                        {/* Input panel. The lift above the keyboard on both
+                            platforms is handled by KeyboardAvoidingView (see
+                            above) - this is just the resting safe-area padding. */}
                         <View style={[styles.inputWrapper, {
                             paddingBottom: insets.bottom + 6
                         }]}>

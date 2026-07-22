@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import LoginScreen from './src/screens/LoginScreen';
@@ -340,15 +341,27 @@ const ThemedStatusBar: React.FC = () => {
  */
 export default function App() {
     return (
-        <SafeAreaProvider>
-            <ThemeProvider>
-                <ThemedStatusBar />
-                <LanguageProvider>
-                    <Initializer>
-                        <Navigation />
-                    </Initializer>
-                </LanguageProvider>
-            </ThemeProvider>
-        </SafeAreaProvider>
+        // KeyboardProvider нужен react-native-keyboard-controller, чтобы получать
+        // высоту клавиатуры через нативные IME-инсеты, а не через устаревший
+        // windowSoftInputMode - это единственный надёжный способ на edge-to-edge
+        // Android (edgeToEdgeEnabled=true), где adjustResize/adjustPan/adjustNothing
+        // ведут себя непредсказуемо.
+        // KeyboardProvider is required by react-native-keyboard-controller to get
+        // the keyboard height via native IME insets instead of the legacy
+        // windowSoftInputMode - the only reliable way on edge-to-edge Android
+        // (edgeToEdgeEnabled=true), where adjustResize/adjustPan/adjustNothing
+        // behave unpredictably.
+        <KeyboardProvider>
+            <SafeAreaProvider>
+                <ThemeProvider>
+                    <ThemedStatusBar />
+                    <LanguageProvider>
+                        <Initializer>
+                            <Navigation />
+                        </Initializer>
+                    </LanguageProvider>
+                </ThemeProvider>
+            </SafeAreaProvider>
+        </KeyboardProvider>
     );
 }
