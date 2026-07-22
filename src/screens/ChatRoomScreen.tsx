@@ -35,8 +35,8 @@ import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage } from '../services/api';
-import { connectWebSocket, subscribeToRoom, subscribeToTyping, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
+import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead } from '../services/api';
+import { connectWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
 import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
@@ -93,6 +93,7 @@ interface Message {
     grouped?: boolean;
     edited?: boolean;
     deleted?: boolean;
+    read?: boolean;
 }
 
 /**
@@ -167,6 +168,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const stompClientRef = useRef<any>(null);
     const subscriptionRef = useRef<any>(null);
     const typingSubscriptionRef = useRef<any>(null);
+    const readSubscriptionRef = useRef<any>(null);
     const typingClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastTypingSentRef = useRef(0);
     // Актуальное имя пользователя внутри колбэков вебсокета, подписанных один раз
@@ -184,6 +186,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             setMessages([...response.data].reverse());
             setPage(0);
             setHasMoreMessages(response.data.length === MESSAGES_PAGE_SIZE);
+            markChatRead(roomId).catch(() => {});
         } catch (error) {
             console.error('Failed to load messages:', error);
             Alert.alert(t('error'), 'Could not load messages');
@@ -278,8 +281,26 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 // (and would scroll the wrong way anyway - see the comment
                 // next to onContentSizeChange)
                 applyMessageUpdate(newMessage);
+                // Раз чат сейчас открыт - сразу отмечаем чужое новое сообщение прочитанным
+                // Since the chat is open right now, immediately mark someone else's new message as read
+                if (newMessage.sender?.username !== currentUsernameRef.current) {
+                    markChatRead(roomId).catch(() => {});
+                }
             });
             subscriptionRef.current = sub;
+
+            // Галочки "прочитано" - обновляем свои сообщения, отправленные до readAt
+            // Read receipts - update our own messages sent at or before readAt
+            const readSub = subscribeToRead(roomId, ({ username, readAt }) => {
+                if (username === currentUsernameRef.current) return;
+                const readAtTime = new Date(readAt).getTime();
+                setMessages(prev => prev.map(m =>
+                    (m.sender.username === currentUsernameRef.current && new Date(m.timestamp).getTime() <= readAtTime)
+                        ? { ...m, read: true }
+                        : m
+                ));
+            });
+            readSubscriptionRef.current = readSub;
 
             // Индикатор "печатает" - показываем только для чужих событий
             // Typing indicator - only show it for someone else's events
@@ -308,6 +329,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         return () => {
             if (subscriptionRef.current) subscriptionRef.current.unsubscribe();
             if (typingSubscriptionRef.current) typingSubscriptionRef.current.unsubscribe();
+            if (readSubscriptionRef.current) readSubscriptionRef.current.unsubscribe();
             if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
             disconnectWebSocket();
         };
@@ -594,6 +616,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 grouped={item.grouped}
                 edited={item.edited}
                 deletedPlaceholder={item.deleted}
+                read={item.read}
             />
         </TouchableOpacity>
     ), [currentUsername, handleMessageLongPress]);

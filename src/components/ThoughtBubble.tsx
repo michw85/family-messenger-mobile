@@ -50,6 +50,9 @@ interface ThoughtBubbleProps {
     edited?: boolean;
     /** Отрисовать как плейсхолдер удалённого сообщения / Render as a deleted-message placeholder */
     deletedPlaceholder?: boolean;
+    /** Прочитано ли всеми остальными участниками (галочка, только для своих сообщений) /
+     * Whether it's been read by every other participant (checkmark, own messages only) */
+    read?: boolean;
 }
 
 /**
@@ -214,6 +217,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     grouped = false,
     edited = false,
     deletedPlaceholder = false,
+    read = false,
 }) => {
     const { colors } = useTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -396,6 +400,9 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
             <TailDots isMyMessage={isMyMessage} colors={colors} />
             <Text style={[styles.timestamp, isMyMessage ? styles.timestampRight : styles.timestampLeft]}>
                 {edited && !deletedPlaceholder ? 'изменено · ' : ''}{timestamp}
+                {isMyMessage && !deletedPlaceholder && (
+                    <Text style={read ? styles.tickRead : styles.tickSent}> {read ? '✓✓' : '✓'}</Text>
+                )}
             </Text>
         </Animated.View>
     );
@@ -440,6 +447,8 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     timestamp: { fontSize: 11, fontWeight: '500', marginTop: spacing.xs, color: colors.textSecondary },
     timestampLeft: { marginLeft: 20 },
     timestampRight: { marginRight: 20, textAlign: 'right' },
+    tickSent: { color: colors.textSecondary },
+    tickRead: { color: colors.primary },
     image: { width: 200, height: 200, borderRadius: borderRadius.medium, marginVertical: spacing.xs },
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     voiceIcon: { fontSize: 22 },

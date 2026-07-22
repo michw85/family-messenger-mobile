@@ -93,6 +93,22 @@ export const sendTyping = (roomId: string) => {
 };
 
 /**
+ * Подписка на события "прочитано" в комнате чата
+ * Subscribe to the room's read-receipt events
+ * @param roomId - идентификатор комнаты
+ * @param onRead - колбэк, вызываемый когда кто-то отмечает чат прочитанным
+ */
+export const subscribeToRead = (roomId: string, onRead: (data: { username: string; readAt: string }) => void) => {
+    if (!stompClient?.connected) {
+        console.warn('STOMP not connected, cannot subscribe to read receipts');
+        return null;
+    }
+    return stompClient.subscribe(`/topic/room/${roomId}/read`, (message) => {
+        onRead(JSON.parse(message.body));
+    });
+};
+
+/**
  * Отправка сообщения в комнату
  * Send message to room
  * @param roomId - идентификатор комнаты
