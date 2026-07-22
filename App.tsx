@@ -24,6 +24,7 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import OtpVerifyScreen from './src/screens/OtpVerifyScreen';
 import RoomSelectScreen from './src/screens/RoomSelectScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ChatRoomScreen from './src/screens/ChatRoomScreen';
 import { colors } from './src/styles/theme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -298,6 +299,9 @@ const Navigation = () => {
 
                 {/* Экран регистрации - всегда должен быть доступен / Register screen - should always be available */}
                 <Stack.Screen name="Register" component={RegisterScreen} />
+
+                {/* Экран сброса пароля - всегда должен быть доступен / Password reset screen - should always be available */}
+                <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
 
                 {/* Экран ввода кода из email (2FA) / Email code entry screen (2FA) */}
                 <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />

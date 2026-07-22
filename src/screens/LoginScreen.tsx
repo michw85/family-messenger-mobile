@@ -156,6 +156,10 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
                             {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>→</Text>}
                         </TouchableOpacity>
 
+                        <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.linkButton}>
+                            <Text style={styles.linkText}>Forgot password?</Text>
+                        </TouchableOpacity>
+
                         <TouchableOpacity onPress={() => navigation.navigate('Register')} style={styles.linkButton}>
                             <Text style={styles.linkText}>Create account</Text>
                         </TouchableOpacity>

@@ -117,6 +117,14 @@ export const register = (username: string, email: string, password: string) => {
 
 export const getCurrentUser = () => api.get('/auth/me');
 
+// Сброс пароля: шаг 1 - код на email, шаг 2 - код + новый пароль
+// Password reset: step 1 - code to email, step 2 - code + new password
+export const forgotPassword = (email: string) =>
+  api.post('/auth/forgot-password', { email });
+
+export const resetPassword = (email: string, code: string, newPassword: string) =>
+  api.post('/auth/reset-password', { email, code, newPassword });
+
 // Выход из аккаунта — отзывает refresh-токен на сервере, затем нужно очистить AsyncStorage
 // Logout — revokes the refresh token on the server; caller must then clear AsyncStorage
 export const logout = async () => {
