@@ -29,7 +29,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
-import { Audio } from 'expo-av';
+import { useAudioRecorder, RecordingPresets, setAudioModeAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 import ThoughtBubble from '../components/ThoughtBubble';
 import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
@@ -89,7 +89,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [currentUsername, setCurrentUsername] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(true);
     const [sending, setSending] = useState<boolean>(false);
-    const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
     const [addParticipantsVisible, setAddParticipantsVisible] = useState(false);
     const [participantsVisible, setParticipantsVisible] = useState(false);
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
@@ -308,41 +308,39 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
  */
     const startRecording = useCallback(async () => {
         // Если уже идёт запись – ничего не делаем
-        if (recording) {
+        if (recorder.isRecording) {
             console.log('Recording already in progress');
             return;
         }
 
         try {
-            const { status } = await Audio.requestPermissionsAsync();
-            if (status !== 'granted') {
+            const { granted } = await requestRecordingPermissionsAsync();
+            if (!granted) {
                 Alert.alert(t('error'), 'Нет доступа к микрофону');
                 return;
             }
 
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
+            await setAudioModeAsync({
+                allowsRecording: true,
+                playsInSilentMode: true,
             });
 
-            const { recording: newRecording } = await Audio.Recording.createAsync(
-                Audio.RecordingOptionsPresets.HIGH_QUALITY
-            );
-            setRecording(newRecording);
+            await recorder.prepareToRecordAsync();
+            recorder.record();
             setIsRecording(true);
             console.log('Recording started');
         } catch (err) {
             console.error('Failed to start recording', err);
             Alert.alert(t('error'), 'Не удалось начать запись');
         }
-    }, [recording, t]);
+    }, [recorder, t]);
 
     /**
      * Остановка записи и отправка голосового сообщения
      * Stop recording and send voice message
      */
     const stopRecording = useCallback(async () => {
-        if (!recording) {
+        if (!recorder.isRecording) {
             console.log('No recording to stop');
             setIsRecording(false); // сброс, если запись не активна
             return;
@@ -350,9 +348,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
         try {
             setIsRecording(false); // сразу меняем UI
-            await recording.stopAndUnloadAsync();
-            const uri = recording.getURI();
-            setRecording(null); // сброс состояния
+            await recorder.stop();
+            const uri = recorder.uri;
 
             if (!uri) {
                 console.error('Recording URI is null');
@@ -374,9 +371,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             Alert.alert(t('error'), 'Не удалось отправить голосовое сообщение');
         } finally {
             setIsRecording(false);
-            setRecording(null);
         }
-    }, [recording, roomId, t]);
+    }, [recorder, roomId, t]);
 
     /**
      * Поиск по тексту сообщений в чате (с debounce)

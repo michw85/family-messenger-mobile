@@ -20,7 +20,7 @@ import {
     Alert,
     Linking,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -224,8 +224,9 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     const translateY = useRef(new Animated.Value(30)).current;
 
     // Состояния для голоса
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
+    const voicePlayer = useAudioPlayer(mediaUrl || null);
+    const voicePlayerStatus = useAudioPlayerStatus(voicePlayer);
+    const isPlaying = voicePlayerStatus.playing;
 
     useEffect(() => {
         Animated.parallel([
@@ -235,14 +236,12 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
         ]).start();
     }, []);
 
-    // Очистка звука при размонтировании
+    // Возврат к началу после завершения воспроизведения (чтобы повтор начинался сначала)
     useEffect(() => {
-        return () => {
-            if (sound) {
-                sound.unloadAsync();
-            }
-        };
-    }, [sound]);
+        if (voicePlayerStatus.didJustFinish) {
+            voicePlayer.seekTo(0);
+        }
+    }, [voicePlayerStatus.didJustFinish, voicePlayer]);
 
     const bubbleColor = useMemo(() => {
         if (isMyMessage) return userColor || '#6C5CE7';
@@ -262,30 +261,15 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
         }
 
         try {
-            // Если звук уже играет – останавливаем
-            if (sound) {
-                await sound.unloadAsync();
-                setSound(null);
-                setIsPlaying(false);
+            // Если звук уже играет – останавливаем и сбрасываем на начало
+            if (voicePlayer.playing) {
+                voicePlayer.pause();
+                await voicePlayer.seekTo(0);
                 return;
             }
 
-            // Создаём новый звук
-            const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: url },
-                { shouldPlay: true }
-            );
-            setSound(newSound);
-            setIsPlaying(true);
-
-            // Следим за окончанием воспроизведения (исправленный блок)
-            newSound.setOnPlaybackStatusUpdate((status) => {
-                // Проверяем, что статус загружен и воспроизведение завершилось
-                if (status.isLoaded && status.didJustFinish) {
-                    setIsPlaying(false);
-                    setSound(null);
-                }
-            });
+            await voicePlayer.seekTo(0);
+            voicePlayer.play();
         } catch (error) {
             console.error('Failed to play voice', error);
             Alert.alert('Ошибка', 'Не удалось воспроизвести голосовое сообщение');
