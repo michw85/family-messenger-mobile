@@ -29,7 +29,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Clipboard from 'expo-clipboard';
-import { useAudioRecorder, RecordingPresets, setAudioModeAsync, requestRecordingPermissionsAsync } from 'expo-audio';
+import { useAudioRecorder, setAudioModeAsync, requestRecordingPermissionsAsync, IOSOutputFormat, AudioQuality, type RecordingOptions } from 'expo-audio';
 import ThoughtBubble from '../components/ThoughtBubble';
 import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
@@ -43,6 +43,36 @@ import ImageView from 'react-native-image-viewing';
 import { formatMessageTime, formatMessageDate } from '../utils/dateTime';
 
 const MESSAGES_PAGE_SIZE = 30;
+
+/**
+ * Настройки записи голосовых сообщений: моно + пониженный битрейт вместо
+ * RecordingPresets.HIGH_QUALITY (stereo, 128kbps) - для речи разницы в
+ * качестве почти не слышно, а файл выходит в 4 раза меньше.
+ * Voice message recording settings: mono + lower bitrate instead of
+ * RecordingPresets.HIGH_QUALITY (stereo, 128kbps) - barely audible quality
+ * difference for speech, ~4x smaller file.
+ */
+const VOICE_RECORDING_OPTIONS: RecordingOptions = {
+    extension: '.m4a',
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 64000,
+    android: {
+        outputFormat: 'mpeg4',
+        audioEncoder: 'aac',
+    },
+    ios: {
+        outputFormat: IOSOutputFormat.MPEG4AAC,
+        audioQuality: AudioQuality.MEDIUM,
+        linearPCMBitDepth: 16,
+        linearPCMIsBigEndian: false,
+        linearPCMIsFloat: false,
+    },
+    web: {
+        mimeType: 'audio/webm',
+        bitsPerSecond: 64000,
+    },
+};
 
 /**
  * Интерфейс сообщения (соответствует DTO бэкенда)
@@ -89,7 +119,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [currentUsername, setCurrentUsername] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(true);
     const [sending, setSending] = useState<boolean>(false);
-    const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+    const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
     const [addParticipantsVisible, setAddParticipantsVisible] = useState(false);
     const [participantsVisible, setParticipantsVisible] = useState(false);
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
@@ -280,7 +310,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         }
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
-            quality: 0.3,
+            // Сервер сам уменьшает размер и пережимает изображение (см. FileService.compressImage),
+            // поэтому здесь не нужно агрессивно давить качество - это только портило картинку без экономии места.
+            quality: 0.8,
         });
         if (!result.canceled && result.assets[0]) {
             setSending(true);
