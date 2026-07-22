@@ -237,8 +237,11 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     }, []);
 
     // Возврат к началу после завершения воспроизведения (чтобы повтор начинался сначала)
+    // Важно: сначала pause(), иначе плеер остаётся в состоянии "playing" и
+    // seekTo(0) просто запускает трек заново - получается бесконечный цикл
     useEffect(() => {
         if (voicePlayerStatus.didJustFinish) {
+            voicePlayer.pause();
             voicePlayer.seekTo(0);
         }
     }, [voicePlayerStatus.didJustFinish, voicePlayer]);
