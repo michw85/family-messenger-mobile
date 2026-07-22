@@ -40,7 +40,11 @@ interface ChatRoom {
     type: 'GROUP' | 'DIRECT' | 'FAMILY';
     participants: Array<{ username: string }>;
     createdAt: string;
+    lastActivityAt: string;
 }
+
+/** Фильтр по типу чата на экране выбора / Chat-type filter on the room-select screen */
+type ChatFilter = 'ALL' | 'PERSONAL' | 'GROUP';
 
 /**
  * Экран выбора чата
@@ -56,6 +60,10 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [refreshing, setRefreshing] = useState<boolean>(false);
     const [modalVisible, setModalVisible] = useState<boolean>(false);
+    const [filter, setFilter] = useState<ChatFilter>('ALL');
+    // По умолчанию - по недавней активности (как бэкенд и отдаёт список), А-Я - по запросу
+    // Default is recent activity (matches what the backend already returns), A-Z on request
+    const [sortAlpha, setSortAlpha] = useState<boolean>(false);
 
     /**
      * Загрузка чатов с бэкенда
@@ -137,6 +145,28 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             ]
         );
     };
+
+    /**
+     * Список чатов после фильтра (личные/групповые) и сортировки
+     * (по активности по умолчанию, либо по алфавиту)
+     * Chat list after the personal/group filter and sorting
+     * (recent activity by default, or alphabetical)
+     */
+    const visibleChats = useMemo(() => {
+        let list = chats;
+        if (filter === 'GROUP') {
+            list = list.filter((c) => c.type === 'GROUP');
+        } else if (filter === 'PERSONAL') {
+            list = list.filter((c) => c.type !== 'GROUP');
+        }
+        list = [...list];
+        if (sortAlpha) {
+            list.sort((a, b) => a.name.localeCompare(b.name, language));
+        } else {
+            list.sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime());
+        }
+        return list;
+    }, [chats, filter, sortAlpha, language]);
 
     /**
      * Рендер одного элемента чата
@@ -221,10 +251,33 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                         </TouchableOpacity>
                     </View>
                     <Text style={styles.title}>{t('select_chat')}</Text>
+
+                    <View style={styles.filterRow}>
+                        <View style={styles.segmentGroup}>
+                            {([
+                                ['ALL', t('all_chats')],
+                                ['PERSONAL', t('private_chats')],
+                                ['GROUP', t('group_chats_short')],
+                            ] as [ChatFilter, string][]).map(([key, label]) => (
+                                <TouchableOpacity
+                                    key={key}
+                                    onPress={() => setFilter(key)}
+                                    style={[styles.segment, filter === key && styles.segmentActive]}
+                                >
+                                    <Text style={[styles.segmentText, filter === key && styles.segmentTextActive]}>
+                                        {label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <TouchableOpacity onPress={() => setSortAlpha((prev) => !prev)} style={styles.sortButton}>
+                            <Text style={styles.sortButtonText}>{sortAlpha ? t('sort_alpha') : t('sort_recent')}</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 <FlatList
-                    data={chats}
+                    data={visibleChats}
                     keyExtractor={(item) => item.id}
                     renderItem={renderChatItem}
                     refreshControl={
@@ -269,7 +322,30 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         ...shadows.soft,
     },
     langText: { fontSize: 11, fontWeight: '500', color: colors.primary, letterSpacing: 0.3 },
-    title: { fontSize: 28, fontWeight: '700', color: colors.primary, letterSpacing: 0.5 },
+    title: { fontSize: 28, fontWeight: '700', color: colors.primary, letterSpacing: 0.5, marginBottom: spacing.md },
+    filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    segmentGroup: {
+        flexDirection: 'row',
+        backgroundColor: colors.pillBackground,
+        borderRadius: borderRadius.medium,
+        padding: 3,
+        gap: 2,
+    },
+    segment: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: borderRadius.small,
+    },
+    segmentActive: {
+        backgroundColor: colors.primary,
+    },
+    segmentText: { fontSize: 12, fontWeight: '500', color: colors.textSecondary },
+    segmentTextActive: { color: colors.textLight },
+    sortButton: {
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+    },
+    sortButtonText: { fontSize: 12, fontWeight: '500', color: colors.primary, textDecorationLine: 'underline' },
     listContent: { paddingBottom: 80 },
     chatCard: {
         flexDirection: 'row',

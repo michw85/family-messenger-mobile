@@ -41,11 +41,15 @@ const translations: Record<Language, Record<string, string>> = {
         
         // Выбор чата / Chat selection
         'select_chat': 'Выберите чат',
+        'all_chats': 'Все',
         'group_chats': 'Групповые чаты',
+        'group_chats_short': 'Группы',
         'private_chats': 'Личное',
         'no_chats': 'Нет чатов в этой категории',
         'soon': 'Скоро появятся!',
         'members': 'участников',
+        'sort_recent': 'По активности',
+        'sort_alpha': 'По алфавиту',
         
         // Чат / Chat
         'thoughts_float': 'Мысли парят в воздухе',
@@ -72,11 +76,15 @@ const translations: Record<Language, Record<string, string>> = {
         
         // Chat selection
         'select_chat': 'Select a chat',
+        'all_chats': 'All',
         'group_chats': 'Group chats',
+        'group_chats_short': 'Groups',
         'private_chats': 'Private',
         'no_chats': 'No chats in this category',
         'soon': 'Coming soon!',
         'members': 'members',
+        'sort_recent': 'Recent',
+        'sort_alpha': 'A-Z',
         
         // Chat
         'thoughts_float': 'Thoughts are floating in the air',
