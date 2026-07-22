@@ -79,6 +79,15 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputText] = useState<string>('');
     const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
+    // Последняя реально измеренная высота клавиатуры - используется как
+    // мгновенная оценка при фокусе на поле ввода, пока не пришло само событие
+    // keyboardDidShow (иначе между тапом по полю и этим событием есть
+    // заметная задержка, во время которой инпут ещё не поднят)
+    // Last actually measured keyboard height - used as an instant estimate on
+    // input focus, before the keyboardDidShow event itself arrives (otherwise
+    // there's a noticeable gap between tapping the field and that event,
+    // during which the input isn't lifted yet)
+    const lastKnownKeyboardHeightRef = useRef(280);
     const [isRecording, setIsRecording] = useState<boolean>(false);
     const [currentUsername, setCurrentUsername] = useState<string>('');
     const [loading, setLoading] = useState<boolean>(true);
@@ -538,6 +547,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     // scrollToEnd() would jump to the oldest ones, hence scrollToOffset(0).
     useEffect(() => {
         const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+            lastKnownKeyboardHeightRef.current = e.endCoordinates.height;
             setKeyboardHeight(e.endCoordinates.height);
             setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 300);
         });
@@ -735,6 +745,17 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     onSubmitEditing={sendTextMessage}
                                     returnKeyType="send"
                                     multiline
+                                    onFocus={() => {
+                                        // Не ждём keyboardDidShow - применяем последнюю известную
+                                        // высоту клавиатуры сразу по фокусу, чтобы инпут не
+                                        // "прыгал" в момент между тапом и самим событием
+                                        // Don't wait for keyboardDidShow - apply the last known
+                                        // keyboard height right on focus, so the input doesn't
+                                        // "jump" in the gap between the tap and the event itself
+                                        if (Platform.OS === 'android') {
+                                            setKeyboardHeight(lastKnownKeyboardHeightRef.current);
+                                        }
+                                    }}
                                 />
                                 <TouchableOpacity
                                     style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
