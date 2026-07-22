@@ -94,6 +94,14 @@ interface Message {
     edited?: boolean;
     deleted?: boolean;
     read?: boolean;
+    replyToId?: string;
+    replyTo?: {
+        id: string;
+        senderUsername: string;
+        content: string;
+        type: 'TEXT' | 'IMAGE' | 'VOICE';
+        deleted: boolean;
+    } | null;
 }
 
 /**
@@ -127,6 +135,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [typingUser, setTypingUser] = useState<string | null>(null);
+    const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
     // Пагинация истории / Message history pagination
     const [page, setPage] = useState(0);
@@ -342,10 +351,11 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const sendTextMessage = useCallback(() => {
         if (!inputText.trim() || !stompClientRef.current) return;
         console.log('Sending message:', { roomId, inputText });
-        wsSendMessage(roomId, inputText.trim(), 'TEXT');
+        wsSendMessage(roomId, inputText.trim(), 'TEXT', undefined, replyingTo?.id);
         setInputText('');
+        setReplyingTo(null);
         setSending(false);
-    }, [inputText, roomId]);
+    }, [inputText, roomId, replyingTo]);
 
     /**
      * Изменение текста в поле ввода - параллельно шлёт событие "печатает"
@@ -525,6 +535,11 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         const isMine = item.sender.username === currentUsername;
         const options: any[] = [];
 
+        options.push({
+            text: 'Ответить / Reply',
+            onPress: () => setReplyingTo(item),
+        });
+
         if (item.type === 'TEXT' && item.content) {
             options.push({
                 text: 'Копировать / Copy',
@@ -617,6 +632,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 edited={item.edited}
                 deletedPlaceholder={item.deleted}
                 read={item.read}
+                replyTo={item.replyTo}
             />
         </TouchableOpacity>
     ), [currentUsername, handleMessageLongPress]);
@@ -809,6 +825,22 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         <View style={[styles.inputWrapper, {
                             paddingBottom: isKeyboardVisible ? 6 : insets.bottom + 6
                         }]}>
+                            {replyingTo && (
+                                <View style={styles.replyPreviewBar}>
+                                    <View style={styles.replyPreviewBarAccent} />
+                                    <View style={styles.replyPreviewBarBody}>
+                                        <Text style={styles.replyPreviewBarSender}>{replyingTo.sender.username}</Text>
+                                        <Text style={styles.replyPreviewBarText} numberOfLines={1}>
+                                            {replyingTo.type === 'TEXT' ? replyingTo.content
+                                                : replyingTo.type === 'IMAGE' ? '📷 ' + t('photo')
+                                                : '🎤 ' + t('voice_message')}
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => setReplyingTo(null)} style={styles.replyPreviewBarClose}>
+                                        <Text style={styles.replyPreviewBarCloseText}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                             <View style={styles.inputContainer}>
                                 {/* Кнопка фото */}
                                 <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
@@ -990,6 +1022,27 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         alignItems: 'flex-end',
         gap: spacing.sm,
     },
+    replyPreviewBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.iconButtonBackground,
+        borderRadius: borderRadius.medium,
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.sm,
+        marginBottom: spacing.xs,
+    },
+    replyPreviewBarAccent: {
+        width: 3,
+        alignSelf: 'stretch',
+        borderRadius: 2,
+        backgroundColor: colors.primary,
+        marginRight: spacing.sm,
+    },
+    replyPreviewBarBody: { flex: 1 },
+    replyPreviewBarSender: { fontSize: 12, fontWeight: '600', color: colors.primary },
+    replyPreviewBarText: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+    replyPreviewBarClose: { padding: spacing.xs },
+    replyPreviewBarCloseText: { fontSize: 14, color: colors.textSecondary },
     // Иконки — теперь с мягким фоном
     iconButton: {
         padding: spacing.xs,

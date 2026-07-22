@@ -53,6 +53,14 @@ interface ThoughtBubbleProps {
     /** Прочитано ли всеми остальными участниками (галочка, только для своих сообщений) /
      * Whether it's been read by every other participant (checkmark, own messages only) */
     read?: boolean;
+    /** Сообщение, на которое отвечает это (превью-цитата сверху) /
+     * The message this one replies to (preview quote on top) */
+    replyTo?: {
+        senderUsername: string;
+        content: string;
+        type: 'TEXT' | 'IMAGE' | 'VOICE';
+        deleted: boolean;
+    } | null;
 }
 
 /**
@@ -218,6 +226,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     edited = false,
     deletedPlaceholder = false,
     read = false,
+    replyTo = null,
 }) => {
     const { colors } = useTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
@@ -292,10 +301,11 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
      * the text block, see cloudSize/onLayout below)
      */
     const fixedDimensions = useMemo(() => {
-        if (type === 'IMAGE') return { width: 260, height: 240 };
-        if (type === 'VOICE') return { width: 220, height: 80 };
+        const replyExtra = replyTo ? 34 : 0;
+        if (type === 'IMAGE') return { width: 260, height: 240 + replyExtra };
+        if (type === 'VOICE') return { width: 220, height: 80 + replyExtra };
         return null;
-    }, [type]);
+    }, [type, replyTo]);
 
     const maxTextWidth = Math.min(screenWidth * 0.75, 280);
 
@@ -324,6 +334,20 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
 
     const renderContent = () => (
         <>
+            {replyTo && (
+                <View style={[styles.replyQuote, isMyMessage && styles.replyQuoteMy]}>
+                    <Text style={[styles.replyQuoteSender, isMyMessage && styles.replyQuoteSenderMy]}>
+                        {replyTo.senderUsername}
+                    </Text>
+                    <Text style={[styles.replyQuoteText, isMyMessage && styles.replyQuoteTextMy]} numberOfLines={1}>
+                        {replyTo.deleted
+                            ? 'Сообщение удалено / Message deleted'
+                            : replyTo.type === 'TEXT' ? replyTo.content
+                            : replyTo.type === 'IMAGE' ? '📷 Фото / Photo'
+                            : '🎤 Голосовое / Voice message'}
+                    </Text>
+                </View>
+            )}
             {!isMyMessage && !grouped && <Text style={[styles.senderName, { color: accentColor }]}>{sender}</Text>}
             {type === 'IMAGE' && mediaUrl ? (
                 // Открытие по нажатию обрабатывает родитель (ChatRoomScreen) - показывает
@@ -449,6 +473,23 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     timestampRight: { marginRight: 20, textAlign: 'right' },
     tickSent: { color: colors.textSecondary },
     tickRead: { color: colors.primary },
+    replyQuote: {
+        borderLeftWidth: 3,
+        borderLeftColor: colors.accent,
+        backgroundColor: colors.subtleOverlay,
+        borderRadius: borderRadius.small,
+        paddingVertical: 4,
+        paddingHorizontal: spacing.sm,
+        marginBottom: spacing.xs,
+    },
+    replyQuoteMy: {
+        borderLeftColor: colors.textLight,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    replyQuoteSender: { fontSize: 11, fontWeight: '600', color: colors.primary },
+    replyQuoteSenderMy: { color: colors.textLight },
+    replyQuoteText: { fontSize: 12, color: colors.textSecondary },
+    replyQuoteTextMy: { color: colors.textLight, opacity: 0.85 },
     image: { width: 200, height: 200, borderRadius: borderRadius.medium, marginVertical: spacing.xs },
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     voiceIcon: { fontSize: 22 },

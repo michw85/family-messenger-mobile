@@ -116,15 +116,15 @@ export const subscribeToRead = (roomId: string, onRead: (data: { username: strin
  * @param type - тип сообщения (TEXT, IMAGE, VOICE)
  * @param mediaUrl - URL медиафайла (опционально)
  */
-export const sendMessage = (roomId: string, content: string, type: string, mediaUrl?: string) => {
+export const sendMessage = (roomId: string, content: string, type: string, mediaUrl?: string, replyToId?: string) => {
     if (!stompClient?.connected) {
         console.error('STOMP client not connected');
         return;
     }
-    console.log('Sending message via STOMP:', { roomId, content, type, mediaUrl });
+    console.log('Sending message via STOMP:', { roomId, content, type, mediaUrl, replyToId });
     stompClient.publish({
         destination: `/app/chat.send/${roomId}`,
-        body: JSON.stringify({ content, type, mediaUrl }),
+        body: JSON.stringify({ content, type, mediaUrl, replyToId }),
     });
 };
 
