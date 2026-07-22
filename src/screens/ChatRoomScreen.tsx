@@ -29,6 +29,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import * as Clipboard from 'expo-clipboard';
 import { useAudioRecorder, setAudioModeAsync, requestRecordingPermissionsAsync, IOSOutputFormat, AudioQuality, type RecordingOptions } from 'expo-audio';
 import ThoughtBubble from '../components/ThoughtBubble';
@@ -140,6 +142,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [typingUser, setTypingUser] = useState<string | null>(null);
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+    const [exporting, setExporting] = useState(false);
 
     // Пагинация истории / Message history pagination
     const [page, setPage] = useState(0);
@@ -451,6 +454,65 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             setSending(false);
         }
     }, [roomId, t]);
+
+    /**
+     * Описание содержимого сообщения одной строкой для текстового экспорта
+     * One-line description of a message's content for the text export
+     */
+    const describeMessageForExport = (m: Message): string => {
+        if (m.deleted) return '[Сообщение удалено / Message deleted]';
+        switch (m.type) {
+            case 'IMAGE': return `[Фото / Photo] ${m.mediaUrl || ''}`;
+            case 'VOICE': return `[Голосовое сообщение / Voice message] ${m.mediaUrl || ''}`;
+            case 'VIDEO': return `[Видео / Video] ${m.mediaUrl || ''}`;
+            case 'FILE': return `[Файл / File] ${m.content} ${m.mediaUrl || ''}`;
+            default: return m.content;
+        }
+    };
+
+    /**
+     * Экспорт всей переписки в текстовый файл и открытие системного диалога "Поделиться"
+     * Export the full chat history to a text file and open the system share sheet
+     */
+    const exportChat = useCallback(async () => {
+        setExporting(true);
+        try {
+            const size = 100;
+            let page = 0;
+            let all: Message[] = [];
+            // Постранично забираем всю историю (page=0 - самые новые), пока страницы не кончатся
+            // Fetch the whole history page by page (page=0 - newest), until pages run out
+            while (true) {
+                const res = await fetchMessages(roomId, page, size);
+                if (!res.data.length) break;
+                all = all.concat(res.data);
+                if (res.data.length < size) break;
+                page++;
+            }
+            all.reverse(); // от старых к новым / oldest to newest
+
+            const lines = all.map((m) => `[${new Date(m.timestamp).toLocaleString()}] ${m.sender.username}: ${describeMessageForExport(m)}`);
+            const text = `${roomName}\n${'='.repeat(roomName.length)}\n\n${lines.join('\n')}\n`;
+
+            const fileName = `chat_${roomId}_${Date.now()}.txt`;
+            const file = new File(Paths.cache, fileName);
+            if (file.exists) file.delete();
+            file.create();
+            file.write(text);
+
+            const canShare = await Sharing.isAvailableAsync();
+            if (canShare) {
+                await Sharing.shareAsync(file.uri, { mimeType: 'text/plain', dialogTitle: 'Export chat' });
+            } else {
+                Alert.alert(t('error'), 'Sharing is not available on this device');
+            }
+        } catch (error) {
+            console.error('Failed to export chat:', error);
+            Alert.alert(t('error'), 'Не удалось экспортировать чат / Could not export chat');
+        } finally {
+            setExporting(false);
+        }
+    }, [roomId, roomName, t]);
 
     /**
  * Начало записи голоса
@@ -819,6 +881,13 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setSearchVisible(true)} style={styles.iconHeaderButton}>
                                         <Text style={styles.iconText}>🔍</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={exportChat} style={styles.iconHeaderButton} disabled={exporting}>
+                                        {exporting ? (
+                                            <ActivityIndicator size="small" color={colors.primary} />
+                                        ) : (
+                                            <Text style={styles.iconText}>📤</Text>
+                                        )}
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
                                         <Text style={styles.addButtonText}>+</Text>
