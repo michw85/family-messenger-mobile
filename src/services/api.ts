@@ -135,6 +135,8 @@ export const deleteChat = (chatId: string) => api.delete(`/chats/${chatId}`);
 // Покинуть чат (группа) / удалить чат только у себя (личный чат)
 // Leave a chat (group) / delete a chat for yourself only (personal chat)
 export const leaveChat = (chatId: string) => api.post(`/chats/${chatId}/leave`);
+export const muteChat = (chatId: string) => api.post(`/chats/${chatId}/mute`);
+export const unmuteChat = (chatId: string) => api.delete(`/chats/${chatId}/mute`);
 
 // Messages
 export const fetchMessages = (chatId: string, page = 0, size = 30) =>

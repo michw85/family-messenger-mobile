@@ -25,7 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { fetchChats, createChat, deleteChat, leaveChat } from '../services/api';
+import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat } from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,6 +43,7 @@ interface ChatRoom {
     participants: Array<{ id: number; username: string; avatarUrl?: string | null }>;
     createdAt: string;
     lastActivityAt: string;
+    mutedForCurrentUser: boolean;
 }
 
 /** Фильтр по типу чата на экране выбора / Chat-type filter on the room-select screen */
@@ -149,6 +150,20 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             { text: 'Отмена / Cancel', style: 'cancel' },
         ];
 
+        buttons.push({
+            text: item.mutedForCurrentUser
+                ? '🔔 Включить уведомления / Unmute'
+                : '🔕 Заглушить чат / Mute chat',
+            onPress: async () => {
+                if (item.mutedForCurrentUser) {
+                    await unmuteChat(item.id);
+                } else {
+                    await muteChat(item.id);
+                }
+                await loadChats();
+            },
+        });
+
         if (isGroup) {
             buttons.push({
                 text: 'Покинуть чат / Leave chat',
@@ -238,6 +253,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     {item.type === 'GROUP' ? '👥 ' + t('group_chats') : '👤 ' + t('private_chats')}
                 </Text>
             </View>
+            {item.mutedForCurrentUser && <Text style={styles.muteIcon}>🔕</Text>}
             <Text style={[styles.arrow, { color: colors.accent }]}>›</Text>
         </TouchableOpacity>
         );
@@ -442,6 +458,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     chatInfo: { flex: 1 },
     chatName: { fontSize: 16, fontWeight: '600', color: colors.text, letterSpacing: 0.2 },
     chatType: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+    muteIcon: { fontSize: 14, marginLeft: spacing.xs, opacity: 0.6 },
     arrow: { fontSize: 24, marginLeft: spacing.sm },
     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
     emptyEmoji: { fontSize: 48, marginBottom: spacing.md, opacity: 0.6 },
