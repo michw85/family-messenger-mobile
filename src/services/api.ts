@@ -174,6 +174,12 @@ export const removeParticipant = (chatId: string, userId: number) =>
 export const createGroupChat = (name: string, participantIds: number[]) =>
     api.post('/chats/group', { name, participantIds });
 
+// Avatar upload — returns the updated user (including the new avatarUrl)
+export const uploadAvatar = (formData: FormData) =>
+    api.post('/users/me/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+
 
 /*
 const IP = '192.168.184.112';  // Ваш IP

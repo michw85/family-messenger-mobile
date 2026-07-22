@@ -64,6 +64,13 @@ const translations: Record<Language, Record<string, string>> = {
         // Ошибки / Errors
         'error': 'Ошибка',
         'no_access': 'Нет доступа к галерее',
+
+        // Профиль / Profile
+        'profile': 'Профиль',
+        'username': 'Имя пользователя',
+        'email': 'Email',
+        'change_avatar': 'Сменить аватар',
+        'avatar_upload_failed': 'Не удалось загрузить аватар',
     },
     en: {
         // Common
@@ -99,6 +106,13 @@ const translations: Record<Language, Record<string, string>> = {
         // Errors
         'error': 'Error',
         'no_access': 'No gallery access',
+
+        // Profile
+        'profile': 'Profile',
+        'username': 'Username',
+        'email': 'Email',
+        'change_avatar': 'Change avatar',
+        'avatar_upload_failed': 'Failed to upload avatar',
     },
 };
 

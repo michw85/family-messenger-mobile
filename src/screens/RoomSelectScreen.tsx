@@ -18,6 +18,7 @@ import {
     Alert,
     ActivityIndicator,
     RefreshControl,
+    Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -38,7 +39,7 @@ interface ChatRoom {
     id: string;
     name: string;
     type: 'GROUP' | 'DIRECT' | 'FAMILY';
-    participants: Array<{ username: string }>;
+    participants: Array<{ username: string; avatarUrl?: string | null }>;
     createdAt: string;
     lastActivityAt: string;
 }
@@ -57,6 +58,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const [chats, setChats] = useState<ChatRoom[]>([]);
     const [currentUsername, setCurrentUsername] = useState<string>('');
+    const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [refreshing, setRefreshing] = useState<boolean>(false);
     const [modalVisible, setModalVisible] = useState<boolean>(false);
@@ -89,12 +91,18 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const loadUser = async () => {
         const name = await AsyncStorage.getItem('username');
         if (name) setCurrentUsername(name);
+        const avatarUrl = await AsyncStorage.getItem('avatarUrl');
+        setMyAvatarUrl(avatarUrl);
     };
 
     useEffect(() => {
         loadUser();
         loadChats();
-    }, []);
+        // Обновляем аватар при возврате с экрана профиля (там он мог смениться)
+        // Refresh the avatar when returning from the profile screen (it may have changed there)
+        const unsubscribe = navigation.addListener('focus', loadUser);
+        return unsubscribe;
+    }, [navigation]);
 
     /**
      * Обработчик "потянуть для обновления"
@@ -172,7 +180,14 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
      * Рендер одного элемента чата
      * Render a single chat item
      */
-    const renderChatItem = ({ item }: { item: ChatRoom }) => (
+    const renderChatItem = ({ item }: { item: ChatRoom }) => {
+        // Для личных чатов показываем аватар собеседника (если он есть), для групп - инициал названия чата
+        // For personal chats show the other participant's avatar (if any), for groups the chat-name initial
+        const otherParticipant = item.type !== 'GROUP'
+            ? item.participants.find((p) => p.username !== currentUsername)
+            : null;
+
+        return (
         <TouchableOpacity
             style={styles.chatCard}
             onPress={() => navigation.navigate('ChatRoom', { roomId: item.id, roomName: item.name })}
@@ -181,9 +196,13 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             activeOpacity={0.7}
         >
             <View style={[styles.avatar, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
-                <Text style={[styles.avatarText, { color: colors.primary }]}>
-                    {item.name.charAt(0).toUpperCase()}
-                </Text>
+                {otherParticipant?.avatarUrl ? (
+                    <Image source={{ uri: otherParticipant.avatarUrl }} style={styles.avatarImage} />
+                ) : (
+                    <Text style={[styles.avatarText, { color: colors.primary }]}>
+                        {item.name.charAt(0).toUpperCase()}
+                    </Text>
+                )}
             </View>
             <View style={styles.chatInfo}>
                 <Text style={styles.chatName}>{item.name}</Text>
@@ -193,7 +212,8 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             </View>
             <Text style={[styles.arrow, { color: colors.accent }]}>›</Text>
         </TouchableOpacity>
-    );
+        );
+    };
 
     /**
      * Переключение языка
@@ -222,8 +242,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     text: 'Выйти',
                     style: 'destructive',
                     onPress: async () => {
-                        await AsyncStorage.removeItem('token');
-                        await AsyncStorage.removeItem('username');
+                        await AsyncStorage.multiRemove(['token', 'username', 'avatarUrl']);
                         navigation.replace('Login');
                     }
                 }
@@ -237,6 +256,15 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.header}>
                     <View style={styles.headerTop}>
+                        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.myAvatarButton}>
+                            {myAvatarUrl ? (
+                                <Image source={{ uri: myAvatarUrl }} style={styles.myAvatarImage} />
+                            ) : (
+                                <Text style={[styles.myAvatarInitial, { color: colors.primary }]}>
+                                    {(currentUsername || '?').charAt(0).toUpperCase()}
+                                </Text>
+                            )}
+                        </TouchableOpacity>
                         <Text style={[styles.greeting, { flex: 1 }]}>
                             {t('greeting')}, {currentUsername || t('friend')}! 👋
                         </Text>
@@ -314,6 +342,19 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     header: { marginBottom: spacing.xxl },
     headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.sm, },
     greeting: { fontSize: 14, color: colors.textSecondary, flexShrink: 1, },
+    myAvatarButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.accentLight,
+        borderWidth: 1,
+        borderColor: colors.accent,
+        overflow: 'hidden',
+    },
+    myAvatarImage: { width: '100%', height: '100%' },
+    myAvatarInitial: { fontSize: 14, fontWeight: '700' },
     langButton: {
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs,
@@ -366,7 +407,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         alignItems: 'center',
         marginRight: spacing.md,
         borderWidth: 2,
+        overflow: 'hidden',
     },
+    avatarImage: { width: '100%', height: '100%' },
     avatarText: { fontSize: 20, fontWeight: '600' },
     chatInfo: { flex: 1 },
     chatName: { fontSize: 16, fontWeight: '600', color: colors.text, letterSpacing: 0.2 },

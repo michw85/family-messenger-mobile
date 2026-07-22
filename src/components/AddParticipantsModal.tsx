@@ -18,7 +18,7 @@ import {
     FlatList,
     StyleSheet,
     ActivityIndicator,
-    Alert, KeyboardAvoidingView, Platform
+    Alert, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
 import { searchUsers, addParticipants } from '../services/api';
 import { colors, spacing, borderRadius, shadows } from '../styles/theme';
@@ -136,9 +136,13 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
                 activeOpacity={0.7}
             >
                 <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                        {item.username.charAt(0).toUpperCase()}
-                    </Text>
+                    {item.avatarUrl ? (
+                        <Image source={{ uri: item.avatarUrl }} style={styles.avatarImage} />
+                    ) : (
+                        <Text style={styles.avatarText}>
+                            {item.username.charAt(0).toUpperCase()}
+                        </Text>
+                    )}
                 </View>
                 <View style={styles.userInfo}>
                     <Text style={styles.username}>{item.username}</Text>
@@ -300,6 +304,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.md,
+        overflow: 'hidden',
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
     },
     avatarText: {
         fontSize: 18,

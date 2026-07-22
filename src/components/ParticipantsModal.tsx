@@ -18,6 +18,7 @@ import {
     StyleSheet,
     ActivityIndicator,
     Alert,
+    Image,
 } from 'react-native';
 import { getParticipants, removeParticipant } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -113,7 +114,11 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
         return (
             <View style={styles.row}>
                 <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{item.username.charAt(0).toUpperCase()}</Text>
+                    {item.avatarUrl ? (
+                        <Image source={{ uri: item.avatarUrl }} style={styles.avatarImage} />
+                    ) : (
+                        <Text style={styles.avatarText}>{item.username.charAt(0).toUpperCase()}</Text>
+                    )}
                     <View style={[styles.statusDot, isOnline ? styles.statusOnline : styles.statusOffline]} />
                 </View>
                 <View style={styles.info}>
@@ -227,6 +232,11 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.md,
+        overflow: 'hidden',
+    },
+    avatarImage: {
+        width: '100%',
+        height: '100%',
     },
     avatarText: {
         fontSize: 16,
