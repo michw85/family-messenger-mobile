@@ -21,6 +21,7 @@ import {
     Linking,
 } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -36,7 +37,7 @@ interface ThoughtBubbleProps {
     sender: string;
     timestamp: string;
     isMyMessage: boolean;
-    type?: 'TEXT' | 'IMAGE' | 'VOICE';
+    type?: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE';
     mediaUrl?: string;
     userColor?: string;
     /**
@@ -58,7 +59,7 @@ interface ThoughtBubbleProps {
     replyTo?: {
         senderUsername: string;
         content: string;
-        type: 'TEXT' | 'IMAGE' | 'VOICE';
+        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE';
         deleted: boolean;
     } | null;
 }
@@ -231,6 +232,10 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     const { colors } = useTheme();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
+    const videoPlayer = useVideoPlayer(type === 'VIDEO' ? mediaUrl || null : null, (player) => {
+        player.loop = false;
+    });
+
     // Анимации (сохранены из предыдущей версии)
     const scaleAnim = useRef(new Animated.Value(0)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -302,7 +307,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
      */
     const fixedDimensions = useMemo(() => {
         const replyExtra = replyTo ? 34 : 0;
-        if (type === 'IMAGE') return { width: 260, height: 240 + replyExtra };
+        if (type === 'IMAGE' || type === 'VIDEO') return { width: 260, height: 240 + replyExtra };
         if (type === 'VOICE') return { width: 220, height: 80 + replyExtra };
         return null;
     }, [type, replyTo]);
@@ -340,11 +345,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                         {replyTo.senderUsername}
                     </Text>
                     <Text style={[styles.replyQuoteText, isMyMessage && styles.replyQuoteTextMy]} numberOfLines={1}>
-                        {replyTo.deleted
-                            ? 'Сообщение удалено / Message deleted'
-                            : replyTo.type === 'TEXT' ? replyTo.content
-                            : replyTo.type === 'IMAGE' ? '📷 Фото / Photo'
-                            : '🎤 Голосовое / Voice message'}
+                        {replyTo.deleted ? 'Сообщение удалено / Message deleted' : replyTo.content}
                     </Text>
                 </View>
             )}
@@ -360,6 +361,15 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                     <Text style={styles.voiceIcon}>{isPlaying ? '⏹️' : '▶️'}</Text>
                     <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]}>
                         {isPlaying ? 'Остановить' : 'Голосовое сообщение'}
+                    </Text>
+                </TouchableOpacity>
+            ) : type === 'VIDEO' && mediaUrl ? (
+                <VideoView player={videoPlayer} style={styles.image} nativeControls contentFit="cover" />
+            ) : type === 'FILE' && mediaUrl ? (
+                <TouchableOpacity onPress={() => Linking.openURL(mediaUrl)} style={styles.voiceRow}>
+                    <Text style={styles.voiceIcon}>📄</Text>
+                    <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]} numberOfLines={1}>
+                        {content.replace(/^📄\s*/, '')}
                     </Text>
                 </TouchableOpacity>
             ) : deletedPlaceholder ? (

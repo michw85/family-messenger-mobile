@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import * as Clipboard from 'expo-clipboard';
 import { useAudioRecorder, setAudioModeAsync, requestRecordingPermissionsAsync, IOSOutputFormat, AudioQuality, type RecordingOptions } from 'expo-audio';
 import ThoughtBubble from '../components/ThoughtBubble';
@@ -87,7 +88,7 @@ interface Message {
         avatarUrl?: string;
     };
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VOICE';
+    type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE';
     mediaUrl?: string;
     timestamp: string;
     grouped?: boolean;
@@ -99,7 +100,7 @@ interface Message {
         id: string;
         senderUsername: string;
         content: string;
-        type: 'TEXT' | 'IMAGE' | 'VOICE';
+        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE';
         deleted: boolean;
     } | null;
     reactions?: { emoji: string; count: number; usernames: string[] }[];
@@ -395,28 +396,59 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             return;
         }
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
+            mediaTypes: ['images', 'videos'],
             // Сервер сам уменьшает размер и пережимает изображение (см. FileService.compressImage),
             // поэтому здесь не нужно агрессивно давить качество - это только портило картинку без экономии места.
             quality: 0.8,
+            videoMaxDuration: 60,
         });
         if (!result.canceled && result.assets[0]) {
+            const asset = result.assets[0];
+            const isVideo = asset.type === 'video';
             setSending(true);
             try {
                 const formData = new FormData();
                 formData.append('file', {
-                    uri: result.assets[0].uri,
-                    type: 'image/jpeg',
-                    name: 'photo.jpg',
+                    uri: asset.uri,
+                    type: isVideo ? 'video/mp4' : 'image/jpeg',
+                    name: isVideo ? 'video.mp4' : 'photo.jpg',
                 } as any);
-                const uploadRes = await uploadFile(formData, 'image');
+                const uploadRes = await uploadFile(formData, isVideo ? 'video' : 'image');
                 const mediaUrl = uploadRes.data.url;
-                wsSendMessage(roomId, '📷 Photo', 'IMAGE', mediaUrl);
+                wsSendMessage(roomId, isVideo ? '🎥 Video' : '📷 Photo', isVideo ? 'VIDEO' : 'IMAGE', mediaUrl);
             } catch (error) {
-                Alert.alert(t('error'), 'Failed to send image');
+                Alert.alert(t('error'), isVideo ? 'Failed to send video' : 'Failed to send image');
             } finally {
                 setSending(false);
             }
+        }
+    }, [roomId, t]);
+
+    /**
+     * Отправка произвольного файла (документа)
+     * Send an arbitrary file (document)
+     */
+    const sendDocument = useCallback(async () => {
+        const result = await DocumentPicker.getDocumentAsync({ multiple: false });
+        if (result.canceled || !result.assets[0]) return;
+        const asset = result.assets[0];
+
+        setSending(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', {
+                uri: asset.uri,
+                type: asset.mimeType || 'application/octet-stream',
+                name: asset.name,
+            } as any);
+            const uploadRes = await uploadFile(formData, 'file');
+            const mediaUrl = uploadRes.data.url;
+            wsSendMessage(roomId, `📄 ${asset.name}`, 'FILE', mediaUrl);
+        } catch (error) {
+            console.error('Failed to send file:', error);
+            Alert.alert(t('error'), 'Failed to send file');
+        } finally {
+            setSending(false);
         }
     }, [roomId, t]);
 
@@ -891,9 +923,13 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                 </View>
                             )}
                             <View style={styles.inputContainer}>
-                                {/* Кнопка фото */}
+                                {/* Кнопка фото/видео */}
                                 <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
                                     <Text style={styles.iconText}>📷</Text>
+                                </TouchableOpacity>
+                                {/* Кнопка произвольного файла */}
+                                <TouchableOpacity onPress={sendDocument} style={styles.iconButton} disabled={sending}>
+                                    <Text style={styles.iconText}>📎</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     onPressIn={startRecording}

@@ -164,7 +164,7 @@ export const toggleReaction = (chatId: string, messageId: string, emoji: string)
   api.post(`/chats/${chatId}/messages/${messageId}/reactions`, { emoji });
 
 // Files
-export const uploadFile = (formData: FormData, type: 'image' | 'voice') =>
+export const uploadFile = (formData: FormData, type: 'image' | 'voice' | 'video' | 'file') =>
   api.post(`/files/upload/${type}`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
