@@ -106,6 +106,7 @@ interface Message {
         deleted: boolean;
     } | null;
     reactions?: { emoji: string; count: number; usernames: string[] }[];
+    revealAt?: string | null;
 }
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
@@ -364,6 +365,30 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         };
     }, [loadCurrentUser, loadMessages, setupWebSocket]);
 
+    // Автоматически перезапрашивает историю в момент раскрытия ближайшей капсулы
+    // времени, чтобы не ждать ручного обновления экрана. Таймер ограничен сутками,
+    // чтобы не упереться в переполнение setTimeout на очень дальних капсулах (в этом
+    // случае просто перепланируем через сутки, пока капсула не окажется ближе).
+    // Automatically refetches history the moment the nearest time capsule opens, so
+    // the user doesn't have to manually refresh. The timer is capped at 24h to avoid
+    // setTimeout overflow for far-future capsules (in that case we just reschedule
+    // again in 24h, until the capsule is close enough).
+    useEffect(() => {
+        const MAX_TIMER_MS = 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        let earliest: number | null = null;
+        for (const m of messages) {
+            if (m.revealAt) {
+                const t = new Date(m.revealAt).getTime();
+                if (t > now && (earliest === null || t < earliest)) earliest = t;
+            }
+        }
+        if (earliest === null) return;
+
+        const timeout = setTimeout(() => { loadMessages(); }, Math.min(earliest - now, MAX_TIMER_MS));
+        return () => clearTimeout(timeout);
+    }, [messages, loadMessages]);
+
     /**
      * Отправка текстового сообщения через WebSocket
      * Send text message via WebSocket
@@ -496,6 +521,51 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         if (!stompClientRef.current) return;
         wsSendMessage(roomId, MOOD_CHECKIN_PROMPT, 'MOOD_CHECKIN');
     }, [roomId]);
+
+    /**
+     * Отправить "капсулу времени": текст из поля ввода сохраняется сразу, но
+     * его содержимое (и медиа, если было бы) скрыто ото всех, включая
+     * отправителя, до выбранного момента - см. маскировку на бэкенде
+     * (ChatMessageDto.fromEntity).
+     * Send a "time capsule": the text currently in the input is saved right
+     * away, but its content is hidden from everyone, including the sender,
+     * until the chosen moment - see the masking on the backend
+     * (ChatMessageDto.fromEntity).
+     */
+    const sendTimeCapsule = useCallback((delayMs: number) => {
+        if (!inputText.trim() || !stompClientRef.current) return;
+        const revealAt = new Date(Date.now() + delayMs).toISOString();
+        wsSendMessage(roomId, inputText.trim(), 'TEXT', undefined, undefined, revealAt);
+        setInputText('');
+    }, [inputText, roomId]);
+
+    /**
+     * Меню дополнительных действий чата: чек-ин настроения и капсула времени
+     * Chat extras menu: mood check-in and time capsule
+     */
+    const openExtrasMenu = useCallback(() => {
+        Alert.alert('', '', [
+            { text: 'Отмена / Cancel', style: 'cancel' },
+            { text: '🙂 Чек-ин настроения / Mood check-in', onPress: sendMoodCheckin },
+            {
+                text: '🎁 Капсула времени / Time capsule',
+                onPress: () => {
+                    if (!inputText.trim()) {
+                        Alert.alert(t('error'), 'Сначала напишите текст в поле ввода / Type a message in the input first');
+                        return;
+                    }
+                    Alert.alert('Открыть через... / Open in...', '', [
+                        { text: 'Отмена / Cancel', style: 'cancel' },
+                        { text: 'Час / An hour', onPress: () => sendTimeCapsule(60 * 60 * 1000) },
+                        { text: 'Завтра / Tomorrow', onPress: () => sendTimeCapsule(24 * 60 * 60 * 1000) },
+                        { text: 'Неделю / A week', onPress: () => sendTimeCapsule(7 * 24 * 60 * 60 * 1000) },
+                        { text: 'Месяц / A month', onPress: () => sendTimeCapsule(30 * 24 * 60 * 60 * 1000) },
+                        { text: 'Год / A year', onPress: () => sendTimeCapsule(365 * 24 * 60 * 60 * 1000) },
+                    ]);
+                },
+            },
+        ]);
+    }, [sendMoodCheckin, sendTimeCapsule, inputText, t]);
 
     /**
      * Описание содержимого сообщения одной строкой для текстового экспорта
@@ -781,6 +851,22 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const renderMessage = useCallback(({ item }: { item: Message }) => {
         const isMyMessage = item.sender.username === currentUsername;
 
+        // Ещё не раскрытая капсула времени - бэкенд уже прислал вместо content
+        // текст-заглушку "откроется ...", здесь просто рисуем её отдельной карточкой
+        // A still-sealed time capsule - the backend already sent a "opens at ..."
+        // placeholder as content, here we just render it as a separate card
+        const isSealedCapsule = !!item.revealAt && new Date(item.revealAt).getTime() > Date.now();
+        if (isSealedCapsule) {
+            return (
+                <View style={{ alignItems: 'center' }}>
+                    <View style={styles.moodCheckinCard}>
+                        <Text style={styles.moodCheckinIcon}>🎁</Text>
+                        <Text style={styles.moodCheckinText}>{item.content}</Text>
+                    </View>
+                </View>
+            );
+        }
+
         // Чек-ин настроения рисуется отдельной центрированной карточкой, а не обычным
         // облаком - это скорее общее приглашение всему чату, чем чьё-то личное сообщение
         // The mood check-in renders as a separate centered card, not a regular bubble -
@@ -965,8 +1051,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                             <Text style={styles.iconText}>📤</Text>
                                         )}
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={sendMoodCheckin} style={styles.iconHeaderButton}>
-                                        <Text style={styles.iconText}>🙂</Text>
+                                    <TouchableOpacity onPress={openExtrasMenu} style={styles.iconHeaderButton}>
+                                        <Text style={styles.iconText}>✨</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
                                         <Text style={styles.addButtonText}>+</Text>
