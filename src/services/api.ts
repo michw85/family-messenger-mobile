@@ -7,6 +7,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { triggerAuthExpired } from '../utils/authEvents';
+import { getToken, getRefreshToken, setTokens, clearTokens } from './authStorage';
 
 // Базовый URL бэкенда (замените на ваш IP в локальной сети)
 // Base URL of backend (replace with your local IP)
@@ -24,12 +25,9 @@ console.log('Request URL:', BASE_URL + '/auth/register');
 // Добавляем токен в каждый запрос
 // Add token to every request
 api.interceptors.request.use(async (config) => {
-    const token = await AsyncStorage.getItem('token');
+    const token = await getToken();
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log('Adding token to request:', config.url, token.substring(0, 20) + '...');
-    }else {
-        console.log('No token for request:', config.url);
     }
     return config;
 });
@@ -44,7 +42,8 @@ const onTokenRefreshed = (token: string | null) => {
 };
 
 const clearSessionAndSignOut = async () => {
-    await AsyncStorage.multiRemove(['token', 'refreshToken', 'username']);
+    await clearTokens();
+    await AsyncStorage.multiRemove(['username', 'avatarUrl']);
     triggerAuthExpired();
 };
 
@@ -74,14 +73,13 @@ api.interceptors.response.use(
 
         isRefreshing = true;
         try {
-            const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
+            const storedRefreshToken = await getRefreshToken();
             if (!storedRefreshToken) {
                 throw new Error('No refresh token stored');
             }
 
             const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken: storedRefreshToken });
-            await AsyncStorage.setItem('token', data.token);
-            await AsyncStorage.setItem('refreshToken', data.refreshToken);
+            await setTokens(data.token, data.refreshToken);
 
             isRefreshing = false;
             onTokenRefreshed(data.token);
@@ -125,14 +123,15 @@ export const forgotPassword = (email: string) =>
 export const resetPassword = (email: string, code: string, newPassword: string) =>
   api.post('/auth/reset-password', { email, code, newPassword });
 
-// Выход из аккаунта — отзывает refresh-токен на сервере, затем нужно очистить AsyncStorage
-// Logout — revokes the refresh token on the server; caller must then clear AsyncStorage
+// Выход из аккаунта — отзывает refresh-токен на сервере и очищает локальное хранилище
+// Logout — revokes the refresh token on the server and clears local storage
 export const logout = async () => {
-    const storedRefreshToken = await AsyncStorage.getItem('refreshToken');
+    const storedRefreshToken = await getRefreshToken();
     if (storedRefreshToken) {
         await api.post('/auth/logout', { refreshToken: storedRefreshToken }).catch(() => {});
     }
-    await AsyncStorage.multiRemove(['token', 'refreshToken', 'username']);
+    await clearTokens();
+    await AsyncStorage.multiRemove(['username', 'avatarUrl']);
 };
 
 // Chats endpoints

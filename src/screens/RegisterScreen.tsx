@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setToken, setRefreshToken } from '../services/authStorage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { register, updateFcmToken } from '../services/api';
@@ -101,12 +102,10 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
         try {
             const response = await register(username, email, password);
             const { token, refreshToken, user } = response.data;
-            // await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
-            await AsyncStorage.setItem('token', token);
+            await setToken(token);
             if (refreshToken) {
-                await AsyncStorage.setItem('refreshToken', refreshToken);
+                await setRefreshToken(refreshToken);
             }
-            // await AsyncStorage.setItem(STORAGE_KEYS.USERNAME, user.username);
             await AsyncStorage.setItem('username', user.username);
             console.log('Registration successful');
             /* try {

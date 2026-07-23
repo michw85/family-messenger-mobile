@@ -28,6 +28,7 @@ import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-co
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getToken } from '../services/authStorage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
@@ -291,7 +292,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      * Setup WebSocket and subscribe to room
      */
     const setupWebSocket = useCallback(async () => {
-        const token = await AsyncStorage.getItem('token');
+        const token = await getToken();
         if (!token) {
             console.log('No token, skipping WebSocket connection');
             return;

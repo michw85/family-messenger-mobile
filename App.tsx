@@ -13,6 +13,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, Text, TouchableOpacity, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getToken } from './src/services/authStorage';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
@@ -196,9 +197,7 @@ const Navigation = () => {
         const checkLoginStatus = async () => {
             try {
                 setIsChecking(true);
-                // const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
-                // const username = await AsyncStorage.getItem(STORAGE_KEYS.USERNAME);
-                const token = await AsyncStorage.getItem('token');
+                const token = await getToken();
                 const username = await AsyncStorage.getItem('username');
 
                 console.log('Checking login status - Token exists:', !!token);
@@ -243,7 +242,7 @@ const Navigation = () => {
             const roomId = data?.roomId;
             if (!roomId) return;
 
-            const token = await AsyncStorage.getItem('token');
+            const token = await getToken();
             if (!token) return; // не залогинен - открываем как обычно, без глубокой ссылки
 
             navigationRef.reset({

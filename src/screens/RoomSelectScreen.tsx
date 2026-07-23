@@ -26,7 +26,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSimpleMode } from '../context/SimpleModeContext';
-import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat } from '../services/api';
+import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat, logout } from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -288,7 +288,15 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     text: 'Выйти',
                     style: 'destructive',
                     onPress: async () => {
-                        await AsyncStorage.multiRemove(['token', 'username', 'avatarUrl']);
+                        // Раньше здесь просто чистили AsyncStorage вручную, не трогая
+                        // refreshToken - он оставался рабочим и на сервере, и на устройстве
+                        // после "выхода". logout() из api.ts отзывает refresh-токен на
+                        // сервере и чистит оба токена из SecureStore.
+                        // This used to just wipe AsyncStorage by hand without touching
+                        // refreshToken - it stayed valid both server-side and on the device
+                        // after "logging out". api.ts's logout() revokes the refresh token
+                        // server-side and clears both tokens from SecureStore.
+                        await logout();
                         navigation.replace('Login');
                     }
                 }

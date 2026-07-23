@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setToken, setRefreshToken } from '../services/authStorage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { verifyLoginOtp, updateFcmToken } from '../services/api';
@@ -50,9 +51,9 @@ const OtpVerifyScreen: React.FC<any> = ({ navigation, route }) => {
             const response = await verifyLoginOtp(username, code.trim());
             const { token, refreshToken, user } = response.data;
 
-            await AsyncStorage.setItem('token', token);
+            await setToken(token);
             if (refreshToken) {
-                await AsyncStorage.setItem('refreshToken', refreshToken);
+                await setRefreshToken(refreshToken);
             }
             await AsyncStorage.setItem('username', user.username);
 
