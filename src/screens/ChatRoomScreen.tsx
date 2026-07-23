@@ -39,6 +39,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { useSimpleMode } from '../context/SimpleModeContext';
 import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction, getMemories } from '../services/api';
 import { connectWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
 import TypingIndicator from '../components/TypingIndicator';
@@ -124,7 +125,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const { roomId, roomName } = route.params || { roomId: 'family-chat', roomName: 'Family Chat' };
     const { t } = useLanguage();
     const { theme, colors } = useTheme();
-    const styles = useMemo(() => createStyles(colors), [colors]);
+    const { fontScale } = useSimpleMode();
+    const styles = useMemo(() => createStyles(colors, fontScale), [colors, fontScale]);
     const insets = useSafeAreaInsets();
     // Надёжный флаг видимости клавиатуры из той же библиотеки, что и
     // KeyboardAvoidingView - чтобы не добавлять safe-area отступ снизу ещё
@@ -934,6 +936,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     deletedPlaceholder={item.deleted}
                     read={item.read}
                     replyTo={item.replyTo}
+                    fontScale={fontScale}
                 />
             </TouchableOpacity>
             {!!item.reactions?.length && (
@@ -951,7 +954,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             )}
         </View>
         );
-    }, [currentUsername, handleMessageLongPress, handleToggleReaction, styles]);
+    }, [currentUsername, handleMessageLongPress, handleToggleReaction, styles, fontScale]);
 
     const keyExtractor = useCallback((item: Message) => item.id, []);
 
@@ -1315,7 +1318,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
  * Стили экрана чата в стиле Bonds
  * Chat screen styles in Bonds style
 */
-const createStyles = (colors: AppColors) => StyleSheet.create({
+const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: colors.background, // теперь кремовый
@@ -1338,7 +1341,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     },
     headerTitle: {
         flex: 1,
-        fontSize: 18,
+        fontSize: 18 * fontScale,
         fontWeight: '600',
         color: colors.primary, // индиго
         letterSpacing: 0.5,
@@ -1486,12 +1489,12 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         borderRadius: borderRadius.circle,
         justifyContent: 'center',
         alignItems: 'center',
-        width: 38,
-        height: 38,
+        width: 38 * fontScale,
+        height: 38 * fontScale,
         ...shadows.soft,
     },
     iconText: {
-        fontSize: 18,
+        fontSize: 18 * fontScale,
     },
     recordingActive: {
         backgroundColor: colors.recordingActiveBackground,
@@ -1505,17 +1508,17 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         paddingHorizontal: spacing.lg,
         paddingVertical: 6,
         backgroundColor: colors.backgroundLight,
-        fontSize: 15,
+        fontSize: 15 * fontScale,
         color: colors.text,
-        maxHeight: 80,
-        minHeight: 38,
+        maxHeight: 80 * fontScale,
+        minHeight: 38 * fontScale,
         ...shadows.soft,
     },
     // Кнопка отправки — индиго
     sendButton: {
         backgroundColor: colors.primary,
-        width: 38,
-        height: 38,
+        width: 38 * fontScale,
+        height: 38 * fontScale,
         borderRadius: borderRadius.circle,
         justifyContent: 'center',
         alignItems: 'center',

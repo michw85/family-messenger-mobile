@@ -19,6 +19,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { SimpleModeProvider } from './src/context/SimpleModeContext';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import OtpVerifyScreen from './src/screens/OtpVerifyScreen';
@@ -368,9 +369,11 @@ export default function App() {
                 <ThemeProvider>
                     <ThemedStatusBar />
                     <LanguageProvider>
-                        <Initializer>
-                            <Navigation />
-                        </Initializer>
+                        <SimpleModeProvider>
+                            <Initializer>
+                                <Navigation />
+                            </Initializer>
+                        </SimpleModeProvider>
                     </LanguageProvider>
                 </ThemeProvider>
             </SafeAreaProvider>

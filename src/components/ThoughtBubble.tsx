@@ -65,6 +65,9 @@ interface ThoughtBubbleProps {
         type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
         deleted: boolean;
     } | null;
+    /** Множитель размера шрифта для упрощённого режима интерфейса (по умолчанию 1) /
+     * Font-size multiplier for the simplified UI mode (defaults to 1) */
+    fontScale?: number;
 }
 
 /**
@@ -231,9 +234,10 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     deletedPlaceholder = false,
     read = false,
     replyTo = null,
+    fontScale = 1,
 }) => {
     const { colors } = useTheme();
-    const styles = useMemo(() => createStyles(colors), [colors]);
+    const styles = useMemo(() => createStyles(colors, fontScale), [colors, fontScale]);
 
     const videoPlayer = useVideoPlayer(type === 'VIDEO' ? mediaUrl || null : null, (player) => {
         player.loop = false;
@@ -519,17 +523,17 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
  * Цвет текста берётся из текущей темы (тёмный на светлом облаке, светлый на тёмном)
  * Text color comes from the current theme (dark on a light cloud, light on a dark one)
  */
-const createStyles = (colors: AppColors) => StyleSheet.create({
+const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.create({
     wrapper: { position: 'relative' },
     myWrapper: { alignSelf: 'flex-end', marginRight: spacing.sm },
     theirWrapper: { alignSelf: 'flex-start', marginLeft: spacing.sm },
     contentOverlay: { zIndex: 2, alignSelf: 'flex-start' },
-    senderName: { fontSize: 11, fontWeight: '700', marginBottom: spacing.xs, letterSpacing: 0.3 },
+    senderName: { fontSize: 11 * fontScale, fontWeight: '700', marginBottom: spacing.xs, letterSpacing: 0.3 },
     /**
      * Основной текст сообщения
      * Main message text
      */
-    messageText: { fontSize: 15, lineHeight: 22, color: colors.text, letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
+    messageText: { fontSize: 15 * fontScale, lineHeight: 22 * fontScale, color: colors.text, letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
     /**
      * Текст для своих сообщений — тот же цвет
      * Text for my messages — same color
@@ -544,12 +548,12 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
      * Плейсхолдер удалённого сообщения — курсив, приглушённый цвет
      * Deleted message placeholder — italic, muted color
      */
-    deletedText: { fontSize: 15, lineHeight: 22, color: colors.textMuted, fontStyle: 'italic' },
+    deletedText: { fontSize: 15 * fontScale, lineHeight: 22 * fontScale, color: colors.textMuted, fontStyle: 'italic' },
     /**
      * Время отправки
      * Timestamp
      */
-    timestamp: { fontSize: 11, fontWeight: '500', marginTop: spacing.xs, color: colors.textSecondary },
+    timestamp: { fontSize: 11 * fontScale, fontWeight: '500', marginTop: spacing.xs, color: colors.textSecondary },
     timestampLeft: { marginLeft: 20 },
     timestampRight: { marginRight: 20, textAlign: 'right' },
     tickSent: { color: colors.textSecondary },
@@ -575,7 +579,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     voiceIcon: { fontSize: 22 },
     transcribeButton: { marginLeft: spacing.xs, width: 22, alignItems: 'center', justifyContent: 'center' },
-    voiceText: { fontSize: 14, color: colors.text },
+    voiceText: { fontSize: 14 * fontScale, color: colors.text },
     voiceTextMy: { color: colors.text },
 });
 

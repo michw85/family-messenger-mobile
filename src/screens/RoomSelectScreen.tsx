@@ -25,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { useSimpleMode } from '../context/SimpleModeContext';
 import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat } from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
@@ -56,7 +57,8 @@ type ChatFilter = 'ALL' | 'PERSONAL' | 'GROUP';
 const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const { t, language, setLanguage } = useLanguage();
     const { theme, colors, toggleTheme } = useTheme();
-    const styles = useMemo(() => createStyles(colors), [colors]);
+    const { simpleMode, toggleSimpleMode, fontScale } = useSimpleMode();
+    const styles = useMemo(() => createStyles(colors, fontScale), [colors, fontScale]);
     const insets = useSafeAreaInsets();
     const [chats, setChats] = useState<ChatRoom[]>([]);
     const [currentUsername, setCurrentUsername] = useState<string>('');
@@ -315,6 +317,12 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                         <TouchableOpacity onPress={toggleTheme} style={styles.langButton}>
                             <Text style={styles.langText}>{theme === 'dark' ? '☀️' : '🌙'}</Text>
                         </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={toggleSimpleMode}
+                            style={[styles.langButton, simpleMode && { backgroundColor: colors.primary }]}
+                        >
+                            <Text style={[styles.langText, simpleMode && { color: colors.textLight }]}>Aa</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
                             <Text style={styles.langText}>{language === 'ru' ? 'EN' : 'RU'}</Text>
                         </TouchableOpacity>
@@ -379,13 +387,13 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     );
 };
 
-const createStyles = (colors: AppColors) => StyleSheet.create({
+const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.create({
     container: { flex: 1 },
     center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
     content: { flex: 1, paddingHorizontal: spacing.xl, paddingTop: 60 },
     header: { marginBottom: spacing.xxl },
     headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: spacing.sm, gap: spacing.sm, },
-    greeting: { fontSize: 14, color: colors.textSecondary, flexShrink: 1, },
+    greeting: { fontSize: 14 * fontScale, color: colors.textSecondary, flexShrink: 1, },
     myAvatarButton: {
         width: 32,
         height: 32,
@@ -407,7 +415,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         ...shadows.soft,
     },
     langText: { fontSize: 11, fontWeight: '500', color: colors.primary, letterSpacing: 0.3 },
-    title: { fontSize: 28, fontWeight: '700', color: colors.primary, letterSpacing: 0.5, marginBottom: spacing.md },
+    title: { fontSize: 28 * fontScale, fontWeight: '700', color: colors.primary, letterSpacing: 0.5, marginBottom: spacing.md },
     filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     segmentGroup: {
         flexDirection: 'row',
@@ -424,29 +432,29 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     segmentActive: {
         backgroundColor: colors.primary,
     },
-    segmentText: { fontSize: 12, fontWeight: '500', color: colors.textSecondary },
+    segmentText: { fontSize: 12 * fontScale, fontWeight: '500', color: colors.textSecondary },
     segmentTextActive: { color: colors.textLight },
     sortButton: {
         paddingHorizontal: spacing.sm,
         paddingVertical: spacing.xs,
     },
-    sortButtonText: { fontSize: 12, fontWeight: '500', color: colors.primary, textDecorationLine: 'underline' },
+    sortButtonText: { fontSize: 12 * fontScale, fontWeight: '500', color: colors.primary, textDecorationLine: 'underline' },
     listContent: { paddingBottom: 80 },
     chatCard: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.backgroundLight,
         borderRadius: borderRadius.medium,
-        padding: spacing.md,
+        padding: spacing.md * fontScale,
         marginBottom: spacing.sm,
         borderWidth: 1,
         borderColor: colors.border,
         ...shadows.soft,
     },
     avatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 48 * fontScale,
+        height: 48 * fontScale,
+        borderRadius: 24 * fontScale,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: spacing.md,
@@ -454,10 +462,10 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         overflow: 'hidden',
     },
     avatarImage: { width: '100%', height: '100%' },
-    avatarText: { fontSize: 20, fontWeight: '600' },
+    avatarText: { fontSize: 20 * fontScale, fontWeight: '600' },
     chatInfo: { flex: 1 },
-    chatName: { fontSize: 16, fontWeight: '600', color: colors.text, letterSpacing: 0.2 },
-    chatType: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
+    chatName: { fontSize: 16 * fontScale, fontWeight: '600', color: colors.text, letterSpacing: 0.2 },
+    chatType: { fontSize: 11 * fontScale, color: colors.textSecondary, marginTop: 2 },
     muteIcon: { fontSize: 14, marginLeft: spacing.xs, opacity: 0.6 },
     arrow: { fontSize: 24, marginLeft: spacing.sm },
     emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
