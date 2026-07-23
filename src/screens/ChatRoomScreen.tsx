@@ -90,7 +90,7 @@ interface Message {
         avatarUrl?: string;
     };
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE';
+    type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
     mediaUrl?: string;
     timestamp: string;
     grouped?: boolean;
@@ -102,13 +102,17 @@ interface Message {
         id: string;
         senderUsername: string;
         content: string;
-        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE';
+        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
         deleted: boolean;
     } | null;
     reactions?: { emoji: string; count: number; usernames: string[] }[];
 }
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
+// Быстрые реакции для чек-ина настроения - показываются вместо обычных QUICK_REACTIONS
+// Quick reactions for the mood check-in - shown instead of the regular QUICK_REACTIONS
+const MOOD_REACTIONS = ['😊', '😐', '😢', '😡', '😴', '🥳'];
+const MOOD_CHECKIN_PROMPT = 'Как настроение сегодня? Ответь эмодзи 👇 / How are you feeling today? React with an emoji 👇';
 
 /**
  * Экран чата
@@ -482,6 +486,18 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     }, [roomId, t]);
 
     /**
+     * Запустить семейный чек-ин настроения - отправляет специальное сообщение,
+     * на которое участники отвечают эмодзи настроения (переиспользует уже
+     * готовую систему реакций)
+     * Start a family mood check-in - sends a special message that participants
+     * respond to with mood emoji (reuses the existing reactions system)
+     */
+    const sendMoodCheckin = useCallback(() => {
+        if (!stompClientRef.current) return;
+        wsSendMessage(roomId, MOOD_CHECKIN_PROMPT, 'MOOD_CHECKIN');
+    }, [roomId]);
+
+    /**
      * Описание содержимого сообщения одной строкой для текстового экспорта
      * One-line description of a message's content for the text export
      */
@@ -679,7 +695,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         const isMine = item.sender.username === currentUsername;
         const options: any[] = [];
 
-        QUICK_REACTIONS.forEach((emoji) => {
+        const reactionSet = item.type === 'MOOD_CHECKIN' ? MOOD_REACTIONS : QUICK_REACTIONS;
+        reactionSet.forEach((emoji) => {
             options.push({
                 text: emoji,
                 onPress: () => handleToggleReaction(item.id, emoji),
@@ -763,6 +780,39 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      */
     const renderMessage = useCallback(({ item }: { item: Message }) => {
         const isMyMessage = item.sender.username === currentUsername;
+
+        // Чек-ин настроения рисуется отдельной центрированной карточкой, а не обычным
+        // облаком - это скорее общее приглашение всему чату, чем чьё-то личное сообщение
+        // The mood check-in renders as a separate centered card, not a regular bubble -
+        // it's more of a prompt to the whole chat than anyone's personal message
+        if (item.type === 'MOOD_CHECKIN' && !item.deleted) {
+            return (
+                <View>
+                    <TouchableOpacity
+                        style={styles.moodCheckinCard}
+                        onLongPress={() => handleMessageLongPress(item)}
+                        activeOpacity={0.85}
+                    >
+                        <Text style={styles.moodCheckinIcon}>🙂</Text>
+                        <Text style={styles.moodCheckinText}>{item.content}</Text>
+                    </TouchableOpacity>
+                    {!!item.reactions?.length && (
+                        <View style={[styles.reactionsRow, styles.reactionsRowCenter]}>
+                            {item.reactions.map((r) => (
+                                <TouchableOpacity
+                                    key={r.emoji}
+                                    style={[styles.reactionPill, r.usernames.includes(currentUsername) && styles.reactionPillMine]}
+                                    onPress={() => handleToggleReaction(item.id, r.emoji)}
+                                >
+                                    <Text style={styles.reactionPillText}>{r.emoji} {r.count}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                </View>
+            );
+        }
+
         return (
         <View>
             <TouchableOpacity
@@ -914,6 +964,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                         ) : (
                                             <Text style={styles.iconText}>📤</Text>
                                         )}
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={sendMoodCheckin} style={styles.iconHeaderButton}>
+                                        <Text style={styles.iconText}>🙂</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
                                         <Text style={styles.addButtonText}>+</Text>
@@ -1233,6 +1286,23 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     },
     reactionsRowMy: { justifyContent: 'flex-end' },
     reactionsRowTheirs: { justifyContent: 'flex-start' },
+    reactionsRowCenter: { justifyContent: 'center' },
+    moodCheckinCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'center',
+        backgroundColor: colors.accentLight,
+        borderRadius: borderRadius.large,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.lg,
+        marginVertical: spacing.md,
+        maxWidth: '85%',
+        borderWidth: 1,
+        borderColor: colors.accent,
+        ...shadows.soft,
+    },
+    moodCheckinIcon: { fontSize: 22, marginRight: spacing.sm },
+    moodCheckinText: { fontSize: 14, fontWeight: '500', color: colors.primary, flexShrink: 1, textAlign: 'center' },
     reactionPill: {
         flexDirection: 'row',
         alignItems: 'center',

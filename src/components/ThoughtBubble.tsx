@@ -37,7 +37,7 @@ interface ThoughtBubbleProps {
     sender: string;
     timestamp: string;
     isMyMessage: boolean;
-    type?: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE';
+    type?: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
     mediaUrl?: string;
     userColor?: string;
     /**
@@ -59,7 +59,7 @@ interface ThoughtBubbleProps {
     replyTo?: {
         senderUsername: string;
         content: string;
-        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE';
+        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
         deleted: boolean;
     } | null;
 }
