@@ -32,6 +32,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import * as Clipboard from 'expo-clipboard';
 import { useAudioRecorder, setAudioModeAsync, requestRecordingPermissionsAsync, IOSOutputFormat, AudioQuality, type RecordingOptions } from 'expo-audio';
 import ThoughtBubble from '../components/ThoughtBubble';
@@ -153,6 +154,10 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [exporting, setExporting] = useState(false);
     const [memories, setMemories] = useState<Message[]>([]);
     const [memoriesVisible, setMemoriesVisible] = useState(false);
+    // Только для iOS - Android использует системные диалоги DateTimePickerAndroid напрямую
+    // iOS only - Android uses the DateTimePickerAndroid system dialogs directly
+    const [iosCapsulePickerVisible, setIosCapsulePickerVisible] = useState(false);
+    const [iosCapsuleDate, setIosCapsuleDate] = useState(new Date());
 
     // Пагинация истории / Message history pagination
     const [page, setPage] = useState(0);
@@ -536,21 +541,64 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     }, [roomId]);
 
     /**
-     * Отправить "капсулу времени": текст из поля ввода сохраняется сразу, но
-     * его содержимое (и медиа, если было бы) скрыто ото всех, включая
-     * отправителя, до выбранного момента - см. маскировку на бэкенде
-     * (ChatMessageDto.fromEntity).
-     * Send a "time capsule": the text currently in the input is saved right
-     * away, but its content is hidden from everyone, including the sender,
-     * until the chosen moment - see the masking on the backend
-     * (ChatMessageDto.fromEntity).
+     * Отправить "капсулу времени" на точный момент: текст из поля ввода
+     * сохраняется сразу, но его содержимое (и медиа, если было бы) скрыто
+     * ото всех, включая отправителя, до выбранного момента - см. маскировку
+     * на бэкенде (ChatMessageDto.fromEntity).
+     * Send a "time capsule" for an exact moment: the text currently in the
+     * input is saved right away, but its content is hidden from everyone,
+     * including the sender, until the chosen moment - see the masking on
+     * the backend (ChatMessageDto.fromEntity).
      */
-    const sendTimeCapsule = useCallback((delayMs: number) => {
+    const sendTimeCapsuleAt = useCallback((targetDate: Date) => {
         if (!inputText.trim() || !stompClientRef.current) return;
-        const revealAt = new Date(Date.now() + delayMs).toISOString();
-        wsSendMessage(roomId, inputText.trim(), 'TEXT', undefined, undefined, revealAt);
+        wsSendMessage(roomId, inputText.trim(), 'TEXT', undefined, undefined, targetDate.toISOString());
         setInputText('');
     }, [inputText, roomId]);
+
+    const sendTimeCapsuleIn = useCallback((delayMs: number) => {
+        sendTimeCapsuleAt(new Date(Date.now() + delayMs));
+    }, [sendTimeCapsuleAt]);
+
+    /**
+     * Выбор точной даты и времени раскрытия капсулы - на Android через
+     * системные диалоги (сначала календарь, потом время), на iOS через
+     * модалку с колесом даты+времени (см. рендер ниже).
+     * Pick the exact reveal date and time - on Android via the system
+     * dialogs (date first, then time), on iOS via a modal with a combined
+     * date+time wheel (see the render below).
+     */
+    const pickCapsuleDateTime = useCallback(() => {
+        if (!inputText.trim()) {
+            Alert.alert(t('error'), 'Сначала напишите текст в поле ввода / Type a message in the input first');
+            return;
+        }
+        const now = new Date();
+        if (Platform.OS === 'android') {
+            DateTimePickerAndroid.open({
+                value: now,
+                mode: 'date',
+                minimumDate: now,
+                onChange: (event, selectedDate) => {
+                    if (event.type !== 'set' || !selectedDate) return;
+                    DateTimePickerAndroid.open({
+                        value: selectedDate,
+                        mode: 'time',
+                        is24Hour: true,
+                        onChange: (event2, selectedTime) => {
+                            if (event2.type !== 'set' || !selectedTime) return;
+                            const target = new Date(selectedDate);
+                            target.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+                            sendTimeCapsuleAt(target);
+                        },
+                    });
+                },
+            });
+        } else {
+            setIosCapsuleDate(now);
+            setIosCapsulePickerVisible(true);
+        }
+    }, [inputText, sendTimeCapsuleAt, t]);
 
     /**
      * Меню дополнительных действий чата: чек-ин настроения и капсула времени
@@ -569,16 +617,17 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     }
                     Alert.alert('Открыть через... / Open in...', '', [
                         { text: 'Отмена / Cancel', style: 'cancel' },
-                        { text: 'Час / An hour', onPress: () => sendTimeCapsule(60 * 60 * 1000) },
-                        { text: 'Завтра / Tomorrow', onPress: () => sendTimeCapsule(24 * 60 * 60 * 1000) },
-                        { text: 'Неделю / A week', onPress: () => sendTimeCapsule(7 * 24 * 60 * 60 * 1000) },
-                        { text: 'Месяц / A month', onPress: () => sendTimeCapsule(30 * 24 * 60 * 60 * 1000) },
-                        { text: 'Год / A year', onPress: () => sendTimeCapsule(365 * 24 * 60 * 60 * 1000) },
+                        { text: '📅 Выбрать дату и время / Pick date & time', onPress: pickCapsuleDateTime },
+                        { text: 'Час / An hour', onPress: () => sendTimeCapsuleIn(60 * 60 * 1000) },
+                        { text: 'Завтра / Tomorrow', onPress: () => sendTimeCapsuleIn(24 * 60 * 60 * 1000) },
+                        { text: 'Неделю / A week', onPress: () => sendTimeCapsuleIn(7 * 24 * 60 * 60 * 1000) },
+                        { text: 'Месяц / A month', onPress: () => sendTimeCapsuleIn(30 * 24 * 60 * 60 * 1000) },
+                        { text: 'Год / A year', onPress: () => sendTimeCapsuleIn(365 * 24 * 60 * 60 * 1000) },
                     ]);
                 },
             },
         ]);
-    }, [sendMoodCheckin, sendTimeCapsule, inputText, t]);
+    }, [sendMoodCheckin, sendTimeCapsuleIn, pickCapsuleDateTime, inputText, t]);
 
     /**
      * Описание содержимого сообщения одной строкой для текстового экспорта
@@ -1308,6 +1357,43 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             </View>
                         </View>
                     </Modal>
+
+                    {Platform.OS === 'ios' && (
+                        <Modal
+                            visible={iosCapsulePickerVisible}
+                            transparent
+                            animationType="fade"
+                            onRequestClose={() => setIosCapsulePickerVisible(false)}
+                        >
+                            <View style={styles.editModalOverlay}>
+                                <View style={styles.editModalBox}>
+                                    <Text style={styles.editModalTitle}>Когда открыть капсулу? / When to open the capsule?</Text>
+                                    <DateTimePicker
+                                        value={iosCapsuleDate}
+                                        mode="datetime"
+                                        minimumDate={new Date()}
+                                        onChange={(_event, selectedDate) => {
+                                            if (selectedDate) setIosCapsuleDate(selectedDate);
+                                        }}
+                                    />
+                                    <View style={styles.editModalButtons}>
+                                        <TouchableOpacity onPress={() => setIosCapsulePickerVisible(false)} style={styles.editModalCancelButton}>
+                                            <Text style={styles.editModalCancelText}>Отмена / Cancel</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setIosCapsulePickerVisible(false);
+                                                sendTimeCapsuleAt(iosCapsuleDate);
+                                            }}
+                                            style={styles.editModalSaveButton}
+                                        >
+                                            <Text style={styles.editModalSaveText}>Готово / Done</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </View>
+                        </Modal>
+                    )}
                 </View>
             </TouchableWithoutFeedback>
         </KeyboardAvoidingView>

@@ -48,7 +48,8 @@
           "microphonePermission": "Разрешите доступ к микрофону для распознавания речи в голосовых сообщениях",
           "speechRecognitionPermission": "Разрешите распознавание речи для транскрипции голосовых сообщений"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {
