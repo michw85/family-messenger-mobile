@@ -26,7 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setToken, setRefreshToken } from '../services/authStorage';
 import FloatingClouds from '../components/FloatingClouds';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage, showLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
 import { register, updateFcmToken } from '../services/api';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { isPasswordStrong, PASSWORD_RULES_MESSAGE } from '../utils/password';
@@ -142,8 +142,8 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
         }
     };
 
-    const toggleLanguage = () => {
-        setLanguage(language === 'ru' ? 'en' : 'ru');
+    const openLanguagePicker = () => {
+        showLanguagePicker(language, setLanguage, t('choose_language'));
     };
 
     return (
@@ -159,8 +159,8 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
                             <Text style={styles.emoji}>🕊️</Text>
                             <Text style={styles.title}>Присоединяйтесь / Join</Text>
                             <Text style={styles.subtitle}>Создайте новый аккаунт / Create a new account</Text>
-                            <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
-                                <Text style={styles.langText}>{language === 'ru' ? '🇬🇧 EN' : '🇷🇺 RU'}</Text>
+                            <TouchableOpacity onPress={openLanguagePicker} style={styles.langButton}>
+                                <Text style={styles.langText}>{LANGUAGE_META[language].flag}</Text>
                             </TouchableOpacity>
                         </View>
                         <View style={styles.form}>

@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import FloatingClouds from '../components/FloatingClouds';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage, showLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
 import { login } from '../services/api'; // Импорт реального API
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -99,8 +99,8 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
      * Переключение языка приложения
      * Toggle application language
      */
-    const toggleLanguage = () => {
-        setLanguage(language === 'ru' ? 'en' : 'ru');
+    const openLanguagePicker = () => {
+        showLanguagePicker(language, setLanguage, t('choose_language'));
     };
 
     return (
@@ -126,8 +126,8 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
                             Ваша связь с близкими / Your bond with loved ones
                         </Text>
                         {/* Кнопка переключения языка БЕЗ флага */}
-                        <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
-                            <Text style={styles.langText}>{language === 'ru' ? 'EN' : 'RU'}</Text>
+                        <TouchableOpacity onPress={openLanguagePicker} style={styles.langButton}>
+                            <Text style={styles.langText}>{LANGUAGE_META[language].flag}</Text>
                         </TouchableOpacity>
                     </View>
 

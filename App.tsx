@@ -18,7 +18,7 @@ import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { LanguageProvider, useLanguage } from './src/context/LanguageContext';
+import { LanguageProvider } from './src/context/LanguageContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { SimpleModeProvider } from './src/context/SimpleModeContext';
 import LoginScreen from './src/screens/LoginScreen';
@@ -85,7 +85,6 @@ const DEFAULT_CHATS = [
 const Initializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [isReady, setIsReady] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const { setLanguage } = useLanguage();
 
     useEffect(() => {
         const initializeApp = async () => {
@@ -130,13 +129,6 @@ const Initializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                             console.log('Chats loaded successfully, count:', parsedChats.length);
                         }
                     }
-                }
-
-                // Загрузка сохранённого языка / Load saved language
-                const savedLanguage = await AsyncStorage.getItem(STORAGE_KEYS.LANGUAGE);
-                console.log('Saved language:', savedLanguage);
-                if (savedLanguage === 'en' || savedLanguage === 'ru') {
-                    setLanguage(savedLanguage);
                 }
 
                 setIsReady(true);

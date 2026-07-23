@@ -23,7 +23,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage, showLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSimpleMode } from '../context/SimpleModeContext';
 import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat, logout } from '../services/api';
@@ -265,8 +265,8 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
      * Переключение языка
      * Toggle language
      */
-    const toggleLanguage = () => {
-        setLanguage(language === 'ru' ? 'en' : 'ru');
+    const openLanguagePicker = () => {
+        showLanguagePicker(language, setLanguage, t('choose_language'));
     };
 
     if (loading) {
@@ -331,8 +331,8 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                         >
                             <Text style={[styles.langText, simpleMode && { color: colors.textLight }]}>Aa</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={toggleLanguage} style={styles.langButton}>
-                            <Text style={styles.langText}>{language === 'ru' ? 'EN' : 'RU'}</Text>
+                        <TouchableOpacity onPress={openLanguagePicker} style={styles.langButton}>
+                            <Text style={styles.langText}>{LANGUAGE_META[language].flag}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
                             <Text style={styles.logoutText}>⎋</Text>
