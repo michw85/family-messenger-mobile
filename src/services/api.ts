@@ -163,6 +163,10 @@ export const deleteMessage = (chatId: string, messageId: string) =>
 export const toggleReaction = (chatId: string, messageId: string, emoji: string) =>
   api.post(`/chats/${chatId}/messages/${messageId}/reactions`, { emoji });
 
+// Лента памяти: сообщения из этого чата за этот же день в прошлые годы
+// Memory lane: messages from this chat on this same day in past years
+export const getMemories = (chatId: string) => api.get(`/chats/${chatId}/memories`);
+
 // Files
 export const uploadFile = (formData: FormData, type: 'image' | 'voice' | 'video' | 'file') =>
   api.post(`/files/upload/${type}`, formData, {

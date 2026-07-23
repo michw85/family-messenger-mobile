@@ -22,6 +22,7 @@ import {
     TouchableWithoutFeedback,
     ActivityIndicator,
     Modal,
+    Image,
 } from 'react-native';
 import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,7 +39,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction } from '../services/api';
+import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction, getMemories } from '../services/api';
 import { connectWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
 import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
@@ -148,6 +149,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [typingUser, setTypingUser] = useState<string | null>(null);
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
     const [exporting, setExporting] = useState(false);
+    const [memories, setMemories] = useState<Message[]>([]);
+    const [memoriesVisible, setMemoriesVisible] = useState(false);
 
     // Пагинация истории / Message history pagination
     const [page, setPage] = useState(0);
@@ -364,6 +367,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             disconnectWebSocket();
         };
     }, [loadCurrentUser, loadMessages, setupWebSocket]);
+
+    // Лента памяти: подгружаем сообщения этого чата за этот же день в прошлые годы
+    // Memory lane: load this chat's messages from this same day in past years
+    useEffect(() => {
+        getMemories(roomId)
+            .then((res) => setMemories(res.data))
+            .catch((error) => console.error('Failed to load memories:', error));
+    }, [roomId]);
 
     // Автоматически перезапрашивает историю в момент раскрытия ближайшей капсулы
     // времени, чтобы не ждать ручного обновления экрана. Таймер ограничен сутками,
@@ -1087,6 +1098,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             </View>
                         )}
 
+                        {memories.length > 0 && (
+                            <TouchableOpacity style={styles.memoriesBanner} onPress={() => setMemoriesVisible(true)}>
+                                <Text style={styles.memoriesBannerText}>
+                                    📅 Год назад в этот день: {memories.length} {memories.length === 1 ? 'воспоминание' : 'воспоминаний'} / A year ago today
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
                         <FlatList
                             ref={flatListRef}
                             // data={messages}
@@ -1248,6 +1267,44 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             </View>
                         </View>
                     </Modal>
+
+                    <Modal
+                        visible={memoriesVisible}
+                        transparent
+                        animationType="slide"
+                        onRequestClose={() => setMemoriesVisible(false)}
+                    >
+                        <View style={styles.editModalOverlay}>
+                            <View style={[styles.editModalBox, { maxHeight: '75%' }]}>
+                                <Text style={styles.editModalTitle}>📅 Год назад в этот день / A year ago today</Text>
+                                <FlatList
+                                    data={memories}
+                                    keyExtractor={(item) => item.id}
+                                    style={{ maxHeight: 420 }}
+                                    renderItem={({ item }) => (
+                                        <View style={styles.memoryItem}>
+                                            <Text style={styles.memoryItemHeader}>
+                                                {item.sender.username} · {formatMessageDate(item.timestamp)}
+                                            </Text>
+                                            {item.type === 'IMAGE' && item.mediaUrl ? (
+                                                <Image source={{ uri: item.mediaUrl }} style={styles.memoryItemImage} />
+                                            ) : (
+                                                <Text style={styles.memoryItemContent} numberOfLines={4}>
+                                                    {item.type === 'TEXT' ? item.content
+                                                        : item.type === 'VOICE' ? '🎤 Голосовое сообщение / Voice message'
+                                                        : item.type === 'VIDEO' ? '🎥 Видео / Video'
+                                                        : item.content}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    )}
+                                />
+                                <TouchableOpacity onPress={() => setMemoriesVisible(false)} style={styles.editModalCancelButton}>
+                                    <Text style={styles.editModalCancelText}>Закрыть / Close</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </Modal>
                 </View>
             </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
@@ -1389,6 +1446,25 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     },
     moodCheckinIcon: { fontSize: 22, marginRight: spacing.sm },
     moodCheckinText: { fontSize: 14, fontWeight: '500', color: colors.primary, flexShrink: 1, textAlign: 'center' },
+    memoriesBanner: {
+        backgroundColor: colors.pillBackground,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.lg,
+        marginHorizontal: spacing.md,
+        marginBottom: spacing.xs,
+        borderRadius: borderRadius.medium,
+        borderWidth: 1,
+        borderColor: colors.accent,
+    },
+    memoriesBannerText: { fontSize: 12, fontWeight: '500', color: colors.primary, textAlign: 'center' },
+    memoryItem: {
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+        paddingVertical: spacing.md,
+    },
+    memoryItemHeader: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: spacing.xs },
+    memoryItemContent: { fontSize: 14, color: colors.text },
+    memoryItemImage: { width: '100%', height: 180, borderRadius: borderRadius.medium },
     reactionPill: {
         flexDirection: 'row',
         alignItems: 'center',
