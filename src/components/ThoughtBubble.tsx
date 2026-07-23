@@ -19,9 +19,12 @@ import {
     TouchableOpacity,
     Alert,
     Linking,
+    ActivityIndicator,
 } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { File, Paths } from 'expo-file-system';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -298,6 +301,65 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     };
 
     /**
+     * Транскрипция голосового сообщения на устройстве (без стороннего API) -
+     * скачиваем файл локально (распознавание требует локальный URI, не https)
+     * и запускаем речевой движок ОС в offline-режиме.
+     * On-device voice message transcription (no third-party API) -
+     * downloads the file locally first (recognition needs a local URI, not
+     * https) and runs the OS speech engine in offline mode.
+     */
+    const [transcribing, setTranscribing] = useState(false);
+    const transcribingRef = useRef(false);
+
+    useSpeechRecognitionEvent('result', (event) => {
+        if (!transcribingRef.current || !event.isFinal) return;
+        transcribingRef.current = false;
+        setTranscribing(false);
+        const text = event.results[0]?.transcript;
+        Alert.alert(
+            'Транскрипция / Transcript',
+            text || 'Речь не распознана / No speech recognized'
+        );
+    });
+
+    useSpeechRecognitionEvent('error', (event) => {
+        if (!transcribingRef.current) return;
+        transcribingRef.current = false;
+        setTranscribing(false);
+        Alert.alert('Ошибка / Error', `Не удалось распознать речь: ${event.error}`);
+    });
+
+    const transcribeVoice = async () => {
+        if (!mediaUrl || transcribingRef.current) return;
+
+        try {
+            const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+            if (!granted) {
+                Alert.alert('Ошибка', 'Нет доступа к распознаванию речи');
+                return;
+            }
+
+            transcribingRef.current = true;
+            setTranscribing(true);
+
+            const localFile = await File.downloadFileAsync(mediaUrl, Paths.cache, { idempotent: true });
+
+            ExpoSpeechRecognitionModule.start({
+                lang: 'ru-RU',
+                interimResults: false,
+                continuous: false,
+                requiresOnDeviceRecognition: true,
+                audioSource: { uri: localFile.uri },
+            });
+        } catch (error) {
+            console.error('Failed to transcribe voice message', error);
+            transcribingRef.current = false;
+            setTranscribing(false);
+            Alert.alert('Ошибка', 'Не удалось распознать голосовое сообщение');
+        }
+    };
+
+    /**
      * Фиксированный размер облака для фото/голоса (для текста размер не
      * угадывается заранее - облако рисуется по реально измеренному размеру
      * блока с текстом, см. ниже cloudSize/onLayout)
@@ -357,12 +419,21 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                 // built-in viewer instead of the system browser
                 <Image source={{ uri: mediaUrl }} style={styles.image} />
             ) : type === 'VOICE' ? (
-                <TouchableOpacity onPress={() => playVoice(mediaUrl || '')} style={styles.voiceRow} disabled={!mediaUrl}>
-                    <Text style={styles.voiceIcon}>{isPlaying ? '⏹️' : '▶️'}</Text>
-                    <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]}>
-                        {isPlaying ? 'Остановить' : 'Голосовое сообщение'}
-                    </Text>
-                </TouchableOpacity>
+                <View style={styles.voiceRow}>
+                    <TouchableOpacity onPress={() => playVoice(mediaUrl || '')} style={styles.voiceRow} disabled={!mediaUrl}>
+                        <Text style={styles.voiceIcon}>{isPlaying ? '⏹️' : '▶️'}</Text>
+                        <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]}>
+                            {isPlaying ? 'Остановить' : 'Голосовое сообщение'}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={transcribeVoice} disabled={!mediaUrl || transcribing} style={styles.transcribeButton}>
+                        {transcribing ? (
+                            <ActivityIndicator size="small" color={isMyMessage ? colors.textLight : colors.primary} />
+                        ) : (
+                            <Text style={styles.voiceIcon}>📝</Text>
+                        )}
+                    </TouchableOpacity>
+                </View>
             ) : type === 'VIDEO' && mediaUrl ? (
                 <VideoView player={videoPlayer} style={styles.image} nativeControls contentFit="cover" />
             ) : type === 'FILE' && mediaUrl ? (
@@ -503,6 +574,7 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     image: { width: 200, height: 200, borderRadius: borderRadius.medium, marginVertical: spacing.xs },
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     voiceIcon: { fontSize: 22 },
+    transcribeButton: { marginLeft: spacing.xs, width: 22, alignItems: 'center', justifyContent: 'center' },
     voiceText: { fontSize: 14, color: colors.text },
     voiceTextMy: { color: colors.text },
 });
