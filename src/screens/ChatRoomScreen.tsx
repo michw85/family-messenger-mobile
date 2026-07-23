@@ -407,7 +407,13 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         });
         if (!result.canceled && result.assets[0]) {
             const asset = result.assets[0];
-            const isVideo = asset.type === 'video';
+            // asset.type может быть null на некоторых Android ContentProvider'ах (см. типы expo-image-picker),
+            // поэтому подстраховываемся mimeType и duration (duration задан только у видео)
+            // asset.type can be null on some Android ContentProviders (see expo-image-picker's types),
+            // so we also check mimeType and duration (duration is only set for videos)
+            const isVideo = asset.type === 'video'
+                || (!!asset.mimeType && asset.mimeType.startsWith('video/'))
+                || asset.duration != null;
             setSending(true);
             try {
                 const formData = new FormData();
@@ -435,18 +441,38 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         const result = await DocumentPicker.getDocumentAsync({ multiple: false });
         if (result.canceled || !result.assets[0]) return;
         const asset = result.assets[0];
+        const mime = asset.mimeType || '';
+
+        // Через этот пикер можно выбрать что угодно, включая видео/фото из "Файлов" -
+        // распознаём реальный тип по MIME и шлём как полноценное видео/фото, а не как
+        // безликий файл с хэш-именем без плеера
+        // This picker can select anything, including video/photos from "Files" - detect
+        // the real type from MIME and send it as a proper video/photo, not a faceless
+        // file with a hashed name and no player
+        let uploadType: 'image' | 'video' | 'file' = 'file';
+        let messageType: 'IMAGE' | 'VIDEO' | 'FILE' = 'FILE';
+        let messageContent = `📄 ${asset.name}`;
+        if (mime.startsWith('video/')) {
+            uploadType = 'video';
+            messageType = 'VIDEO';
+            messageContent = '🎥 Video';
+        } else if (mime.startsWith('image/')) {
+            uploadType = 'image';
+            messageType = 'IMAGE';
+            messageContent = '📷 Photo';
+        }
 
         setSending(true);
         try {
             const formData = new FormData();
             formData.append('file', {
                 uri: asset.uri,
-                type: asset.mimeType || 'application/octet-stream',
+                type: mime || 'application/octet-stream',
                 name: asset.name,
             } as any);
-            const uploadRes = await uploadFile(formData, 'file');
+            const uploadRes = await uploadFile(formData, uploadType);
             const mediaUrl = uploadRes.data.url;
-            wsSendMessage(roomId, `📄 ${asset.name}`, 'FILE', mediaUrl);
+            wsSendMessage(roomId, messageContent, messageType, mediaUrl);
         } catch (error) {
             console.error('Failed to send file:', error);
             Alert.alert(t('error'), 'Failed to send file');
