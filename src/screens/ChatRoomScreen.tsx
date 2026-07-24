@@ -45,7 +45,7 @@ import { useCall } from '../context/CallContext';
 import { useTheme } from '../context/ThemeContext';
 import { useActionSheet } from '../components/ActionSheet';
 import { useSimpleMode } from '../context/SimpleModeContext';
-import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction, getMemories } from '../services/api';
+import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction, getMemories, fetchChats } from '../services/api';
 import { acquireWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, releaseWebSocket } from '../services/websocket';
 import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
@@ -175,6 +175,17 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [exporting, setExporting] = useState(false);
     const [memories, setMemories] = useState<Message[]>([]);
     const [memoriesVisible, setMemoriesVisible] = useState(false);
+    // roomType/otherParticipant из route.params не обновляются, если участника
+    // добавили уже находясь в этом чате (или экран открыт из поиска/уведомления,
+    // где эти параметры вообще не передаются) - подгружаем их свежими отдельным
+    // запросом, а не полагаемся только на то, с чем сюда зашли.
+    // roomType/otherParticipant from route.params don't update if the
+    // participant was added while already inside this chat (or the screen was
+    // opened from search/a notification, where these params aren't passed at
+    // all) - fetch them fresh separately instead of relying only on whatever
+    // was passed in on navigation.
+    const [liveRoomType, setLiveRoomType] = useState<string | undefined>(roomType);
+    const [liveOtherParticipant, setLiveOtherParticipant] = useState<{ id: number; username: string; avatarUrl?: string } | undefined>(otherParticipant);
     // Только для iOS - Android использует системные диалоги DateTimePickerAndroid напрямую
     // iOS only - Android uses the DateTimePickerAndroid system dialogs directly
     const [iosCapsulePickerVisible, setIosCapsulePickerVisible] = useState(false);
@@ -403,6 +414,27 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             .then((res) => setMemories(res.data))
             .catch((error) => console.error('Failed to load memories:', error));
     }, [roomId]);
+
+    // Свежая информация о типе комнаты/собеседнике для кнопки звонка - см.
+    // комментарий у liveRoomType/liveOtherParticipant выше
+    // Fresh room-type/other-participant info for the call button - see the
+    // comment next to liveRoomType/liveOtherParticipant above
+    useEffect(() => {
+        if (!currentUsername) return;
+        fetchChats()
+            .then((res) => {
+                const room = res.data.find((r: any) => r.id === roomId);
+                if (!room) return;
+                setLiveRoomType(room.type);
+                const other = room.type !== 'GROUP'
+                    ? room.participants.find((p: any) => p.username !== currentUsername)
+                    : undefined;
+                setLiveOtherParticipant(other
+                    ? { id: other.id, username: other.username, avatarUrl: other.avatarUrl }
+                    : undefined);
+            })
+            .catch((error) => console.error('Failed to load room info:', error));
+    }, [roomId, currentUsername]);
 
     // Автоматически перезапрашивает историю в момент раскрытия ближайшей капсулы
     // времени, чтобы не ждать ручного обновления экрана. Таймер ограничен сутками,
@@ -786,6 +818,27 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             setIsRecording(false);
         }
     }, [recorder, roomId, t]);
+
+    /**
+     * Меню вложений (фото/видео, файл, голосовое) - спрятано за одной кнопкой,
+     * чтобы не занимать место в и без того тесной строке ввода текста.
+     * Голосовое сообщение запускается по тапу (а не по удержанию, как раньше) -
+     * в пункте меню нет способа отследить "отпустили палец", поэтому запись
+     * стартует сразу, а завершается отдельной кнопкой "Стоп" в строке ввода.
+     * Attachment menu (photo/video, file, voice) - tucked behind one button
+     * so it doesn't crowd the already-cramped text input row. Voice messages
+     * now start on tap (not press-and-hold like before) - a menu item has no
+     * way to detect "finger lifted", so recording starts immediately and ends
+     * via a separate "Stop" button that replaces the input row while recording.
+     */
+    const openAttachMenu = useCallback(() => {
+        showActionSheet('', [
+            { text: t('cancel'), style: 'cancel' },
+            { text: `📷 ${t('photo')}`, onPress: sendImage },
+            { text: `📎 ${t('file_label')}`, onPress: sendDocument },
+            { text: `🎙️ ${t('voice_message')}`, onPress: startRecording },
+        ]);
+    }, [sendImage, sendDocument, startRecording, t, showActionSheet]);
 
     /**
      * Поиск по тексту сообщений в чате (с debounce)
@@ -1191,9 +1244,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     <TouchableOpacity style={{ flex: 1 }} onPress={() => setParticipantsVisible(true)} activeOpacity={0.7}>
                                         <Text style={styles.headerTitle}>{roomName}</Text>
                                     </TouchableOpacity>
-                                    {roomType === 'DIRECT' && otherParticipant && (
+                                    {liveRoomType === 'DIRECT' && liveOtherParticipant && (
                                         <TouchableOpacity
-                                            onPress={() => startOutgoingCall(roomId, roomName, otherParticipant)}
+                                            onPress={() => startOutgoingCall(roomId, roomName, liveOtherParticipant)}
                                             style={styles.iconHeaderButton}
                                         >
                                             <Text style={styles.iconText}>📞</Text>
@@ -1322,43 +1375,48 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     </TouchableOpacity>
                                 </View>
                             )}
-                            <View style={styles.inputContainer}>
-                                {/* Кнопка фото/видео */}
-                                <TouchableOpacity onPress={sendImage} style={styles.iconButton} disabled={sending}>
-                                    <Text style={styles.iconText}>📷</Text>
-                                </TouchableOpacity>
-                                {/* Кнопка произвольного файла */}
-                                <TouchableOpacity onPress={sendDocument} style={styles.iconButton} disabled={sending}>
-                                    <Text style={styles.iconText}>📎</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPressIn={startRecording}
-                                    onPressOut={stopRecording}
-                                    style={[styles.iconButton, isRecording && styles.recordingActive]}
-                                >
-                                    <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => setEmojiPickerVisible(true)} style={styles.iconButton} disabled={sending}>
-                                    <Text style={styles.iconText}>😀</Text>
-                                </TouchableOpacity>
-                                <TextInput
-                                    style={styles.input}
-                                    value={inputText}
-                                    onChangeText={handleInputChange}
-                                    placeholder={t('placeholder')}
-                                    placeholderTextColor={colors.textMuted}
-                                    onSubmitEditing={sendTextMessage}
-                                    returnKeyType="send"
-                                    multiline
-                                />
-                                <TouchableOpacity
-                                    style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
-                                    onPress={sendTextMessage}
-                                    disabled={!inputText.trim() || sending}
-                                >
-                                    <Text style={styles.sendButtonText}>↑</Text>
-                                </TouchableOpacity>
-                            </View>
+                            {isRecording ? (
+                                // Отдельная полоса записи вместо обычной строки ввода - голосовое
+                                // теперь стартует по тапу в меню вложений (не по удержанию), поэтому
+                                // нужна явная кнопка "Стоп", а не отпускание пальца
+                                // A separate recording bar instead of the normal input row - voice
+                                // messages now start via a tap in the attach menu (not press-and-hold),
+                                // so an explicit "Stop" button is needed instead of releasing a finger
+                                <View style={styles.recordingBar}>
+                                    <View style={styles.recordingDot} />
+                                    <Text style={styles.recordingBarText}>{t('voice_message')}…</Text>
+                                    <TouchableOpacity onPress={stopRecording} style={styles.recordingStopButton}>
+                                        <Text style={styles.recordingStopButtonText}>⏹</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <View style={styles.inputContainer}>
+                                    {/* Меню вложений: фото/видео, файл, голосовое - за одной кнопкой */}
+                                    <TouchableOpacity onPress={openAttachMenu} style={styles.iconButton} disabled={sending}>
+                                        <Text style={styles.iconText}>➕</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => setEmojiPickerVisible(true)} style={styles.iconButton} disabled={sending}>
+                                        <Text style={styles.iconText}>😀</Text>
+                                    </TouchableOpacity>
+                                    <TextInput
+                                        style={styles.input}
+                                        value={inputText}
+                                        onChangeText={handleInputChange}
+                                        placeholder={t('placeholder')}
+                                        placeholderTextColor={colors.textMuted}
+                                        onSubmitEditing={sendTextMessage}
+                                        returnKeyType="send"
+                                        multiline
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
+                                        onPress={sendTextMessage}
+                                        disabled={!inputText.trim() || sending}
+                                    >
+                                        <Text style={styles.sendButtonText}>↑</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
                         </View>
                         {/* Модалка добавления участников */}
                         <AddParticipantsModal
@@ -1616,6 +1674,35 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         alignItems: 'flex-end',
         gap: spacing.sm,
     },
+    recordingBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        backgroundColor: colors.backgroundLight,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
+        paddingHorizontal: spacing.lg,
+        minHeight: 38 * fontScale,
+    },
+    recordingDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: colors.recordingActiveBackground,
+    },
+    recordingBarText: {
+        flex: 1,
+        fontSize: 15 * fontScale,
+        color: colors.text,
+    },
+    recordingStopButton: {
+        padding: spacing.xs,
+    },
+    recordingStopButtonText: {
+        fontSize: 20 * fontScale,
+        color: colors.recordingActiveBackground,
+    },
     replyPreviewBar: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1722,9 +1809,6 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
     },
     iconText: {
         fontSize: 18 * fontScale,
-    },
-    recordingActive: {
-        backgroundColor: colors.recordingActiveBackground,
     },
     // Поле ввода — светлое с тёплой границей
     input: {
