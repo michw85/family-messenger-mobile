@@ -20,18 +20,24 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prebuild Android project
+        run: npx expo prebuild --clean --platform android
+
+      # Java идёт после prebuild - cache: 'gradle' хеширует gradle-файлы
+      # (build.gradle, gradle-wrapper.properties...) для ключа кеша, а они
+      # появляются только внутри android/, которую создаёт prebuild выше.
+      # Java comes after prebuild - cache: 'gradle' hashes gradle files
+      # (build.gradle, gradle-wrapper.properties...) for the cache key, and
+      # those only exist inside android/, which prebuild above creates.
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Prebuild Android project
-        run: npx expo prebuild --clean --platform android
 
       # Тот же debug.keystore, что и при локальной сборке (лежит в
       # keystores/, а не в гитигнорённой android/) - чтобы подпись совпадала
