@@ -342,7 +342,11 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                             <Text style={[styles.langText, simpleMode && { color: colors.textLight }]}>Aa</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={openLanguagePicker} style={styles.langButton}>
-                            <Text style={styles.langText}>{LANGUAGE_META[language].flag}</Text>
+                            {/* Нейтральный флаг для русского не читается как "переключатель языка"
+                                без подписи - добавляем код языка мелким текстом рядом с флагом */}
+                            {/* The neutral flag for Russian doesn't read as a "language switcher"
+                                without a label - adding the language code in small text next to the flag */}
+                            <Text style={styles.langText}>{LANGUAGE_META[language].flag} {language.toUpperCase()}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
                             <Text style={styles.logoutText}>⎋</Text>

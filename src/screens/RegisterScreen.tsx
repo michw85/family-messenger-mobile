@@ -158,7 +158,7 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
                             <Text style={styles.title}>{t('join_title')}</Text>
                             <Text style={styles.subtitle}>{t('create_account_subtitle')}</Text>
                             <TouchableOpacity onPress={openLanguagePicker} style={styles.langButton}>
-                                <Text style={styles.langText}>{LANGUAGE_META[language].flag}</Text>
+                                <Text style={styles.langText}>{LANGUAGE_META[language].flag} {language.toUpperCase()}</Text>
                             </TouchableOpacity>
                         </View>
                         <View style={styles.form}>

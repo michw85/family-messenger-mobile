@@ -123,9 +123,8 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
                         <Text style={styles.subtitle}>
                             {t('login_tagline')}
                         </Text>
-                        {/* Кнопка переключения языка БЕЗ флага */}
                         <TouchableOpacity onPress={openLanguagePicker} style={styles.langButton}>
-                            <Text style={styles.langText}>{LANGUAGE_META[language].flag}</Text>
+                            <Text style={styles.langText}>{LANGUAGE_META[language].flag} {language.toUpperCase()}</Text>
                         </TouchableOpacity>
                     </View>
 
