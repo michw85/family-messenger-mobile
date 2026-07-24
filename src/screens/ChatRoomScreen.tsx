@@ -1857,16 +1857,18 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         marginRight: 8,
     },
     // Тёмный значок телефона плохо виден на тёмном фоне без своего фона -
-    // кружок даёт контраст в любой теме. colors.online (яркий Material-зелёный)
-    // выбивался из общей пастельной палитры приложения - берём theirMessage,
-    // тот же мягкий зелёный, что уже используется для облаков собеседника
+    // кружок даёт контраст в любой теме. И colors.online, и colors.theirMessage
+    // всё ещё слишком насыщенные ("Kelly green") для пастельной палитры
+    // приложения - берём настоящий пастельный зелёный отдельным литералом,
+    // он же достаточно светлый, чтобы работать что на светлой, что на тёмной теме
     // The dark phone glyph is hard to see against a dark background with no
     // background of its own - a circle gives contrast regardless of theme.
-    // colors.online (a vivid Material green) clashed with the app's overall
-    // pastel palette - using theirMessage instead, the same soft green
-    // already used for the other person's message bubbles
+    // Both colors.online and colors.theirMessage were still too saturated
+    // ("Kelly green") for the app's pastel palette - using a true pastel
+    // green as its own literal, light enough to work over both the light
+    // and dark theme
     callButton: {
-        backgroundColor: colors.theirMessage,
+        backgroundColor: '#A8E6A1',
         borderRadius: borderRadius.circle,
         width: 34,
         height: 34,
