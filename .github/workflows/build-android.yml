@@ -48,9 +48,17 @@ jobs:
       - name: Use stable debug keystore
         run: cp keystores/debug.keystore android/app/debug.keystore
 
+      # Одна архитектура (arm64-v8a - все реальные телефоны последних ~8 лет)
+      # вместо всех четырёх по умолчанию - примерно вчетверо меньше нативной
+      # компиляции C++ и вчетверо меньший APK (не тащит с собой .so для
+      # архитектур, которые никогда не понадобятся на тестовых устройствах).
+      # One architecture (arm64-v8a - every real phone from the last ~8
+      # years) instead of all four by default - roughly a quarter of the
+      # native C++ compilation and a quarter of the APK size (no bundled
+      # .so files for architectures that will never be used on test devices).
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon -PreactNativeArchitectures=arm64-v8a
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
