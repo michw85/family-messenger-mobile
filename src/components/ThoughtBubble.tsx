@@ -21,13 +21,16 @@ import {
     Linking,
     ActivityIndicator,
 } from 'react-native';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import { VideoView, useVideoPlayer } from 'expo-video';
+import { useEvent } from 'expo';
 import { File, Paths } from 'expo-file-system';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import { formatMessageDate, formatMessageTime } from '../utils/dateTime';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -64,6 +67,7 @@ interface ThoughtBubbleProps {
         content: string;
         type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
         deleted: boolean;
+        revealAt?: string | null;
     } | null;
     /** Множитель размера шрифта для упрощённого режима интерфейса (по умолчанию 1) /
      * Font-size multiplier for the simplified UI mode (defaults to 1) */
@@ -237,11 +241,25 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     fontScale = 1,
 }) => {
     const { colors } = useTheme();
+    const { t } = useLanguage();
     const styles = useMemo(() => createStyles(colors, fontScale), [colors, fontScale]);
 
     const videoPlayer = useVideoPlayer(type === 'VIDEO' ? mediaUrl || null : null, (player) => {
         player.loop = false;
     });
+    // Свои play/pause и полноэкранная кнопка вместо nativeControls - плеер
+    // встроен в сообщение внутри FlatList, а одиночные тапы по нативным
+    // кнопкам ExoPlayer (в отличие от жеста перетаскивания шкалы) не проходят
+    // сквозь список: FlatList забирает их себе. Обычные RN-кнопки (ниже)
+    // правильно участвуют в системе жестов React Native, поэтому работают.
+    // Custom play/pause and fullscreen buttons instead of nativeControls -
+    // the player sits inside a message inside a FlatList, and single taps on
+    // ExoPlayer's native buttons (unlike the scrub-bar drag gesture) don't
+    // make it through the list: FlatList claims them first. Regular RN
+    // buttons (below) properly participate in React Native's own gesture
+    // system, so they work.
+    const videoViewRef = useRef<VideoView>(null);
+    const { isPlaying: isVideoPlaying } = useEvent(videoPlayer, 'playingChange', { isPlaying: videoPlayer.playing });
 
     // Анимации (сохранены из предыдущей версии)
     const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -284,7 +302,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
      */
     const playVoice = async (url: string) => {
         if (!url) {
-            Alert.alert('Ошибка', 'Ссылка на аудио отсутствует');
+            Alert.alert(t('error'), t('audio_link_missing'));
             return;
         }
 
@@ -296,11 +314,23 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                 return;
             }
 
+            // Важно: без этого воспроизведение может быть беззвучным (например,
+            // если телефон в беззвучном режиме, или аудио-сессия осталась в
+            // режиме записи после отправки голосового сообщения) - плеер при
+            // этом всё равно репортит isPlaying=true, создавая впечатление,
+            // что "ничего не происходит" при нажатии
+            // Important: without this, playback can be silent (e.g. if the
+            // phone is in silent mode, or the audio session is still in
+            // recording mode after sending a voice message) - the player
+            // still reports isPlaying=true either way, making it look like
+            // "nothing happens" when pressed
+            await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+
             await voicePlayer.seekTo(0);
             voicePlayer.play();
         } catch (error) {
             console.error('Failed to play voice', error);
-            Alert.alert('Ошибка', 'Не удалось воспроизвести голосовое сообщение');
+            Alert.alert(t('error'), t('could_not_play_voice'));
         }
     };
 
@@ -321,8 +351,8 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
         setTranscribing(false);
         const text = event.results[0]?.transcript;
         Alert.alert(
-            'Транскрипция / Transcript',
-            text || 'Речь не распознана / No speech recognized'
+            t('transcript_title'),
+            text || t('no_speech_recognized')
         );
     });
 
@@ -330,7 +360,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
         if (!transcribingRef.current) return;
         transcribingRef.current = false;
         setTranscribing(false);
-        Alert.alert('Ошибка / Error', `Не удалось распознать речь: ${event.error}`);
+        Alert.alert(t('error'), `${t('could_not_recognize_speech')}: ${event.error}`);
     });
 
     const transcribeVoice = async () => {
@@ -339,7 +369,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
         try {
             const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
             if (!granted) {
-                Alert.alert('Ошибка', 'Нет доступа к распознаванию речи');
+                Alert.alert(t('error'), t('no_speech_access'));
                 return;
             }
 
@@ -359,7 +389,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
             console.error('Failed to transcribe voice message', error);
             transcribingRef.current = false;
             setTranscribing(false);
-            Alert.alert('Ошибка', 'Не удалось распознать голосовое сообщение');
+            Alert.alert(t('error'), t('could_not_recognize_speech'));
         }
     };
 
@@ -411,7 +441,11 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                         {replyTo.senderUsername}
                     </Text>
                     <Text style={[styles.replyQuoteText, isMyMessage && styles.replyQuoteTextMy]} numberOfLines={1}>
-                        {replyTo.deleted ? 'Сообщение удалено / Message deleted' : replyTo.content}
+                        {replyTo.deleted
+                            ? t('message_deleted')
+                            : (replyTo.revealAt && new Date(replyTo.revealAt).getTime() > Date.now())
+                                ? t('time_capsule_sealed').replace('{date}', `${formatMessageDate(replyTo.revealAt, t)}, ${formatMessageTime(replyTo.revealAt, t)}`)
+                                : replyTo.content}
                     </Text>
                 </View>
             )}
@@ -439,7 +473,32 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                     </TouchableOpacity>
                 </View>
             ) : type === 'VIDEO' && mediaUrl ? (
-                <VideoView player={videoPlayer} style={styles.image} nativeControls contentFit="cover" />
+                <View style={styles.image}>
+                    <VideoView
+                        ref={videoViewRef}
+                        player={videoPlayer}
+                        style={styles.videoFill}
+                        nativeControls={false}
+                        contentFit="cover"
+                    />
+                    <TouchableOpacity
+                        style={styles.videoPlayOverlay}
+                        onPress={() => (isVideoPlaying ? videoPlayer.pause() : videoPlayer.play())}
+                    >
+                        {!isVideoPlaying && (
+                            <View style={styles.videoPlayOverlayCircle}>
+                                <Text style={styles.videoPlayOverlayText}>▶️</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.videoFullscreenButton}
+                        onPress={() => videoViewRef.current?.enterFullscreen()}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Text style={styles.videoFullscreenButtonText}>⛶</Text>
+                    </TouchableOpacity>
+                </View>
             ) : type === 'FILE' && mediaUrl ? (
                 <TouchableOpacity onPress={() => Linking.openURL(mediaUrl)} style={styles.voiceRow}>
                     <Text style={styles.voiceIcon}>📄</Text>
@@ -581,6 +640,39 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
     transcribeButton: { marginLeft: spacing.xs, width: 22, alignItems: 'center', justifyContent: 'center' },
     voiceText: { fontSize: 14 * fontScale, color: colors.text },
     voiceTextMy: { color: colors.text },
+    videoFill: { width: '100%', height: '100%', borderRadius: borderRadius.medium },
+    videoPlayOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    videoPlayOverlayCircle: {
+        width: 46,
+        height: 46,
+        borderRadius: borderRadius.circle,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    videoPlayOverlayText: {
+        fontSize: 20,
+    },
+    videoFullscreenButton: {
+        position: 'absolute',
+        bottom: spacing.xs,
+        right: spacing.xs,
+        width: 30,
+        height: 30,
+        borderRadius: borderRadius.small,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    videoFullscreenButtonText: { fontSize: 16, color: '#FFFFFF' },
 });
 
 /**

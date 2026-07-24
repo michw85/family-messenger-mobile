@@ -57,7 +57,7 @@ const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClose, onC
     const handleCreate = (): void => {
         // Валидация: имя чата не должно быть пустым / Validation: chat name must not be empty
         if (!chatName.trim()) {
-            Alert.alert(t('error'), 'Введите название чата / Enter chat name');
+            Alert.alert(t('error'), t('enter_chat_name'));
             return;
         }
 
@@ -110,7 +110,7 @@ const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClose, onC
                         <View style={styles.modalContent}>
                             {/* Заголовок модального окна / Modal header */}
                             <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>✨ Новый чат / New chat</Text>
+                                <Text style={styles.modalTitle}>✨ {t('new_chat_title')}</Text>
                                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                                     <Text style={styles.closeText}>✕</Text>
                                 </TouchableOpacity>
@@ -119,7 +119,7 @@ const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClose, onC
                             {/* Поле ввода названия чата / Chat name input field */}
                             <TextInput
                                 style={styles.input}
-                                placeholder="Название чата / Chat name"
+                                placeholder={t('chat_name_placeholder')}
                                 placeholderTextColor="#95A5A6"
                                 value={chatName}
                                 onChangeText={setChatName}
@@ -128,17 +128,15 @@ const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClose, onC
                             />
 
                             {/* Выбор типа чата / Chat type selection */}
-                            <Text style={styles.sectionTitle}>Тип чата / Chat type</Text>
+                            <Text style={styles.sectionTitle}>{t('chat_type_label')}</Text>
                             <View style={styles.typeContainer}>
-                                {renderTypeButton('group', 'Групповой / Group', '👥')}
-                                {renderTypeButton('private', 'Личный / Private', '👤')}
+                                {renderTypeButton('group', t('group_chat_label'), '👥')}
+                                {renderTypeButton('private', t('private_chat_label'), '👤')}
                             </View>
 
                             {/* Пояснение к типам чата / Chat type explanation */}
                             <Text style={styles.hint}>
-                                {chatType === 'group'
-                                    ? '👥 Групповой чат для общения с несколькими людьми / Group chat for multiple people'
-                                    : '👤 Личный чат для общения один на один / Private chat for one-on-one conversation'}
+                                {chatType === 'group' ? t('group_chat_description') : t('private_chat_description')}
                             </Text>
 
                             {/* Кнопка создания / Create button */}
@@ -149,7 +147,7 @@ const CreateChatModal: React.FC<CreateChatModalProps> = ({ visible, onClose, onC
                                 activeOpacity={0.7}
                             >
                                 <Text style={styles.createButtonText}>
-                                    {isLoading ? '⌛' : '➕ Создать / Create'}
+                                    {isLoading ? '⌛' : t('create_button')}
                                 </Text>
                             </TouchableOpacity>
                         </View>

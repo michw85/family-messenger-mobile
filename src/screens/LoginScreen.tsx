@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import FloatingClouds from '../components/FloatingClouds';
-import { useLanguage, showLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
+import { useLanguage, useLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
 import { login } from '../services/api'; // Импорт реального API
 import { colors, spacing, borderRadius, shadows, typography } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -69,7 +69,7 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
     const handleLogin = async () => {
         // Проверка заполнения полей / Check fields are filled
         if (!username || !password) {
-            Alert.alert(t('error'), 'Заполните все поля / Please fill all fields');
+            Alert.alert(t('error'), t('fill_all_fields'));
             return;
         }
 
@@ -86,9 +86,9 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
         } catch (error: any) {
             console.error('Login error:', error);
             if (error?.response?.status === 429) {
-                Alert.alert(t('error'), 'Слишком много неудачных попыток входа. Попробуйте позже / Too many failed login attempts. Try again later');
+                Alert.alert(t('error'), t('too_many_login_attempts'));
             } else {
-                Alert.alert(t('error'), 'Неверное имя пользователя или пароль / Invalid username or password');
+                Alert.alert(t('error'), t('invalid_credentials'));
             }
         } finally {
             setLoading(false);
@@ -99,9 +99,7 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
      * Переключение языка приложения
      * Toggle application language
      */
-    const openLanguagePicker = () => {
-        showLanguagePicker(language, setLanguage, t('choose_language'));
-    };
+    const openLanguagePicker = useLanguagePicker();
 
     return (
         /**
@@ -123,7 +121,7 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
                         <Text style={styles.emoji}>⚡</Text>
                         <Text style={styles.title}>Bonds</Text>
                         <Text style={styles.subtitle}>
-                            Ваша связь с близкими / Your bond with loved ones
+                            {t('login_tagline')}
                         </Text>
                         {/* Кнопка переключения языка БЕЗ флага */}
                         <TouchableOpacity onPress={openLanguagePicker} style={styles.langButton}>
@@ -134,7 +132,7 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
                     <View style={styles.form}>
                         <TextInput
                             style={styles.input}
-                            placeholder="Username"
+                            placeholder={t('username_placeholder')}
                             placeholderTextColor={colors.textMuted}
                             value={username}
                             onChangeText={setUsername}
@@ -144,7 +142,7 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
 
                         <TextInput
                             style={styles.input}
-                            placeholder="Password"
+                            placeholder={t('password_placeholder')}
                             placeholderTextColor={colors.textMuted}
                             value={password}
                             onChangeText={setPassword}
@@ -157,11 +155,11 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.linkButton}>
-                            <Text style={styles.linkText}>Forgot password?</Text>
+                            <Text style={styles.linkText}>{t('forgot_password_link')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={() => navigation.navigate('Register')} style={styles.linkButton}>
-                            <Text style={styles.linkText}>Create account</Text>
+                            <Text style={styles.linkText}>{t('create_account_link')}</Text>
                         </TouchableOpacity>
                     </View>
                 </Animated.View>

@@ -42,7 +42,7 @@ const OtpVerifyScreen: React.FC<any> = ({ navigation, route }) => {
 
     const handleVerify = async () => {
         if (code.trim().length !== 6) {
-            Alert.alert(t('error'), 'Введите 6-значный код / Enter the 6-digit code');
+            Alert.alert(t('error'), t('enter_otp_code'));
             return;
         }
 
@@ -68,9 +68,9 @@ const OtpVerifyScreen: React.FC<any> = ({ navigation, route }) => {
         } catch (error: any) {
             console.error('OTP verify error:', error);
             if (error?.response?.status === 429) {
-                Alert.alert(t('error'), 'Слишком много неудачных попыток. Попробуйте позже / Too many failed attempts. Try again later');
+                Alert.alert(t('error'), t('too_many_otp_attempts'));
             } else {
-                Alert.alert(t('error'), 'Неверный или истёкший код / Invalid or expired code');
+                Alert.alert(t('error'), t('invalid_or_expired_code'));
             }
         } finally {
             setLoading(false);
@@ -84,9 +84,9 @@ const OtpVerifyScreen: React.FC<any> = ({ navigation, route }) => {
                 <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
                     <View style={styles.header}>
                         <Text style={styles.emoji}>✉️</Text>
-                        <Text style={styles.title}>Код подтверждения / Verification code</Text>
+                        <Text style={styles.title}>{t('verification_code_title')}</Text>
                         <Text style={styles.subtitle}>
-                            Мы отправили код на вашу почту / We sent a code to your email
+                            {t('otp_sent_message')}
                         </Text>
                     </View>
 
@@ -108,7 +108,7 @@ const OtpVerifyScreen: React.FC<any> = ({ navigation, route }) => {
                         </TouchableOpacity>
 
                         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.linkButton}>
-                            <Text style={styles.linkText}>Назад / Back</Text>
+                            <Text style={styles.linkText}>{t('back')}</Text>
                         </TouchableOpacity>
                     </View>
                 </Animated.View>

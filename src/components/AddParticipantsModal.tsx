@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { searchUsers, addParticipants } from '../services/api';
 import { colors, spacing, borderRadius, shadows } from '../styles/theme';
+import { useLanguage } from '../context/LanguageContext';
 
 /**
  * Интерфейс пользователя
@@ -55,6 +56,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
     chatId,
     onParticipantsAdded,
 }) => {
+    const { t } = useLanguage();
     const [searchQuery, setSearchQuery] = useState('');
     const [users, setUsers] = useState<User[]>([]);
     const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
@@ -103,7 +105,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
      */
     const handleAdd = async () => {
         if (selectedUsers.length === 0) {
-            Alert.alert('Ошибка', 'Выберите хотя бы одного пользователя');
+            Alert.alert(t('error'), t('select_at_least_one_user'));
             return;
         }
 
@@ -117,7 +119,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
             setSearchQuery('');
             setUsers([]);
         } catch (error) {
-            Alert.alert('Ошибка', 'Не удалось добавить участников');
+            Alert.alert(t('error'), t('could_not_add_participants'));
         } finally {
             setLoading(false);
         }
@@ -169,7 +171,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
                 <View style={styles.modalContent}>
                     {/* Заголовок / Header */}
                     <View style={styles.header}>
-                        <Text style={styles.title}>Добавить участников</Text>
+                        <Text style={styles.title}>{t('add_participants_button')}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <Text style={styles.closeText}>✕</Text>
                         </TouchableOpacity>
@@ -178,7 +180,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
                     {/* Поиск / Search */}
                     <TextInput
                         style={styles.input}
-                        placeholder="Поиск по имени или email..."
+                        placeholder={t('search_users_placeholder')}
                         placeholderTextColor={colors.textMuted}
                         value={searchQuery}
                         onChangeText={searchUsersHandler}
@@ -199,7 +201,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
                             ListEmptyComponent={
                                 searchQuery.length >= 2 ? (
                                     <Text style={styles.emptyText}>
-                                        Пользователи не найдены
+                                        {t('no_users_found')}
                                     </Text>
                                 ) : null
                             }
@@ -209,7 +211,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
                     {/* Выбранные пользователи / Selected users count */}
                     <View style={styles.footer}>
                         <Text style={styles.selectedCount}>
-                            Выбрано: {selectedUsers.length}
+                            {t('selected_count')}: {selectedUsers.length}
                         </Text>
                         <TouchableOpacity
                             style={[styles.addButton, selectedUsers.length === 0 && styles.addButtonDisabled]}
@@ -219,7 +221,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
                             {loading ? (
                                 <ActivityIndicator color="#FFFFFF" size="small" />
                             ) : (
-                                <Text style={styles.addButtonText}>Добавить</Text>
+                                <Text style={styles.addButtonText}>{t('add_button')}</Text>
                             )}
                         </TouchableOpacity>
                     </View>

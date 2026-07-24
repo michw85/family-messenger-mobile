@@ -26,10 +26,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setToken, setRefreshToken } from '../services/authStorage';
 import FloatingClouds from '../components/FloatingClouds';
-import { useLanguage, showLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
+import { useLanguage, useLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
 import { register, updateFcmToken } from '../services/api';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
-import { isPasswordStrong, PASSWORD_RULES_MESSAGE } from '../utils/password';
+import { isPasswordStrong } from '../utils/password';
 import { colors, spacing, borderRadius, shadows } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -69,24 +69,24 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
      */
     const validateForm = (): boolean => {
         if (!username || !email || !password || !confirmPassword) {
-            Alert.alert(t('error'), 'Заполните все поля / Please fill all fields');
+            Alert.alert(t('error'), t('fill_all_fields'));
             return false;
         }
         if (username.length < 3) {
-            Alert.alert(t('error'), 'Имя пользователя должно содержать минимум 3 символа');
+            Alert.alert(t('error'), t('username_min_length'));
             return false;
         }
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            Alert.alert(t('error'), 'Введите корректный email');
+            Alert.alert(t('error'), t('invalid_email'));
             return false;
         }
         if (!isPasswordStrong(password)) {
-            Alert.alert(t('error'), PASSWORD_RULES_MESSAGE);
+            Alert.alert(t('error'), t('password_rules'));
             return false;
         }
         if (password !== confirmPassword) {
-            Alert.alert(t('error'), 'Пароли не совпадают');
+            Alert.alert(t('error'), t('passwords_dont_match'));
             return false;
         }
         return true;
@@ -129,7 +129,7 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
             const serverMessage = typeof data === 'string'
                 ? data
                 : (data?.message || data?.error || null);
-            Alert.alert(t('error'), serverMessage || 'Не удалось зарегистрироваться / Registration failed');
+            Alert.alert(t('error'), serverMessage || t('registration_failed'));
         } finally {
             setLoading(false);
         }
@@ -142,9 +142,7 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
         }
     };
 
-    const openLanguagePicker = () => {
-        showLanguagePicker(language, setLanguage, t('choose_language'));
-    };
+    const openLanguagePicker = useLanguagePicker();
 
     return (
         <LinearGradient
@@ -157,22 +155,22 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
                     <Animated.View style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                         <View style={styles.header}>
                             <Text style={styles.emoji}>🕊️</Text>
-                            <Text style={styles.title}>Присоединяйтесь / Join</Text>
-                            <Text style={styles.subtitle}>Создайте новый аккаунт / Create a new account</Text>
+                            <Text style={styles.title}>{t('join_title')}</Text>
+                            <Text style={styles.subtitle}>{t('create_account_subtitle')}</Text>
                             <TouchableOpacity onPress={openLanguagePicker} style={styles.langButton}>
                                 <Text style={styles.langText}>{LANGUAGE_META[language].flag}</Text>
                             </TouchableOpacity>
                         </View>
                         <View style={styles.form}>
-                            <TextInput style={styles.input} placeholder="Username" placeholderTextColor={colors.placeholder} value={username} onChangeText={setUsername} autoCapitalize="none" editable={!loading} />
+                            <TextInput style={styles.input} placeholder={t('username_placeholder')} placeholderTextColor={colors.placeholder} value={username} onChangeText={setUsername} autoCapitalize="none" editable={!loading} />
                             <TextInput style={styles.input} placeholder="Email" placeholderTextColor={colors.placeholder} value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" editable={!loading} />
-                            <TextInput style={styles.input} placeholder="Password" placeholderTextColor={colors.placeholder} value={password} onChangeText={setPassword} secureTextEntry editable={!loading} />
-                            <TextInput style={styles.input} placeholder="Confirm password" placeholderTextColor={colors.placeholder} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry editable={!loading} />
+                            <TextInput style={styles.input} placeholder={t('password_placeholder')} placeholderTextColor={colors.placeholder} value={password} onChangeText={setPassword} secureTextEntry editable={!loading} />
+                            <TextInput style={styles.input} placeholder={t('confirm_password_placeholder')} placeholderTextColor={colors.placeholder} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry editable={!loading} />
                             <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
                                 {loading ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>→</Text>}
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.linkButton}>
-                                <Text style={styles.linkText}>Уже есть аккаунт? Войти / Already have an account? Login</Text>
+                                <Text style={styles.linkText}>{t('already_have_account_link')}</Text>
                             </TouchableOpacity>
                         </View>
                     </Animated.View>

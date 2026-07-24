@@ -21,6 +21,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { SimpleModeProvider } from './src/context/SimpleModeContext';
+import { ActionSheetProvider } from './src/components/ActionSheet';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import OtpVerifyScreen from './src/screens/OtpVerifyScreen';
@@ -359,13 +360,15 @@ export default function App() {
             <SafeAreaProvider>
                 <ThemeProvider>
                     <ThemedStatusBar />
-                    <LanguageProvider>
-                        <SimpleModeProvider>
-                            <Initializer>
-                                <Navigation />
-                            </Initializer>
-                        </SimpleModeProvider>
-                    </LanguageProvider>
+                    <ActionSheetProvider>
+                        <LanguageProvider>
+                            <SimpleModeProvider>
+                                <Initializer>
+                                    <Navigation />
+                                </Initializer>
+                            </SimpleModeProvider>
+                        </LanguageProvider>
+                    </ActionSheetProvider>
                 </ThemeProvider>
             </SafeAreaProvider>
         </KeyboardProvider>

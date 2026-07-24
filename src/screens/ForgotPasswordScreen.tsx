@@ -35,20 +35,17 @@ const ForgotPasswordScreen: React.FC<any> = ({ navigation }) => {
 
     const handleSendCode = async () => {
         if (!email) {
-            Alert.alert(t('error'), 'Введите email / Enter your email');
+            Alert.alert(t('error'), t('enter_email'));
             return;
         }
         setLoading(true);
         try {
             await forgotPassword(email);
             setStep('reset');
-            Alert.alert(
-                '',
-                'Если этот email зарегистрирован, на него отправлен код\n\nIf this email is registered, a code has been sent'
-            );
+            Alert.alert('', t('reset_code_sent_message'));
         } catch (error) {
             console.error('Forgot password error:', error);
-            Alert.alert(t('error'), 'Не удалось отправить код / Could not send code');
+            Alert.alert(t('error'), t('could_not_send_code'));
         } finally {
             setLoading(false);
         }
@@ -56,7 +53,7 @@ const ForgotPasswordScreen: React.FC<any> = ({ navigation }) => {
 
     const handleResetPassword = async () => {
         if (!code || !newPassword) {
-            Alert.alert(t('error'), 'Заполните все поля / Please fill all fields');
+            Alert.alert(t('error'), t('fill_all_fields'));
             return;
         }
         setLoading(true);
@@ -64,13 +61,13 @@ const ForgotPasswordScreen: React.FC<any> = ({ navigation }) => {
             await resetPassword(email, code, newPassword);
             Alert.alert(
                 '',
-                'Пароль успешно изменён / Password reset successfully',
-                [{ text: 'OK', onPress: () => navigation.replace('Login') }]
+                t('password_reset_success'),
+                [{ text: t('ok'), onPress: () => navigation.replace('Login') }]
             );
         } catch (error: any) {
             const data = error?.response?.data;
             const message = typeof data === 'string' ? data : null;
-            Alert.alert(t('error'), message || 'Неверный или истёкший код / Invalid or expired code');
+            Alert.alert(t('error'), message || t('invalid_or_expired_code'));
         } finally {
             setLoading(false);
         }
@@ -89,12 +86,12 @@ const ForgotPasswordScreen: React.FC<any> = ({ navigation }) => {
                     </TouchableOpacity>
 
                     <Text style={styles.title}>
-                        {step === 'email' ? 'Забыли пароль?' : 'Новый пароль'}
+                        {step === 'email' ? t('forgot_password_title') : t('new_password_placeholder')}
                     </Text>
                     <Text style={styles.subtitle}>
                         {step === 'email'
-                            ? 'Введите email, указанный при регистрации / Enter the email you registered with'
-                            : 'Введите код из письма и новый пароль / Enter the emailed code and a new password'}
+                            ? t('enter_email_registered')
+                            : t('enter_code_and_new_password')}
                     </Text>
 
                     {step === 'email' ? (
@@ -113,7 +110,7 @@ const ForgotPasswordScreen: React.FC<any> = ({ navigation }) => {
                                 {loading ? (
                                     <ActivityIndicator color={colors.textLight} />
                                 ) : (
-                                    <Text style={styles.buttonText}>Отправить код / Send code</Text>
+                                    <Text style={styles.buttonText}>{t('send_code_button')}</Text>
                                 )}
                             </TouchableOpacity>
                         </View>
@@ -121,7 +118,7 @@ const ForgotPasswordScreen: React.FC<any> = ({ navigation }) => {
                         <View style={styles.form}>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Код из письма / Code from email"
+                                placeholder={t('code_from_email_placeholder')}
                                 placeholderTextColor={colors.textMuted}
                                 value={code}
                                 onChangeText={setCode}
@@ -130,7 +127,7 @@ const ForgotPasswordScreen: React.FC<any> = ({ navigation }) => {
                             />
                             <TextInput
                                 style={styles.input}
-                                placeholder="Новый пароль / New password"
+                                placeholder={t('new_password_placeholder')}
                                 placeholderTextColor={colors.textMuted}
                                 value={newPassword}
                                 onChangeText={setNewPassword}
@@ -141,11 +138,11 @@ const ForgotPasswordScreen: React.FC<any> = ({ navigation }) => {
                                 {loading ? (
                                     <ActivityIndicator color={colors.textLight} />
                                 ) : (
-                                    <Text style={styles.buttonText}>Сохранить пароль / Save password</Text>
+                                    <Text style={styles.buttonText}>{t('save_password_button')}</Text>
                                 )}
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => setStep('email')} style={styles.linkButton}>
-                                <Text style={styles.linkText}>Отправить код повторно / Resend code</Text>
+                                <Text style={styles.linkText}>{t('resend_code_link')}</Text>
                             </TouchableOpacity>
                         </View>
                     )}

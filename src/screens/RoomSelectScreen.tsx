@@ -23,7 +23,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FloatingClouds from '../components/FloatingClouds';
-import { useLanguage, showLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
+import { useLanguage, useLanguagePicker, LANGUAGE_META } from '../context/LanguageContext';
+import { useActionSheet } from '../components/ActionSheet';
 import { useTheme } from '../context/ThemeContext';
 import { useSimpleMode } from '../context/SimpleModeContext';
 import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat, logout } from '../services/api';
@@ -56,6 +57,7 @@ type ChatFilter = 'ALL' | 'PERSONAL' | 'GROUP';
  */
 const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const { t, language, setLanguage } = useLanguage();
+    const showActionSheet = useActionSheet();
     const { theme, colors, toggleTheme } = useTheme();
     const { simpleMode, toggleSimpleMode, fontScale } = useSimpleMode();
     const styles = useMemo(() => createStyles(colors, fontScale), [colors, fontScale]);
@@ -81,7 +83,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             setChats(response.data);
         } catch (error) {
             console.error('Failed to load chats:', error);
-            Alert.alert(t('error'), 'Не удалось загрузить чаты / Failed to load chats');
+            Alert.alert(t('error'), t('could_not_load_chats'));
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -130,7 +132,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             await createChat(name, backendType);
             await loadChats(); // обновить список
         } catch (error) {
-            Alert.alert(t('error'), 'Не удалось создать чат / Could not create chat');
+            Alert.alert(t('error'), t('could_not_create_chat'));
         }
     };
 
@@ -149,13 +151,11 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         const isGroup = item.type === 'GROUP';
 
         const buttons: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> = [
-            { text: 'Отмена / Cancel', style: 'cancel' },
+            { text: t('cancel'), style: 'cancel' },
         ];
 
         buttons.push({
-            text: item.mutedForCurrentUser
-                ? '🔔 Включить уведомления / Unmute'
-                : '🔕 Заглушить чат / Mute chat',
+            text: item.mutedForCurrentUser ? t('unmute_chat') : t('mute_chat'),
             onPress: async () => {
                 if (item.mutedForCurrentUser) {
                     await unmuteChat(item.id);
@@ -168,7 +168,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
 
         if (isGroup) {
             buttons.push({
-                text: 'Покинуть чат / Leave chat',
+                text: t('leave_chat'),
                 style: 'destructive',
                 onPress: async () => {
                     await leaveChat(item.id);
@@ -177,7 +177,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             });
             if (isCreator) {
                 buttons.push({
-                    text: 'Удалить для всех / Delete for everyone',
+                    text: t('delete_for_everyone'),
                     style: 'destructive',
                     onPress: async () => {
                         await deleteChat(item.id);
@@ -187,7 +187,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             }
         } else {
             buttons.push({
-                text: 'Удалить чат / Delete chat',
+                text: t('delete_chat'),
                 style: 'destructive',
                 onPress: async () => {
                     await leaveChat(item.id);
@@ -196,7 +196,13 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             });
         }
 
-        Alert.alert(item.name, undefined, buttons);
+        // showActionSheet вместо Alert.alert - у Android нативный AlertDialog
+        // поддерживает максимум 3 кнопки (positive/negative/neutral), лишние
+        // молча отбрасываются; здесь их может быть до 4
+        // showActionSheet instead of Alert.alert - Android's native AlertDialog
+        // only supports 3 buttons (positive/negative/neutral) and silently
+        // drops the rest; this menu can have up to 4
+        showActionSheet(item.name, buttons);
     };
 
     /**
@@ -265,9 +271,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
      * Переключение языка
      * Toggle language
      */
-    const openLanguagePicker = () => {
-        showLanguagePicker(language, setLanguage, t('choose_language'));
-    };
+    const openLanguagePicker = useLanguagePicker();
 
     if (loading) {
         return (
@@ -280,12 +284,12 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     /* Выйти из аккаунта/ Exit */
     const handleLogout = async () => {
         Alert.alert(
-            'Выйти из аккаунта?',
-            'Вы уверены?',
+            t('logout_confirm_title'),
+            t('logout_confirm_message'),
             [
-                { text: 'Отмена', style: 'cancel' },
+                { text: t('cancel'), style: 'cancel' },
                 {
-                    text: 'Выйти',
+                    text: t('logout_confirm_button'),
                     style: 'destructive',
                     onPress: async () => {
                         // Раньше здесь просто чистили AsyncStorage вручную, не трогая

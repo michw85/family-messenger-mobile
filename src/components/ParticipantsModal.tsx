@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { getParticipants, removeParticipant } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 import { spacing, borderRadius, shadows, AppColors } from '../styles/theme';
 
 interface Participant {
@@ -58,6 +59,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
     onAddPress,
 }) => {
     const { colors } = useTheme();
+    const { t } = useLanguage();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
     const [participants, setParticipants] = useState<Participant[]>([]);
@@ -71,7 +73,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
             setParticipants(response.data);
         } catch (error) {
             console.error('Failed to load participants:', error);
-            Alert.alert('Ошибка', 'Не удалось загрузить участников / Could not load participants');
+            Alert.alert(t('error'), t('could_not_load_participants'));
         } finally {
             setLoading(false);
         }
@@ -83,12 +85,12 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
 
     const handleRemove = (participant: Participant) => {
         Alert.alert(
-            'Удалить участника? / Remove participant?',
-            `Убрать ${participant.username} из чата? / Remove ${participant.username} from this chat?`,
+            t('remove_participant_confirm'),
+            t('remove_participant_message').replace('{name}', participant.username),
             [
-                { text: 'Отмена / Cancel', style: 'cancel' },
+                { text: t('cancel'), style: 'cancel' },
                 {
-                    text: 'Удалить / Remove',
+                    text: t('remove'),
                     style: 'destructive',
                     onPress: async () => {
                         setRemovingId(participant.id);
@@ -98,7 +100,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
                         } catch (error: any) {
                             const data = error?.response?.data;
                             const message = typeof data === 'string' ? data : null;
-                            Alert.alert('Ошибка', message || 'Не удалось удалить участника / Could not remove participant');
+                            Alert.alert(t('error'), message || t('could_not_remove_participant'));
                         } finally {
                             setRemovingId(null);
                         }
@@ -122,7 +124,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
                     <View style={[styles.statusDot, isOnline ? styles.statusOnline : styles.statusOffline]} />
                 </View>
                 <View style={styles.info}>
-                    <Text style={styles.username}>{item.username}{isMe ? ' (вы / you)' : ''}</Text>
+                    <Text style={styles.username}>{item.username}{isMe ? ` ${t('you_suffix')}` : ''}</Text>
                     <Text style={styles.email}>{item.email}</Text>
                 </View>
                 {!isMe && (
@@ -147,7 +149,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
             <View style={styles.overlay}>
                 <View style={styles.modalContent}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Участники чата / Participants</Text>
+                        <Text style={styles.title}>{t('participants_title')}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <Text style={styles.closeText}>✕</Text>
                         </TouchableOpacity>
@@ -167,7 +169,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
                     )}
 
                     <TouchableOpacity style={styles.addButton} onPress={onAddPress}>
-                        <Text style={styles.addButtonText}>+ Добавить участников / Add participants</Text>
+                        <Text style={styles.addButtonText}>+ {t('add_participants_button')}</Text>
                     </TouchableOpacity>
                 </View>
             </View>

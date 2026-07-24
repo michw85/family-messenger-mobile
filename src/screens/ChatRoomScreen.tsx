@@ -23,6 +23,7 @@ import {
     ActivityIndicator,
     Modal,
     Image,
+    ScrollView,
 } from 'react-native';
 import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +42,7 @@ import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { useActionSheet } from '../components/ActionSheet';
 import { useSimpleMode } from '../context/SimpleModeContext';
 import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction, getMemories } from '../services/api';
 import { connectWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
@@ -108,16 +110,30 @@ interface Message {
         content: string;
         type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
         deleted: boolean;
+        revealAt?: string | null;
     } | null;
     reactions?: { emoji: string; count: number; usernames: string[] }[];
     revealAt?: string | null;
 }
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
+// Набор эмодзи для пикера в поле ввода - не полная unicode-клавиатура, а
+// компактная подборка самых ходовых, чтобы вставить эмодзи в текст сообщения
+// Emoji picker set for the input field - not a full unicode keyboard, just a
+// compact set of the most common ones, for inserting an emoji into message text
+const EMOJI_PICKER_SET = [
+    '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😊',
+    '😇', '🥰', '😍', '😘', '😋', '😛', '😜', '🤪', '🤨', '🧐',
+    '😎', '🥳', '😏', '😒', '😔', '😟', '🙁', '😣', '😢', '😭',
+    '😤', '😠', '😡', '🥺', '😳', '🥵', '🥶', '😱', '😨', '🤗',
+    '🤔', '🤭', '🙄', '😴', '🤤', '🤢', '🤮', '🤧', '😷', '🤒',
+    '👍', '👎', '👌', '✌️', '🤞', '🤟', '👏', '🙌', '🙏', '💪',
+    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '💔', '💕', '💯',
+    '🎉', '🎁', '🔥', '⭐', '✨', '🌟', '☀️', '🌙', '☕', '🍀',
+];
 // Быстрые реакции для чек-ина настроения - показываются вместо обычных QUICK_REACTIONS
 // Quick reactions for the mood check-in - shown instead of the regular QUICK_REACTIONS
 const MOOD_REACTIONS = ['😊', '😐', '😢', '😡', '😴', '🥳'];
-const MOOD_CHECKIN_PROMPT = 'Как настроение сегодня? Ответь эмодзи 👇 / How are you feeling today? React with an emoji 👇';
 
 /**
  * Экран чата
@@ -128,6 +144,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const { t } = useLanguage();
     const { theme, colors } = useTheme();
     const { fontScale } = useSimpleMode();
+    const showActionSheet = useActionSheet();
     const styles = useMemo(() => createStyles(colors, fontScale), [colors, fontScale]);
     const insets = useSafeAreaInsets();
     // Надёжный флаг видимости клавиатуры из той же библиотеки, что и
@@ -149,6 +166,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [addParticipantsVisible, setAddParticipantsVisible] = useState(false);
     const [participantsVisible, setParticipantsVisible] = useState(false);
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
+    const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [typingUser, setTypingUser] = useState<string | null>(null);
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -472,9 +490,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 } as any);
                 const uploadRes = await uploadFile(formData, isVideo ? 'video' : 'image');
                 const mediaUrl = uploadRes.data.url;
-                wsSendMessage(roomId, isVideo ? '🎥 Video' : '📷 Photo', isVideo ? 'VIDEO' : 'IMAGE', mediaUrl);
+                wsSendMessage(roomId, isVideo ? `🎥 ${t('video')}` : `📷 ${t('photo')}`, isVideo ? 'VIDEO' : 'IMAGE', mediaUrl);
             } catch (error) {
-                Alert.alert(t('error'), isVideo ? 'Failed to send video' : 'Failed to send image');
+                Alert.alert(t('error'), isVideo ? t('failed_to_send_video') : t('failed_to_send_image'));
             } finally {
                 setSending(false);
             }
@@ -503,11 +521,11 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         if (mime.startsWith('video/')) {
             uploadType = 'video';
             messageType = 'VIDEO';
-            messageContent = '🎥 Video';
+            messageContent = `🎥 ${t('video')}`;
         } else if (mime.startsWith('image/')) {
             uploadType = 'image';
             messageType = 'IMAGE';
-            messageContent = '📷 Photo';
+            messageContent = `📷 ${t('photo')}`;
         }
 
         setSending(true);
@@ -523,7 +541,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             wsSendMessage(roomId, messageContent, messageType, mediaUrl);
         } catch (error) {
             console.error('Failed to send file:', error);
-            Alert.alert(t('error'), 'Failed to send file');
+            Alert.alert(t('error'), t('failed_to_send_file'));
         } finally {
             setSending(false);
         }
@@ -537,9 +555,12 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      * respond to with mood emoji (reuses the existing reactions system)
      */
     const sendMoodCheckin = useCallback(() => {
-        if (!stompClientRef.current) return;
-        wsSendMessage(roomId, MOOD_CHECKIN_PROMPT, 'MOOD_CHECKIN');
-    }, [roomId]);
+        if (!stompClientRef.current) {
+            Alert.alert(t('error'), t('connection_not_ready'));
+            return;
+        }
+        wsSendMessage(roomId, t('mood_checkin_prompt'), 'MOOD_CHECKIN');
+    }, [roomId, t]);
 
     /**
      * Отправить "капсулу времени" на точный момент: текст из поля ввода
@@ -571,7 +592,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      */
     const pickCapsuleDateTime = useCallback(() => {
         if (!inputText.trim()) {
-            Alert.alert(t('error'), 'Сначала напишите текст в поле ввода / Type a message in the input first');
+            Alert.alert(t('error'), t('type_message_first'));
             return;
         }
         const now = new Date();
@@ -606,41 +627,44 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      * Chat extras menu: mood check-in and time capsule
      */
     const openExtrasMenu = useCallback(() => {
-        Alert.alert('', '', [
-            { text: 'Отмена / Cancel', style: 'cancel' },
-            { text: '🙂 Чек-ин настроения / Mood check-in', onPress: sendMoodCheckin },
+        showActionSheet('', [
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('mood_checkin_menu_item'), onPress: sendMoodCheckin },
             {
-                text: '🎁 Капсула времени / Time capsule',
+                text: t('time_capsule_menu_item'),
                 onPress: () => {
                     if (!inputText.trim()) {
-                        Alert.alert(t('error'), 'Сначала напишите текст в поле ввода / Type a message in the input first');
+                        Alert.alert(t('error'), t('type_message_first'));
                         return;
                     }
-                    Alert.alert('Открыть через... / Open in...', '', [
-                        { text: 'Отмена / Cancel', style: 'cancel' },
-                        { text: '📅 Выбрать дату и время / Pick date & time', onPress: pickCapsuleDateTime },
-                        { text: 'Час / An hour', onPress: () => sendTimeCapsuleIn(60 * 60 * 1000) },
-                        { text: 'Завтра / Tomorrow', onPress: () => sendTimeCapsuleIn(24 * 60 * 60 * 1000) },
-                        { text: 'Неделю / A week', onPress: () => sendTimeCapsuleIn(7 * 24 * 60 * 60 * 1000) },
-                        { text: 'Месяц / A month', onPress: () => sendTimeCapsuleIn(30 * 24 * 60 * 60 * 1000) },
-                        { text: 'Год / A year', onPress: () => sendTimeCapsuleIn(365 * 24 * 60 * 60 * 1000) },
+                    showActionSheet(t('open_in'), [
+                        { text: t('cancel'), style: 'cancel' },
+                        { text: t('pick_date_time'), onPress: pickCapsuleDateTime },
+                        { text: t('in_an_hour'), onPress: () => sendTimeCapsuleIn(60 * 60 * 1000) },
+                        { text: t('tomorrow'), onPress: () => sendTimeCapsuleIn(24 * 60 * 60 * 1000) },
+                        { text: t('in_a_week'), onPress: () => sendTimeCapsuleIn(7 * 24 * 60 * 60 * 1000) },
+                        { text: t('in_a_month'), onPress: () => sendTimeCapsuleIn(30 * 24 * 60 * 60 * 1000) },
+                        { text: t('in_a_year'), onPress: () => sendTimeCapsuleIn(365 * 24 * 60 * 60 * 1000) },
                     ]);
                 },
             },
         ]);
-    }, [sendMoodCheckin, sendTimeCapsuleIn, pickCapsuleDateTime, inputText, t]);
+    }, [sendMoodCheckin, sendTimeCapsuleIn, pickCapsuleDateTime, inputText, t, showActionSheet]);
 
     /**
      * Описание содержимого сообщения одной строкой для текстового экспорта
      * One-line description of a message's content for the text export
      */
     const describeMessageForExport = (m: Message): string => {
-        if (m.deleted) return '[Сообщение удалено / Message deleted]';
+        if (m.deleted) return `[${t('message_deleted')}]`;
+        if (m.revealAt && new Date(m.revealAt).getTime() > Date.now()) {
+            return t('time_capsule_sealed').replace('{date}', `${formatMessageDate(m.revealAt, t)}, ${formatMessageTime(m.revealAt, t)}`);
+        }
         switch (m.type) {
-            case 'IMAGE': return `[Фото / Photo] ${m.mediaUrl || ''}`;
-            case 'VOICE': return `[Голосовое сообщение / Voice message] ${m.mediaUrl || ''}`;
-            case 'VIDEO': return `[Видео / Video] ${m.mediaUrl || ''}`;
-            case 'FILE': return `[Файл / File] ${m.content} ${m.mediaUrl || ''}`;
+            case 'IMAGE': return `[${t('photo')}] ${m.mediaUrl || ''}`;
+            case 'VOICE': return `[${t('voice_message')}] ${m.mediaUrl || ''}`;
+            case 'VIDEO': return `[${t('video')}] ${m.mediaUrl || ''}`;
+            case 'FILE': return `[${t('file_label')}] ${m.content} ${m.mediaUrl || ''}`;
             default: return m.content;
         }
     };
@@ -679,11 +703,11 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             if (canShare) {
                 await Sharing.shareAsync(file.uri, { mimeType: 'text/plain', dialogTitle: 'Export chat' });
             } else {
-                Alert.alert(t('error'), 'Sharing is not available on this device');
+                Alert.alert(t('error'), t('sharing_not_available'));
             }
         } catch (error) {
             console.error('Failed to export chat:', error);
-            Alert.alert(t('error'), 'Не удалось экспортировать чат / Could not export chat');
+            Alert.alert(t('error'), t('could_not_export_chat'));
         } finally {
             setExporting(false);
         }
@@ -703,7 +727,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         try {
             const { granted } = await requestRecordingPermissionsAsync();
             if (!granted) {
-                Alert.alert(t('error'), 'Нет доступа к микрофону');
+                Alert.alert(t('error'), t('no_mic_access'));
                 return;
             }
 
@@ -718,7 +742,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             console.log('Recording started');
         } catch (err) {
             console.error('Failed to start recording', err);
-            Alert.alert(t('error'), 'Не удалось начать запись');
+            Alert.alert(t('error'), t('could_not_start_recording'));
         }
     }, [recorder, t]);
 
@@ -752,10 +776,10 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
             const uploadRes = await uploadFile(formData, 'voice');
             const mediaUrl = uploadRes.data.url;
-            wsSendMessage(roomId, '🎤 Voice message', 'VOICE', mediaUrl);
+            wsSendMessage(roomId, `🎤 ${t('voice_message')}`, 'VOICE', mediaUrl);
         } catch (error) {
             console.error('Failed to send voice message', error);
-            Alert.alert(t('error'), 'Не удалось отправить голосовое сообщение');
+            Alert.alert(t('error'), t('could_not_send_voice'));
         } finally {
             setIsRecording(false);
         }
@@ -797,9 +821,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         const index = displayData.findIndex(m => m.id === result.id);
         if (index === -1) {
             Alert.alert(
-                t('error') === 'Error' ? 'Not loaded yet' : 'Пока не загружено',
-                `${formatMessageDate(result.timestamp)}, ${formatMessageTime(result.timestamp)}: ${result.content}\n\n` +
-                'Прокрутите чат вверх, чтобы подгрузить более старые сообщения / Scroll up to load older messages'
+                t('not_loaded_yet'),
+                `${formatMessageDate(result.timestamp, t)}, ${formatMessageTime(result.timestamp, t)}: ${result.content}\n\n` +
+                t('scroll_up_for_older')
             );
             return;
         }
@@ -837,19 +861,19 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         });
 
         options.push({
-            text: 'Ответить / Reply',
+            text: t('reply'),
             onPress: () => setReplyingTo(item),
         });
 
         if (item.type === 'TEXT' && item.content) {
             options.push({
-                text: 'Копировать / Copy',
+                text: t('copy'),
                 onPress: () => Clipboard.setStringAsync(item.content),
             });
         }
         if (isMine && item.type === 'TEXT') {
             options.push({
-                text: 'Редактировать / Edit',
+                text: t('edit'),
                 onPress: () => {
                     setEditingMessage(item);
                     setEditText(item.content);
@@ -858,16 +882,16 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         }
         if (isMine) {
             options.push({
-                text: 'Удалить / Delete',
+                text: t('delete'),
                 style: 'destructive',
                 onPress: () => {
                     Alert.alert(
-                        'Удалить сообщение? / Delete message?',
+                        t('delete_message_confirm'),
                         '',
                         [
-                            { text: 'Отмена / Cancel', style: 'cancel' },
+                            { text: t('cancel'), style: 'cancel' },
                             {
-                                text: 'Удалить / Delete',
+                                text: t('delete'),
                                 style: 'destructive',
                                 onPress: async () => {
                                     try {
@@ -875,7 +899,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                         applyMessageUpdate(response.data);
                                     } catch (error) {
                                         console.error('Failed to delete message:', error);
-                                        Alert.alert(t('error'), 'Не удалось удалить сообщение / Could not delete message');
+                                        Alert.alert(t('error'), t('could_not_delete_message'));
                                     }
                                 },
                             },
@@ -886,9 +910,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         }
 
         if (options.length === 0) return;
-        options.push({ text: 'Отмена / Cancel', style: 'cancel' });
-        Alert.alert('', '', options);
-    }, [currentUsername, roomId, applyMessageUpdate, handleToggleReaction, t]);
+        options.push({ text: t('cancel'), style: 'cancel' });
+        showActionSheet('', options);
+    }, [currentUsername, roomId, applyMessageUpdate, handleToggleReaction, t, showActionSheet]);
 
     /**
      * Сохранение отредактированного текста сообщения
@@ -903,7 +927,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             setEditText('');
         } catch (error) {
             console.error('Failed to edit message:', error);
-            Alert.alert(t('error'), 'Не удалось изменить сообщение / Could not edit message');
+            Alert.alert(t('error'), t('could_not_edit_message'));
         }
     }, [editingMessage, editText, roomId, applyMessageUpdate, t]);
 
@@ -914,17 +938,20 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const renderMessage = useCallback(({ item }: { item: Message }) => {
         const isMyMessage = item.sender.username === currentUsername;
 
-        // Ещё не раскрытая капсула времени - бэкенд уже прислал вместо content
-        // текст-заглушку "откроется ...", здесь просто рисуем её отдельной карточкой
-        // A still-sealed time capsule - the backend already sent a "opens at ..."
-        // placeholder as content, here we just render it as a separate card
+        // Ещё не раскрытая капсула времени - бэкенд не присылает content (только
+        // revealAt), заглушку строим на клиенте, чтобы дата и текст были на языке
+        // интерфейса, а не захардкожены на бэкенде
+        // A still-sealed time capsule - the backend sends no content (only
+        // revealAt), we build the placeholder on the client so the date and text
+        // follow the interface language instead of being hardcoded on the backend
         const isSealedCapsule = !!item.revealAt && new Date(item.revealAt).getTime() > Date.now();
         if (isSealedCapsule) {
+            const revealText = `${formatMessageDate(item.revealAt!, t)}, ${formatMessageTime(item.revealAt!, t)}`;
             return (
                 <View style={{ alignItems: 'center' }}>
                     <View style={styles.moodCheckinCard}>
                         <Text style={styles.moodCheckinIcon}>🎁</Text>
-                        <Text style={styles.moodCheckinText}>{item.content}</Text>
+                        <Text style={styles.moodCheckinText}>{t('time_capsule_sealed').replace('{date}', revealText)}</Text>
                     </View>
                 </View>
             );
@@ -939,7 +966,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 <View>
                     <TouchableOpacity
                         style={styles.moodCheckinCard}
-                        onLongPress={() => handleMessageLongPress(item)}
+                        onPress={() => handleMessageLongPress(item)}
                         activeOpacity={0.85}
                     >
                         <Text style={styles.moodCheckinIcon}>🙂</Text>
@@ -947,6 +974,63 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     </TouchableOpacity>
                     {!!item.reactions?.length && (
                         <View style={[styles.reactionsRow, styles.reactionsRowCenter]}>
+                            {item.reactions.map((r) => (
+                                <TouchableOpacity
+                                    key={r.emoji}
+                                    style={[styles.reactionPill, r.usernames.includes(currentUsername) && styles.reactionPillMine]}
+                                    onPress={() => handleToggleReaction(item.id, r.emoji)}
+                                >
+                                    <Text style={styles.reactionPillText}>{r.emoji} {r.count}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
+                </View>
+            );
+        }
+
+        // Видео рендерится нативным плеером (expo-video, свои элементы управления
+        // play/pause/перемотка) - если обернуть его в TouchableOpacity с onLongPress,
+        // как остальные типы сообщений, внешний обработчик жестов перехватывает
+        // касания, предназначенные плееру (либо видео не реагирует на тап, либо
+        // случайно триггерится долгое нажатие вместо игры). Поэтому для видео
+        // оборачиваем только в обычный View (плеер получает все касания напрямую),
+        // а меню реакций/действий открывается отдельной кнопкой "⋯" в углу.
+        // Video renders via a native player (expo-video, with its own
+        // play/pause/scrub controls) - wrapping it in a TouchableOpacity with
+        // onLongPress like other message types makes the outer gesture handler
+        // steal touches meant for the player (either the video ignores taps, or
+        // a long-press fires by accident instead of playback). So for video we
+        // wrap in a plain View only (the player gets every touch directly), and
+        // the reactions/actions menu opens via a separate "⋯" corner button.
+        if (item.type === 'VIDEO' && !item.deleted) {
+            return (
+                <View>
+                    <View>
+                        <ThoughtBubble
+                            content={item.content}
+                            sender={item.sender.username}
+                            timestamp={formatMessageTime(item.timestamp, t)}
+                            isMyMessage={isMyMessage}
+                            type={item.type}
+                            mediaUrl={item.mediaUrl}
+                            grouped={item.grouped}
+                            edited={item.edited}
+                            deletedPlaceholder={false}
+                            read={item.read}
+                            replyTo={item.replyTo}
+                            fontScale={fontScale}
+                        />
+                        <TouchableOpacity
+                            style={styles.videoMenuButton}
+                            onPress={() => handleMessageLongPress(item)}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Text style={styles.videoMenuButtonText}>⋯</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {!!item.reactions?.length && (
+                        <View style={[styles.reactionsRow, isMyMessage ? styles.reactionsRowMy : styles.reactionsRowTheirs]}>
                             {item.reactions.map((r) => (
                                 <TouchableOpacity
                                     key={r.emoji}
@@ -975,9 +1059,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 activeOpacity={item.type === 'IMAGE' ? 0.7 : 1}
             >
                 <ThoughtBubble
-                    content={item.deleted ? 'Сообщение удалено / Message deleted' : item.content}
+                    content={item.deleted ? t('message_deleted') : item.content}
                     sender={item.sender.username}
-                    timestamp={formatMessageTime(item.timestamp)}
+                    timestamp={formatMessageTime(item.timestamp, t)}
                     isMyMessage={isMyMessage}
                     type={item.deleted ? 'TEXT' : item.type}
                     mediaUrl={item.deleted ? undefined : item.mediaUrl}
@@ -1004,7 +1088,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             )}
         </View>
         );
-    }, [currentUsername, handleMessageLongPress, handleToggleReaction, styles, fontScale]);
+    }, [currentUsername, handleMessageLongPress, handleToggleReaction, styles, fontScale, t]);
 
     const keyExtractor = useCallback((item: Message) => item.id, []);
 
@@ -1086,7 +1170,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                         style={styles.searchInput}
                                         value={searchQuery}
                                         onChangeText={setSearchQuery}
-                                        placeholder="Поиск по чату / Search chat"
+                                        placeholder={t('search_chat_placeholder')}
                                         placeholderTextColor={colors.textMuted}
                                         autoFocus
                                     />
@@ -1131,7 +1215,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                 {searching ? (
                                     <ActivityIndicator size="small" color={colors.primary} style={{ padding: spacing.md }} />
                                 ) : searchResults.length === 0 ? (
-                                    <Text style={styles.searchEmptyText}>Ничего не найдено / Nothing found</Text>
+                                    <Text style={styles.searchEmptyText}>{t('nothing_found')}</Text>
                                 ) : (
                                     <FlatList
                                         data={searchResults}
@@ -1142,7 +1226,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                                 <Text style={styles.searchResultSender}>{item.sender.username}</Text>
                                                 <Text style={styles.searchResultContent} numberOfLines={1}>{item.content}</Text>
                                                 <Text style={styles.searchResultDate}>
-                                                    {formatMessageDate(item.timestamp)}, {formatMessageTime(item.timestamp)}
+                                                    {formatMessageDate(item.timestamp, t)}, {formatMessageTime(item.timestamp, t)}
                                                 </Text>
                                             </TouchableOpacity>
                                         )}
@@ -1244,6 +1328,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                 >
                                     <Text style={styles.iconText}>{isRecording ? '🔴' : '🎙️'}</Text>
                                 </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setEmojiPickerVisible(true)} style={styles.iconButton} disabled={sending}>
+                                    <Text style={styles.iconText}>😀</Text>
+                                </TouchableOpacity>
                                 <TextInput
                                     style={styles.input}
                                     value={inputText}
@@ -1269,7 +1356,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             onClose={() => setAddParticipantsVisible(false)}
                             chatId={roomId}
                             onParticipantsAdded={() => {
-                                Alert.alert('Участники добавлены');
+                                Alert.alert(t('participants_added'));
                                 // При необходимости можно перезагрузить список участников
                             }}
                         />
@@ -1292,6 +1379,37 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         onRequestClose={() => setImageViewerVisible(false)}
                     />
 
+                    {/* Пикер эмодзи для вставки в текст сообщения / Emoji picker for inserting into message text */}
+                    <Modal
+                        visible={emojiPickerVisible}
+                        transparent
+                        animationType="slide"
+                        onRequestClose={() => setEmojiPickerVisible(false)}
+                    >
+                        <TouchableOpacity
+                            style={styles.emojiPickerOverlay}
+                            activeOpacity={1}
+                            onPress={() => setEmojiPickerVisible(false)}
+                        >
+                            <TouchableOpacity activeOpacity={1} style={styles.emojiPickerSheet}>
+                                <ScrollView contentContainerStyle={styles.emojiPickerGrid}>
+                                    {EMOJI_PICKER_SET.map((emoji, index) => (
+                                        <TouchableOpacity
+                                            key={`${emoji}-${index}`}
+                                            style={styles.emojiPickerItem}
+                                            onPress={() => {
+                                                handleInputChange(inputText + emoji);
+                                                setEmojiPickerVisible(false);
+                                            }}
+                                        >
+                                            <Text style={styles.emojiPickerItemText}>{emoji}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </TouchableOpacity>
+                        </TouchableOpacity>
+                    </Modal>
+
                     {/* Модалка редактирования сообщения / Message editing modal */}
                     <Modal
                         visible={!!editingMessage}
@@ -1301,7 +1419,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     >
                         <View style={styles.editModalOverlay}>
                             <View style={styles.editModalBox}>
-                                <Text style={styles.editModalTitle}>Редактировать сообщение / Edit message</Text>
+                                <Text style={styles.editModalTitle}>{t('edit_message_title')}</Text>
                                 <TextInput
                                     style={styles.editModalInput}
                                     value={editText}
@@ -1311,10 +1429,10 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                 />
                                 <View style={styles.editModalButtons}>
                                     <TouchableOpacity onPress={() => setEditingMessage(null)} style={styles.editModalCancelButton}>
-                                        <Text style={styles.editModalCancelText}>Отмена / Cancel</Text>
+                                        <Text style={styles.editModalCancelText}>{t('cancel')}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={saveEditedMessage} style={styles.editModalSaveButton}>
-                                        <Text style={styles.editModalSaveText}>Сохранить / Save</Text>
+                                        <Text style={styles.editModalSaveText}>{t('save')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -1329,7 +1447,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     >
                         <View style={styles.editModalOverlay}>
                             <View style={[styles.editModalBox, { maxHeight: '75%' }]}>
-                                <Text style={styles.editModalTitle}>📅 Год назад в этот день / A year ago today</Text>
+                                <Text style={styles.editModalTitle}>📅 {t('year_ago_today_title')}</Text>
                                 <FlatList
                                     data={memories}
                                     keyExtractor={(item) => item.id}
@@ -1337,15 +1455,15 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     renderItem={({ item }) => (
                                         <View style={styles.memoryItem}>
                                             <Text style={styles.memoryItemHeader}>
-                                                {item.sender.username} · {formatMessageDate(item.timestamp)}
+                                                {item.sender.username} · {formatMessageDate(item.timestamp, t)}
                                             </Text>
                                             {item.type === 'IMAGE' && item.mediaUrl ? (
                                                 <Image source={{ uri: item.mediaUrl }} style={styles.memoryItemImage} />
                                             ) : (
                                                 <Text style={styles.memoryItemContent} numberOfLines={4}>
                                                     {item.type === 'TEXT' ? item.content
-                                                        : item.type === 'VOICE' ? '🎤 Голосовое сообщение / Voice message'
-                                                        : item.type === 'VIDEO' ? '🎥 Видео / Video'
+                                                        : item.type === 'VOICE' ? `🎤 ${t('voice_message')}`
+                                                        : item.type === 'VIDEO' ? `🎥 ${t('video')}`
                                                         : item.content}
                                                 </Text>
                                             )}
@@ -1353,7 +1471,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     )}
                                 />
                                 <TouchableOpacity onPress={() => setMemoriesVisible(false)} style={styles.editModalCancelButton}>
-                                    <Text style={styles.editModalCancelText}>Закрыть / Close</Text>
+                                    <Text style={styles.editModalCancelText}>{t('close')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -1368,7 +1486,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         >
                             <View style={styles.editModalOverlay}>
                                 <View style={styles.editModalBox}>
-                                    <Text style={styles.editModalTitle}>Когда открыть капсулу? / When to open the capsule?</Text>
+                                    <Text style={styles.editModalTitle}>{t('when_to_open_capsule')}</Text>
                                     <DateTimePicker
                                         value={iosCapsuleDate}
                                         mode="datetime"
@@ -1379,7 +1497,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     />
                                     <View style={styles.editModalButtons}>
                                         <TouchableOpacity onPress={() => setIosCapsulePickerVisible(false)} style={styles.editModalCancelButton}>
-                                            <Text style={styles.editModalCancelText}>Отмена / Cancel</Text>
+                                            <Text style={styles.editModalCancelText}>{t('cancel')}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             onPress={() => {
@@ -1388,7 +1506,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                             }}
                                             style={styles.editModalSaveButton}
                                         >
-                                            <Text style={styles.editModalSaveText}>Готово / Done</Text>
+                                            <Text style={styles.editModalSaveText}>{t('done')}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -1509,6 +1627,18 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
     replyPreviewBarText: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
     replyPreviewBarClose: { padding: spacing.xs },
     replyPreviewBarCloseText: { fontSize: 14, color: colors.textSecondary },
+    videoMenuButton: {
+        position: 'absolute',
+        top: spacing.xs,
+        right: spacing.xs,
+        width: 28,
+        height: 28,
+        borderRadius: borderRadius.circle,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    videoMenuButtonText: { fontSize: 16, color: '#FFFFFF', fontWeight: '700' },
     reactionsRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -1673,6 +1803,32 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         marginTop: 2,
     },
     // Модалка редактирования / Edit modal
+    emojiPickerOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(26, 37, 48, 0.4)',
+        justifyContent: 'flex-end',
+    },
+    emojiPickerSheet: {
+        backgroundColor: colors.backgroundLight,
+        borderTopLeftRadius: borderRadius.large,
+        borderTopRightRadius: borderRadius.large,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.xl,
+        maxHeight: '50%',
+    },
+    emojiPickerGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-start',
+    },
+    emojiPickerItem: {
+        width: '12.5%',
+        aspectRatio: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    emojiPickerItemText: { fontSize: 26 },
     editModalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(26, 37, 48, 0.4)',

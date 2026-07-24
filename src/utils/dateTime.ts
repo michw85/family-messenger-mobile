@@ -15,24 +15,27 @@ const parseServerDate = (timestamp: string | Date): Date => {
     return new Date(`${timestamp}Z`);
 };
 
-export const formatMessageTime = (timestamp: string | Date): string => {
-    return parseServerDate(timestamp).toLocaleTimeString([], {
+type Translate = (key: string) => string;
+
+export const formatMessageTime = (timestamp: string | Date, t: Translate): string => {
+    return parseServerDate(timestamp).toLocaleTimeString(t('date_locale'), {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false // или true для AM/PM
     });
 };
 
-export const formatMessageDate = (timestamp: string | Date): string => {
+export const formatMessageDate = (timestamp: string | Date, t: Translate): string => {
     const date = parseServerDate(timestamp);
+    const locale = t('date_locale');
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const msgDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    
+
     const diffDays = Math.floor((today.getTime() - msgDate.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Сегодня';
-    if (diffDays === 1) return 'Вчера';
-    if (diffDays < 7) return date.toLocaleDateString('ru-RU', { weekday: 'long' });
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    if (diffDays === 0) return t('today');
+    if (diffDays === 1) return t('yesterday');
+    if (diffDays < 7) return date.toLocaleDateString(locale, { weekday: 'long' });
+    return date.toLocaleDateString(locale, { day: 'numeric', month: 'long', year: 'numeric' });
 };
