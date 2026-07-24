@@ -136,7 +136,7 @@ export const logout = async () => {
 
 // Chats endpoints
 export const fetchChats = () => api.get('/chats');
-export const createChat = (name: string, type: 'GROUP' | 'FAMILY') =>
+export const createChat = (name: string, type: 'GROUP' | 'DIRECT') =>
   api.post('/chats', { name, type });
 export const deleteChat = (chatId: string) => api.delete(`/chats/${chatId}`);
 // Покинуть чат (группа) / удалить чат только у себя (личный чат)

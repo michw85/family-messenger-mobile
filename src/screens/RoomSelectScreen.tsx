@@ -126,8 +126,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
      * @param type - тип чата: 'group' (GROUP) или 'private' (DIRECT)
      */
     const handleCreateChat = async (name: string, type: 'group' | 'private') => {
-        // Для личных чатов используем 'FAMILY' (или 'DIRECT', если бэкенд поддерживает)
-        const backendType = type === 'group' ? 'GROUP' : 'FAMILY';
+        const backendType = type === 'group' ? 'GROUP' : 'DIRECT';
         try {
             await createChat(name, backendType);
             await loadChats(); // обновить список
