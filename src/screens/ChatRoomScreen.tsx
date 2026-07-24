@@ -1253,14 +1253,6 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     <TouchableOpacity style={{ flex: 1 }} onPress={() => setParticipantsVisible(true)} activeOpacity={0.7}>
                                         <Text style={styles.headerTitle}>{roomName}</Text>
                                     </TouchableOpacity>
-                                    {liveRoomType === 'DIRECT' && liveOtherParticipant && (
-                                        <TouchableOpacity
-                                            onPress={() => startOutgoingCall(roomId, roomName, liveOtherParticipant)}
-                                            style={[styles.iconHeaderButton, styles.callButton]}
-                                        >
-                                            <Text style={styles.iconText}>📞</Text>
-                                        </TouchableOpacity>
-                                    )}
                                     <TouchableOpacity onPress={() => setSearchVisible(true)} style={styles.iconHeaderButton}>
                                         <Text style={styles.iconText}>🔍</Text>
                                     </TouchableOpacity>
@@ -1274,6 +1266,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
                                         <Text style={styles.addButtonText}>+</Text>
                                     </TouchableOpacity>
+                                    {liveRoomType === 'DIRECT' && liveOtherParticipant && (
+                                        <TouchableOpacity
+                                            onPress={() => startOutgoingCall(roomId, roomName, liveOtherParticipant)}
+                                            style={[styles.iconHeaderButton, styles.callButton]}
+                                        >
+                                            <Text style={styles.iconText}>📞</Text>
+                                        </TouchableOpacity>
+                                    )}
                                 </>
                             )}
                         </View>
