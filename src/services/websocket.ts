@@ -39,6 +39,22 @@ export const connectWebSocket = async (token: string): Promise<Client> => {
             onStompError: (frame) => {
                 console.error('STOMP error', frame);
                 reject(frame);
+                // Ошибка STOMP (например "Invalid JWT token") означает, что
+                // сервер отверг само соединение - слепой автоповтор через
+                // reconnectDelay использовал бы тот же самый (уже
+                // недействительный) токен из connectHeaders вечно, спамя той
+                // же ошибкой. Останавливаем клиент, а не даём ему повторять
+                // заведомо провальную попытку.
+                // A STOMP error (e.g. "Invalid JWT token") means the server
+                // rejected the connection itself - blind auto-reconnect via
+                // reconnectDelay would keep using the same (now invalid)
+                // token from connectHeaders forever, spamming the same
+                // error. Stop the client instead of letting it repeat a
+                // doomed attempt.
+                client.deactivate();
+                if (stompClient === client) {
+                    stompClient = null;
+                }
             },
             onWebSocketClose: () => console.log('🔌 WebSocket closed'),
             onWebSocketError: (event) => console.error('❌ WebSocket error', event),

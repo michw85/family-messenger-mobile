@@ -9,7 +9,8 @@ import {
 } from 'react-native-webrtc';
 import { setAuthLoggedInHandler, setAuthExpiredHandler } from '../utils/authEvents';
 import { acquireWebSocket, releaseWebSocket, subscribeToCallQueue, sendCallSignal } from '../services/websocket';
-import { getTurnCredentials, logCall } from '../services/api';
+import { getTurnCredentials, logCall, getCurrentUser } from '../services/api';
+import { getToken } from '../services/authStorage';
 import { navigationRef } from '../services/navigationRef';
 import { useLanguage } from './LanguageContext';
 
@@ -263,10 +264,33 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [endCall, setCallState]);
 
     useEffect(() => {
-        const removeLoggedIn = setAuthLoggedInHandler((token) => {
-            acquireWebSocket(token)
-                .then(() => subscribeToCallQueue(handleSignal))
-                .catch((e) => console.warn('CallProvider: failed to acquire WebSocket', e));
+        const removeLoggedIn = setAuthLoggedInHandler(() => {
+            // На холодном старте/логине токен из хранилища может быть уже
+            // просроченным (access-токен живёт 15 минут) - в отличие от
+            // ChatRoomScreen, здесь это первое, что происходит, без
+            // предшествующего REST-запроса, который обычно успевает обновить
+            // токен через перехватчик в api.ts. Дёргаем дешёвый
+            // авторизованный запрос заранее, чтобы гарантировать свежий
+            // токен, иначе STOMP получает "Invalid JWT token" и бесконечно
+            // переподключается с тем же самым мёртвым токеном.
+            // On cold start/login the stored token may already be expired
+            // (access token lives 15 minutes) - unlike ChatRoomScreen, this
+            // runs first, with no preceding REST call that would normally
+            // have refreshed it via api.ts's interceptor. Fire a cheap
+            // authenticated request first to guarantee a fresh token,
+            // otherwise STOMP gets "Invalid JWT token" and reconnects
+            // forever with that same dead token.
+            (async () => {
+                try {
+                    await getCurrentUser();
+                    const freshToken = await getToken();
+                    if (!freshToken) return;
+                    await acquireWebSocket(freshToken);
+                    subscribeToCallQueue(handleSignal);
+                } catch (e) {
+                    console.warn('CallProvider: failed to acquire WebSocket', e);
+                }
+            })();
         });
         const removeExpired = setAuthExpiredHandler(() => {
             releaseWebSocket();
