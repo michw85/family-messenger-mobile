@@ -660,31 +660,6 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      * Меню дополнительных действий чата: чек-ин настроения и капсула времени
      * Chat extras menu: mood check-in and time capsule
      */
-    const openExtrasMenu = useCallback(() => {
-        showActionSheet('', [
-            { text: t('cancel'), style: 'cancel' },
-            { text: t('mood_checkin_menu_item'), onPress: sendMoodCheckin },
-            {
-                text: t('time_capsule_menu_item'),
-                onPress: () => {
-                    if (!inputText.trim()) {
-                        Alert.alert(t('error'), t('type_message_first'));
-                        return;
-                    }
-                    showActionSheet(t('open_in'), [
-                        { text: t('cancel'), style: 'cancel' },
-                        { text: t('pick_date_time'), onPress: pickCapsuleDateTime },
-                        { text: t('in_an_hour'), onPress: () => sendTimeCapsuleIn(60 * 60 * 1000) },
-                        { text: t('tomorrow'), onPress: () => sendTimeCapsuleIn(24 * 60 * 60 * 1000) },
-                        { text: t('in_a_week'), onPress: () => sendTimeCapsuleIn(7 * 24 * 60 * 60 * 1000) },
-                        { text: t('in_a_month'), onPress: () => sendTimeCapsuleIn(30 * 24 * 60 * 60 * 1000) },
-                        { text: t('in_a_year'), onPress: () => sendTimeCapsuleIn(365 * 24 * 60 * 60 * 1000) },
-                    ]);
-                },
-            },
-        ]);
-    }, [sendMoodCheckin, sendTimeCapsuleIn, pickCapsuleDateTime, inputText, t, showActionSheet]);
-
     /**
      * Описание содержимого сообщения одной строкой для текстового экспорта
      * One-line description of a message's content for the text export
@@ -746,6 +721,40 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             setExporting(false);
         }
     }, [roomId, roomName, t]);
+
+    /**
+     * Меню дополнительных действий чата: чек-ин настроения, капсула времени
+     * и экспорт истории - перенесли сюда из шапки, чтобы освободить там место
+     * (кнопка звонка добавила ещё одну иконку)
+     * Chat extras menu: mood check-in, time capsule, and history export -
+     * moved here from the header to free up space there (the call button
+     * added yet another icon)
+     */
+    const openExtrasMenu = useCallback(() => {
+        showActionSheet('', [
+            { text: t('cancel'), style: 'cancel' },
+            { text: t('mood_checkin_menu_item'), onPress: sendMoodCheckin },
+            {
+                text: t('time_capsule_menu_item'),
+                onPress: () => {
+                    if (!inputText.trim()) {
+                        Alert.alert(t('error'), t('type_message_first'));
+                        return;
+                    }
+                    showActionSheet(t('open_in'), [
+                        { text: t('cancel'), style: 'cancel' },
+                        { text: t('pick_date_time'), onPress: pickCapsuleDateTime },
+                        { text: t('in_an_hour'), onPress: () => sendTimeCapsuleIn(60 * 60 * 1000) },
+                        { text: t('tomorrow'), onPress: () => sendTimeCapsuleIn(24 * 60 * 60 * 1000) },
+                        { text: t('in_a_week'), onPress: () => sendTimeCapsuleIn(7 * 24 * 60 * 60 * 1000) },
+                        { text: t('in_a_month'), onPress: () => sendTimeCapsuleIn(30 * 24 * 60 * 60 * 1000) },
+                        { text: t('in_a_year'), onPress: () => sendTimeCapsuleIn(365 * 24 * 60 * 60 * 1000) },
+                    ]);
+                },
+            },
+            { text: `📤 ${t('export_chat_menu_item')}`, onPress: exportChat },
+        ]);
+    }, [sendMoodCheckin, sendTimeCapsuleIn, pickCapsuleDateTime, exportChat, inputText, t, showActionSheet]);
 
     /**
  * Начало записи голоса
@@ -1255,15 +1264,12 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     <TouchableOpacity onPress={() => setSearchVisible(true)} style={styles.iconHeaderButton}>
                                         <Text style={styles.iconText}>🔍</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={exportChat} style={styles.iconHeaderButton} disabled={exporting}>
+                                    <TouchableOpacity onPress={openExtrasMenu} style={styles.iconHeaderButton} disabled={exporting}>
                                         {exporting ? (
                                             <ActivityIndicator size="small" color={colors.primary} />
                                         ) : (
-                                            <Text style={styles.iconText}>📤</Text>
+                                            <Text style={styles.iconText}>✨</Text>
                                         )}
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={openExtrasMenu} style={styles.iconHeaderButton}>
-                                        <Text style={styles.iconText}>✨</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
                                         <Text style={styles.addButtonText}>+</Text>
@@ -1851,12 +1857,16 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         marginRight: 8,
     },
     // Тёмный значок телефона плохо виден на тёмном фоне без своего фона -
-    // зелёный кружок (как в большинстве мессенджеров) даёт контраст в любой теме
+    // кружок даёт контраст в любой теме. colors.online (яркий Material-зелёный)
+    // выбивался из общей пастельной палитры приложения - берём theirMessage,
+    // тот же мягкий зелёный, что уже используется для облаков собеседника
     // The dark phone glyph is hard to see against a dark background with no
-    // background of its own - a green circle (as in most messengers) gives
-    // contrast regardless of theme
+    // background of its own - a circle gives contrast regardless of theme.
+    // colors.online (a vivid Material green) clashed with the app's overall
+    // pastel palette - using theirMessage instead, the same soft green
+    // already used for the other person's message bubbles
     callButton: {
-        backgroundColor: colors.online,
+        backgroundColor: colors.theirMessage,
         borderRadius: borderRadius.circle,
         width: 34,
         height: 34,
