@@ -29,7 +29,6 @@ import RoomSelectScreen from './src/screens/RoomSelectScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ChatRoomScreen from './src/screens/ChatRoomScreen';
-import WebRTCTestScreen from './src/screens/WebRTCTestScreen';
 import { colors } from './src/styles/theme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setAuthExpiredHandler, triggerAuthLoggedIn } from './src/utils/authEvents';
@@ -347,9 +346,6 @@ const Navigation = () => {
                     component={InCallScreen}
                     options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
                 />
-
-                {/* Временный экран проверки react-native-webrtc - убрать после Этапа 1 звонков */}
-                <Stack.Screen name="WebRTCTest" component={WebRTCTestScreen} />
             </Stack.Navigator>
         </NavigationContainer>
     );

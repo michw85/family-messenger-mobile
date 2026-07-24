@@ -321,11 +321,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.header}>
                     <View style={styles.headerTop}>
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('Profile')}
-                            onLongPress={() => navigation.navigate('WebRTCTest' as never)}
-                            style={styles.myAvatarButton}
-                        >
+                        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.myAvatarButton}>
                             {myAvatarUrl ? (
                                 <Image source={{ uri: myAvatarUrl }} style={styles.myAvatarImage} />
                             ) : (
