@@ -217,7 +217,9 @@ export const subscribeToCallQueue = (onSignal: (signal: any) => void) => {
         console.warn('STOMP not connected, cannot subscribe to call queue');
         return null;
     }
+    console.log('📞 Subscribing to /user/queue/call');
     return stompClient.subscribe('/user/queue/call', (message) => {
+        console.log('📞 Call signal received:', message.body);
         onSignal(JSON.parse(message.body));
     });
 };
