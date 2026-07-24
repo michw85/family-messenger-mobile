@@ -1247,7 +1247,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     {liveRoomType === 'DIRECT' && liveOtherParticipant && (
                                         <TouchableOpacity
                                             onPress={() => startOutgoingCall(roomId, roomName, liveOtherParticipant)}
-                                            style={styles.iconHeaderButton}
+                                            style={[styles.iconHeaderButton, styles.callButton]}
                                         >
                                             <Text style={styles.iconText}>📞</Text>
                                         </TouchableOpacity>
@@ -1849,6 +1849,20 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
     iconHeaderButton: {
         padding: 8,
         marginRight: 8,
+    },
+    // Тёмный значок телефона плохо виден на тёмном фоне без своего фона -
+    // зелёный кружок (как в большинстве мессенджеров) даёт контраст в любой теме
+    // The dark phone glyph is hard to see against a dark background with no
+    // background of its own - a green circle (as in most messengers) gives
+    // contrast regardless of theme
+    callButton: {
+        backgroundColor: colors.online,
+        borderRadius: borderRadius.circle,
+        width: 34,
+        height: 34,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 0,
     },
     searchInput: {
         flex: 1,
