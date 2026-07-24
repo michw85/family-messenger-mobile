@@ -43,7 +43,7 @@ interface ThoughtBubbleProps {
     sender: string;
     timestamp: string;
     isMyMessage: boolean;
-    type?: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
+    type?: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED';
     mediaUrl?: string;
     userColor?: string;
     /**
@@ -65,7 +65,7 @@ interface ThoughtBubbleProps {
     replyTo?: {
         senderUsername: string;
         content: string;
-        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
+        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED';
         deleted: boolean;
         revealAt?: string | null;
     } | null;
@@ -95,6 +95,23 @@ const LinkifiedText: React.FC<{ text: string; textStyle: any; linkStyle: any }> 
             )}
         </Text>
     );
+};
+
+/**
+ * Разбирает content вида {"durationSeconds":42} у сообщения CALL_ANSWERED
+ * и форматирует как "0:42"
+ * Parses the {"durationSeconds":42} content of a CALL_ANSWERED message and
+ * formats it as "0:42"
+ */
+const formatCallDuration = (content: string | null): string => {
+    try {
+        const seconds = content ? JSON.parse(content).durationSeconds ?? 0 : 0;
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    } catch {
+        return '0:00';
+    }
 };
 
 /**
@@ -508,6 +525,18 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                 </TouchableOpacity>
             ) : deletedPlaceholder ? (
                 <Text style={styles.deletedText}>{content}</Text>
+            ) : (type === 'CALL_MISSED' || type === 'CALL_DECLINED' || type === 'CALL_ANSWERED' || type === 'CALL_CANCELLED') ? (
+                // Записи об итоге звонка приходят с content=null (кроме CALL_ANSWERED,
+                // где это JSON с длительностью) - обычный LinkifiedText упал бы на null
+                // Call-outcome log entries arrive with content=null (except
+                // CALL_ANSWERED, where it's a JSON blob with the duration) -
+                // the regular LinkifiedText would crash on null
+                <Text style={[styles.messageText, isMyMessage && styles.myText]}>
+                    {type === 'CALL_MISSED' ? t('call_log_missed')
+                        : type === 'CALL_DECLINED' ? t('call_log_declined')
+                        : type === 'CALL_CANCELLED' ? t('call_log_cancelled')
+                        : t('call_log_answered').replace('{duration}', formatCallDuration(content))}
+                </Text>
             ) : (
                 <LinkifiedText
                     text={content}

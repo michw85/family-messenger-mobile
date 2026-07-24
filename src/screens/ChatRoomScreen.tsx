@@ -97,7 +97,7 @@ interface Message {
         avatarUrl?: string;
     };
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
+    type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED';
     mediaUrl?: string;
     timestamp: string;
     grouped?: boolean;
@@ -109,7 +109,7 @@ interface Message {
         id: string;
         senderUsername: string;
         content: string;
-        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN';
+        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED';
         deleted: boolean;
         revealAt?: string | null;
     } | null;
@@ -674,6 +674,17 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             case 'VOICE': return `[${t('voice_message')}] ${m.mediaUrl || ''}`;
             case 'VIDEO': return `[${t('video')}] ${m.mediaUrl || ''}`;
             case 'FILE': return `[${t('file_label')}] ${m.content} ${m.mediaUrl || ''}`;
+            case 'CALL_MISSED': return t('call_log_missed');
+            case 'CALL_DECLINED': return t('call_log_declined');
+            case 'CALL_CANCELLED': return t('call_log_cancelled');
+            case 'CALL_ANSWERED': {
+                let duration = '0:00';
+                try {
+                    const seconds = m.content ? JSON.parse(m.content).durationSeconds ?? 0 : 0;
+                    duration = `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
+                } catch { /* keep default */ }
+                return t('call_log_answered').replace('{duration}', duration);
+            }
             default: return m.content;
         }
     };
