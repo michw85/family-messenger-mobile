@@ -7,6 +7,7 @@ import {
     mediaDevices,
     MediaStream,
 } from 'react-native-webrtc';
+import InCallManager from 'react-native-incall-manager';
 import { setAuthLoggedInHandler, setAuthExpiredHandler } from '../utils/authEvents';
 import { acquireWebSocket, releaseWebSocket, subscribeToCallQueue, sendCallSignal } from '../services/websocket';
 import { getTurnCredentials, logCall, getCurrentUser } from '../services/api';
@@ -120,6 +121,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const teardown = useCallback((nextState: CallState = 'idle') => {
         clearRingTimeout();
+        InCallManager.stop();
         localStream?.getTracks().forEach((tr) => tr.stop());
         pcRef.current?.close();
         pcRef.current = null;
@@ -310,6 +312,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             const stream = (await mediaDevices.getUserMedia({ audio: true, video: true })) as unknown as MediaStream;
             setLocalStream(stream);
+            // react-native-webrtc не управляет маршрутизацией звука на Android -
+            // без этого звук может уходить в динамик у уха (еле слышно) вместо громкой связи
+            // react-native-webrtc doesn't manage Android audio routing itself -
+            // without this, audio can route to the earpiece (barely audible)
+            // instead of the loudspeaker
+            InCallManager.start({ media: 'video' });
+            InCallManager.setForceSpeakerphoneOn(true);
 
             callIdRef.current = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
             roomIdRef.current = roomId;
@@ -357,6 +366,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             const stream = (await mediaDevices.getUserMedia({ audio: true, video: true })) as unknown as MediaStream;
             setLocalStream(stream);
+            InCallManager.start({ media: 'video' });
+            InCallManager.setForceSpeakerphoneOn(true);
 
             const pc = await createPeerConnection(roomId);
             pcRef.current = pc;

@@ -19,7 +19,13 @@ export default function IncomingCallScreen() {
     }, []);
 
     useEffect(() => {
-        if (state === 'idle') {
+        // Останавливаем вибрацию сразу как только звонок перестал быть входящим
+        // (приняли или уже завершили) - раньше гасилась только при возврате в
+        // 'idle', то есть продолжала вибрировать всё время разговора
+        // Stop vibrating as soon as the call stops being incoming (accepted or
+        // already ended) - previously only cleared on 'idle', so it kept
+        // vibrating for the whole duration of the call
+        if (state !== 'incoming_ringing') {
             Vibration.cancel();
         }
     }, [state]);
