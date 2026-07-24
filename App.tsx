@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, Text, TouchableOpacity, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,9 +29,14 @@ import RoomSelectScreen from './src/screens/RoomSelectScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ChatRoomScreen from './src/screens/ChatRoomScreen';
+import WebRTCTestScreen from './src/screens/WebRTCTestScreen';
 import { colors } from './src/styles/theme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { setAuthExpiredHandler } from './src/utils/authEvents';
+import { setAuthExpiredHandler, triggerAuthLoggedIn } from './src/utils/authEvents';
+import { navigationRef } from './src/services/navigationRef';
+import { CallProvider } from './src/context/CallContext';
+import IncomingCallScreen from './src/screens/IncomingCallScreen';
+import InCallScreen from './src/screens/InCallScreen';
 
 // Как показывать уведомление, когда приложение открыто на переднем плане
 // How to display a notification while the app is in the foreground
@@ -47,12 +52,6 @@ Notifications.setNotificationHandler({
 
 
 const Stack = createNativeStackNavigator();
-
-// Ref навигации, чтобы можно было сбросить на экран логина из любого места
-// (например, когда refresh-токен истёк и api.ts вызывает triggerAuthExpired())
-// Navigation ref so we can reset to the Login screen from anywhere
-// (e.g. when the refresh token has expired and api.ts calls triggerAuthExpired())
-const navigationRef = createNavigationContainerRef();
 
 /**
  * Ключи для хранения данных в AsyncStorage
@@ -200,6 +199,9 @@ const Navigation = () => {
                 // User is considered authorized if both token and username exist
                 const isLoggedInFlag = !!(token && username);
                 setIsLoggedIn(isLoggedInFlag);
+                if (isLoggedInFlag && token) {
+                    triggerAuthLoggedIn(token);
+                }
             } catch (error) {
                 console.error('Error checking login status:', error);
                 setIsLoggedIn(false);
@@ -237,6 +239,31 @@ const Navigation = () => {
 
             const token = await getToken();
             if (!token) return; // не залогинен - открываем как обычно, без глубокой ссылки
+
+            // Входящий звонок открывает экран звонка, а не сам чат - это тот же
+            // пуш-механизм, что и обычные сообщения (см. CallController на бэкенде),
+            // просто с другим экраном назначения.
+            // An incoming call opens the call screen, not the chat itself - same
+            // push mechanism as regular messages (see CallController on the
+            // backend), just a different destination screen.
+            if (data?.type === 'incoming_call') {
+                navigationRef.reset({
+                    index: 1,
+                    routes: [
+                        { name: 'RoomSelect' },
+                        {
+                            name: 'IncomingCall',
+                            params: {
+                                callId: data.callId,
+                                roomId,
+                                roomName: data?.roomName || '',
+                                callerUsername: data?.callerUsername || '',
+                            },
+                        },
+                    ],
+                });
+                return;
+            }
 
             navigationRef.reset({
                 index: 1,
@@ -307,6 +334,22 @@ const Navigation = () => {
 
                 {/* Экран профиля - только для авторизованных / Profile screen - only for authorized */}
                 <Stack.Screen name="Profile" component={ProfileScreen} />
+
+                {/* Звонки - модальными поверх текущего экрана, независимо от того, где находится пользователь */}
+                {/* Calls - as modals on top of the current screen, regardless of where the user is */}
+                <Stack.Screen
+                    name="IncomingCall"
+                    component={IncomingCallScreen}
+                    options={{ presentation: 'transparentModal', animation: 'fade' }}
+                />
+                <Stack.Screen
+                    name="InCall"
+                    component={InCallScreen}
+                    options={{ presentation: 'fullScreenModal', gestureEnabled: false }}
+                />
+
+                {/* Временный экран проверки react-native-webrtc - убрать после Этапа 1 звонков */}
+                <Stack.Screen name="WebRTCTest" component={WebRTCTestScreen} />
             </Stack.Navigator>
         </NavigationContainer>
     );
@@ -363,9 +406,11 @@ export default function App() {
                     <ActionSheetProvider>
                         <LanguageProvider>
                             <SimpleModeProvider>
-                                <Initializer>
-                                    <Navigation />
-                                </Initializer>
+                                <CallProvider>
+                                    <Initializer>
+                                        <Navigation />
+                                    </Initializer>
+                                </CallProvider>
                             </SimpleModeProvider>
                         </LanguageProvider>
                     </ActionSheetProvider>

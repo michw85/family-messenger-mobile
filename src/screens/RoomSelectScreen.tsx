@@ -241,7 +241,14 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         return (
         <TouchableOpacity
             style={styles.chatCard}
-            onPress={() => navigation.navigate('ChatRoom', { roomId: item.id, roomName: item.name })}
+            onPress={() => navigation.navigate('ChatRoom', {
+                roomId: item.id,
+                roomName: item.name,
+                roomType: item.type,
+                otherParticipant: otherParticipant
+                    ? { id: otherParticipant.id, username: otherParticipant.username, avatarUrl: otherParticipant.avatarUrl }
+                    : undefined,
+            })}
             onLongPress={() => handleChatLongPress(item)}
             delayLongPress={500}
             activeOpacity={0.7}
@@ -314,7 +321,11 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             <View style={[styles.content, { paddingTop: insets.top + 16 }]}>
                 <View style={styles.header}>
                     <View style={styles.headerTop}>
-                        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.myAvatarButton}>
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('Profile')}
+                            onLongPress={() => navigation.navigate('WebRTCTest' as never)}
+                            style={styles.myAvatarButton}
+                        >
                             {myAvatarUrl ? (
                                 <Image source={{ uri: myAvatarUrl }} style={styles.myAvatarImage} />
                             ) : (

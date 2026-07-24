@@ -166,6 +166,16 @@ export const toggleReaction = (chatId: string, messageId: string, emoji: string)
 // Memory lane: messages from this chat on this same day in past years
 export const getMemories = (chatId: string) => api.get(`/chats/${chatId}/memories`);
 
+// Звонки: временные TURN-креды и запись итога звонка в историю чата
+// Calls: short-lived TURN credentials and logging a call's outcome to chat history
+export const getTurnCredentials = () => api.get('/calls/turn-credentials');
+
+export const logCall = (
+    roomId: string,
+    result: 'ANSWERED' | 'DECLINED' | 'MISSED' | 'CANCELLED',
+    durationSeconds?: number
+) => api.post(`/calls/${roomId}/log`, { result, durationSeconds });
+
 // Files
 export const uploadFile = (formData: FormData, type: 'image' | 'voice' | 'video' | 'file') =>
   api.post(`/files/upload/${type}`, formData, {

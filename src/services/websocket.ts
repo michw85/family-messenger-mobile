@@ -157,3 +157,68 @@ export const disconnectWebSocket = () => {
         stompClient = null;
     }
 };
+
+/**
+ * Соединение с подсчётом ссылок поверх connectWebSocket/disconnectWebSocket.
+ * ChatRoomScreen подключается/отключается на mount/unmount конкретного экрана,
+ * а CallProvider должен держать то же соединение живым и на других экранах
+ * (RoomSelect, Profile), чтобы не пропустить входящий звонок - без переписывания
+ * существующего lifecycle.
+ * Ref-counted connection on top of connectWebSocket/disconnectWebSocket.
+ * ChatRoomScreen connects/disconnects on that specific screen's mount/unmount,
+ * while CallProvider needs the same connection to survive on other screens
+ * (RoomSelect, Profile) too, so an incoming call isn't missed - without
+ * rewriting the existing lifecycle.
+ */
+let refCount = 0;
+let connectingPromise: Promise<Client> | null = null;
+
+export const acquireWebSocket = async (token: string): Promise<Client> => {
+    refCount++;
+    if (stompClient?.connected) return stompClient;
+    if (connectingPromise) return connectingPromise;
+    connectingPromise = connectWebSocket(token).finally(() => {
+        connectingPromise = null;
+    });
+    return connectingPromise;
+};
+
+export const releaseWebSocket = () => {
+    refCount = Math.max(0, refCount - 1);
+    if (refCount === 0) {
+        disconnectWebSocket();
+    }
+};
+
+/**
+ * Подписка на персональную очередь сигналов звонка (offer/answer/ICE/hangup) -
+ * одна подписка на всю сессию приложения, а не на комнату
+ * Subscribe to the personal call-signal queue (offer/answer/ICE/hangup) - one
+ * subscription for the whole app session, not per room
+ */
+export const subscribeToCallQueue = (onSignal: (signal: any) => void) => {
+    if (!stompClient?.connected) {
+        console.warn('STOMP not connected, cannot subscribe to call queue');
+        return null;
+    }
+    return stompClient.subscribe('/user/queue/call', (message) => {
+        onSignal(JSON.parse(message.body));
+    });
+};
+
+/**
+ * Отправка сигнала звонка в комнату (roomId используется сервером только для
+ * авторизации и поиска собеседника, не для маршрутизации доставки)
+ * Send a call signal to a room (roomId is used by the server only for
+ * authorization and finding the other participant, not for delivery routing)
+ */
+export const sendCallSignal = (roomId: string, signal: object) => {
+    if (!stompClient?.connected) {
+        console.warn('STOMP not connected, cannot send call signal');
+        return;
+    }
+    stompClient.publish({
+        destination: `/app/call.signal/${roomId}`,
+        body: JSON.stringify(signal),
+    });
+};

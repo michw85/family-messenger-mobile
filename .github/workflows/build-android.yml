@@ -1,0 +1,53 @@
+name: Build Android APK
+
+# Ручной запуск - собираем APK, когда нужно, не на каждый push, чтобы не
+# тратить минуты GitHub Actions впустую на промежуточные коммиты.
+# Manual trigger - build an APK when needed, not on every push, to avoid
+# burning GitHub Actions minutes on intermediate commits.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prebuild Android project
+        run: npx expo prebuild --clean --platform android
+
+      # Тот же debug.keystore, что и при локальной сборке (лежит в
+      # keystores/, а не в гитигнорённой android/) - чтобы подпись совпадала
+      # и APK из CI можно было ставить поверх локальной сборки без удаления.
+      # Same debug.keystore as the local build (kept in keystores/, not the
+      # gitignored android/) - so the signature matches and a CI-built APK
+      # can be installed over a local build without uninstalling first.
+      - name: Use stable debug keystore
+        run: cp keystores/debug.keystore android/app/debug.keystore
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14

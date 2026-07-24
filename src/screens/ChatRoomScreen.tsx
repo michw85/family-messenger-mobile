@@ -41,11 +41,12 @@ import ThoughtBubble from '../components/ThoughtBubble';
 import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
 import { useLanguage } from '../context/LanguageContext';
+import { useCall } from '../context/CallContext';
 import { useTheme } from '../context/ThemeContext';
 import { useActionSheet } from '../components/ActionSheet';
 import { useSimpleMode } from '../context/SimpleModeContext';
 import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction, getMemories } from '../services/api';
-import { connectWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, disconnectWebSocket } from '../services/websocket';
+import { acquireWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, releaseWebSocket } from '../services/websocket';
 import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
@@ -140,8 +141,9 @@ const MOOD_REACTIONS = ['😊', '😐', '😢', '😡', '😴', '🥳'];
  * Chat screen component
  */
 const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
-    const { roomId, roomName } = route.params || { roomId: 'family-chat', roomName: 'Family Chat' };
+    const { roomId, roomName, roomType, otherParticipant } = route.params || { roomId: 'family-chat', roomName: 'Family Chat' };
     const { t } = useLanguage();
+    const { startOutgoingCall } = useCall();
     const { theme, colors } = useTheme();
     const { fontScale } = useSimpleMode();
     const showActionSheet = useActionSheet();
@@ -316,7 +318,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             return;
         }
         try {
-            const client = await connectWebSocket(token);
+            const client = await acquireWebSocket(token);
             stompClientRef.current = client;
             console.log('WebSocket connected, subscribing to room:', roomId);
             // Подписываемся на топик комнаты
@@ -390,7 +392,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             if (readSubscriptionRef.current) readSubscriptionRef.current.unsubscribe();
             if (reactionsSubscriptionRef.current) reactionsSubscriptionRef.current.unsubscribe();
             if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
-            disconnectWebSocket();
+            releaseWebSocket();
         };
     }, [loadCurrentUser, loadMessages, setupWebSocket]);
 
@@ -1189,6 +1191,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     <TouchableOpacity style={{ flex: 1 }} onPress={() => setParticipantsVisible(true)} activeOpacity={0.7}>
                                         <Text style={styles.headerTitle}>{roomName}</Text>
                                     </TouchableOpacity>
+                                    {roomType === 'DIRECT' && otherParticipant && (
+                                        <TouchableOpacity
+                                            onPress={() => startOutgoingCall(roomId, roomName, otherParticipant)}
+                                            style={styles.iconHeaderButton}
+                                        >
+                                            <Text style={styles.iconText}>📞</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <TouchableOpacity onPress={() => setSearchVisible(true)} style={styles.iconHeaderButton}>
                                         <Text style={styles.iconText}>🔍</Text>
                                     </TouchableOpacity>
