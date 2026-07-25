@@ -32,6 +32,7 @@ import ChatRoomScreen from './src/screens/ChatRoomScreen';
 import { colors } from './src/styles/theme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setAuthExpiredHandler, triggerAuthLoggedIn } from './src/utils/authEvents';
+import { registerForPushNotificationsAsync } from './src/utils/notifications';
 import { navigationRef } from './src/services/navigationRef';
 import { CallProvider } from './src/context/CallContext';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
@@ -200,6 +201,19 @@ const Navigation = () => {
                 setIsLoggedIn(isLoggedInFlag);
                 if (isLoggedInFlag && token) {
                     triggerAuthLoggedIn(token);
+                    // Иначе уже залогиненные устройства никогда не пересоздадут
+                    // Android-канал уведомлений (registerForPushNotificationsAsync
+                    // вызывается только на экранах логина/регистрации) - без
+                    // холодного перезапроса они бы застряли на старом канале без
+                    // вибрации до выхода из аккаунта и повторного входа.
+                    // Otherwise already-logged-in devices would never recreate
+                    // the Android notification channel (registerForPushNotificationsAsync
+                    // is only called from the login/register screens) - without
+                    // this cold-start call they'd be stuck on the old,
+                    // vibration-less channel until logging out and back in.
+                    registerForPushNotificationsAsync().catch((e) =>
+                        console.warn('Failed to (re-)register push notifications', e)
+                    );
                 }
             } catch (error) {
                 console.error('Error checking login status:', error);

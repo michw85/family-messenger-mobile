@@ -350,12 +350,19 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const stream = (await mediaDevices.getUserMedia({ audio: true, video: true })) as unknown as MediaStream;
             setLocalStream(stream);
             // react-native-webrtc не управляет маршрутизацией звука на Android -
-            // без этого звук может уходить в динамик у уха (еле слышно) вместо громкой связи
+            // start({media:'video'}) уже даёт громкую связь по умолчанию, когда
+            // нет подключённой Bluetooth/проводной гарнитуры (InCallManager сам
+            // расставляет приоритет Bluetooth > проводная гарнитура > динамик).
+            // setForceSpeakerphoneOn(true) здесь НЕ вызываем - это принудительно
+            // выбирает динамик и перебивает Bluetooth-гарнитуру, даже если она
+            // подключена и активна.
             // react-native-webrtc doesn't manage Android audio routing itself -
-            // without this, audio can route to the earpiece (barely audible)
-            // instead of the loudspeaker
+            // start({media:'video'}) already defaults to loudspeaker when no
+            // Bluetooth/wired headset is connected (InCallManager prioritizes
+            // Bluetooth > wired headset > speaker on its own). We do NOT call
+            // setForceSpeakerphoneOn(true) here - it force-selects the speaker
+            // and overrides an active Bluetooth headset.
             InCallManager.start({ media: 'video' });
-            InCallManager.setForceSpeakerphoneOn(true);
             // Без этого экран гаснет по обычному таймауту во время звонка - и
             // после включения нативная поверхность видео (RTCView) не всегда
             // восстанавливается корректно (пропадает локальный/удалённый превью)
@@ -411,8 +418,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
             const stream = (await mediaDevices.getUserMedia({ audio: true, video: true })) as unknown as MediaStream;
             setLocalStream(stream);
+            // setForceSpeakerphoneOn(true) намеренно не вызывается - см. комментарий
+            // в startOutgoingCall (перебивает активную Bluetooth-гарнитуру)
+            // setForceSpeakerphoneOn(true) intentionally not called - see the
+            // comment in startOutgoingCall (overrides an active Bluetooth headset)
             InCallManager.start({ media: 'video' });
-            InCallManager.setForceSpeakerphoneOn(true);
             // Без этого экран гаснет по обычному таймауту во время звонка - и
             // после включения нативная поверхность видео (RTCView) не всегда
             // восстанавливается корректно (пропадает локальный/удалённый превью)
