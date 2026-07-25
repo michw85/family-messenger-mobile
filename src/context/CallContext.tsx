@@ -328,8 +328,27 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
                     pendingCandidatesRef.current = [];
                     setCallState('connecting');
+                    // callIdRef.current захватывается здесь, а не читается заново
+                    // при срабатывании таймера - connectTimeoutRef общий на весь
+                    // CallProvider, не привязан к конкретному звонку. Без этой
+                    // проверки "осиротевший" таймер от уже завершившегося звонка
+                    // (например, если новый звонок стартовал до того, как предыдущий
+                    // успел вызвать clearConnectTimeout) мог сработать позже и
+                    // оборвать совершенно другой, уже успешно соединившийся звонок -
+                    // ровно это и произошло на практике: iceConnectionState дошёл до
+                    // "completed", но таймер всё равно сработал и вызвал hangUp().
+                    // callIdRef.current is captured here rather than re-read when the
+                    // timer fires - connectTimeoutRef is shared across the whole
+                    // CallProvider, not tied to a specific call. Without this check,
+                    // an "orphaned" timer from an already-ended call (e.g. if a new
+                    // call started before the previous one got to call
+                    // clearConnectTimeout) could fire later and hang up a completely
+                    // different, already-successfully-connected call - this is
+                    // exactly what happened in practice: iceConnectionState reached
+                    // "completed", but the timer still fired and called hangUp().
+                    const answeredCallId = callIdRef.current;
                     connectTimeoutRef.current = setTimeout(() => {
-                        if (stateRef.current === 'connecting') {
+                        if (stateRef.current === 'connecting' && callIdRef.current === answeredCallId) {
                             console.warn('📞 Call failed to connect within timeout, hanging up');
                             hangUp();
                         }
@@ -495,8 +514,15 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sendCallSignal(roomId, { callId: callIdRef.current, type: 'ANSWER', sdp: answer.sdp });
 
             setCallState('connecting');
+            // См. комментарий в ANSWER-хендлере - connectTimeoutRef общий на
+            // весь CallProvider, поэтому таймер привязывается к конкретному
+            // callId, а не только к фазе 'connecting'.
+            // See the comment in the ANSWER handler - connectTimeoutRef is
+            // shared across the whole CallProvider, so the timer is tied to
+            // a specific callId, not just the 'connecting' phase.
+            const acceptedCallId = callIdRef.current;
             connectTimeoutRef.current = setTimeout(() => {
-                if (stateRef.current === 'connecting') {
+                if (stateRef.current === 'connecting' && callIdRef.current === acceptedCallId) {
                     console.warn('📞 Call failed to connect within timeout, hanging up');
                     hangUp();
                 }
