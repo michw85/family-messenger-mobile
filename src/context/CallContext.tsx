@@ -31,6 +31,7 @@ interface CallContextType {
     remoteStream: MediaStream | null;
     muted: boolean;
     cameraEnabled: boolean;
+    speakerOn: boolean;
     startOutgoingCall: (roomId: string, roomName: string, remoteUser: RemoteUser) => Promise<void>;
     acceptIncomingCall: () => Promise<void>;
     declineIncomingCall: () => void;
@@ -38,6 +39,7 @@ interface CallContextType {
     toggleMute: () => void;
     toggleCamera: () => void;
     switchCamera: () => void;
+    toggleSpeaker: () => void;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -81,6 +83,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [muted, setMuted] = useState(false);
     const [cameraEnabled, setCameraEnabled] = useState(true);
+    // Громкая связь по умолчанию (видеозвонок обычно смотрят, а не прикладывают
+    // к уху) - переключатель даёт вернуться к обычному "телефонному" режиму
+    // Speakerphone by default (a video call is usually watched, not held to
+    // the ear) - the toggle lets you switch back to a normal "phone call" mode
+    const [speakerOn, setSpeakerOn] = useState(true);
 
     // Изменчивое состояние звонка, не завязанное на рендер - читается из
     // колбэков STOMP/WebRTC, которые не должны пересоздаваться при каждом рендере
@@ -137,6 +144,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRoomName(null);
         setMuted(false);
         setCameraEnabled(true);
+        setSpeakerOn(true);
         setCallState(nextState);
         if (nextState === 'idle' && navigationRef.isReady()) {
             const routeNames = navigationRef.getState()?.routes.map((r) => r.name) || [];
@@ -454,6 +462,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStream?.getVideoTracks().forEach((tr: any) => tr._switchCamera());
     }, [localStream]);
 
+    const toggleSpeaker = useCallback(() => {
+        InCallManager.setForceSpeakerphoneOn(!speakerOn);
+        setSpeakerOn((s) => !s);
+    }, [speakerOn]);
+
     const value = useMemo<CallContextType>(() => ({
         state,
         roomName,
@@ -462,6 +475,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         remoteStream,
         muted,
         cameraEnabled,
+        speakerOn,
         startOutgoingCall,
         acceptIncomingCall,
         declineIncomingCall,
@@ -469,8 +483,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toggleMute,
         toggleCamera,
         switchCamera,
-    }), [state, roomName, remoteUser, localStream, remoteStream, muted, cameraEnabled,
-        startOutgoingCall, acceptIncomingCall, declineIncomingCall, hangUp, toggleMute, toggleCamera, switchCamera]);
+        toggleSpeaker,
+    }), [state, roomName, remoteUser, localStream, remoteStream, muted, cameraEnabled, speakerOn,
+        startOutgoingCall, acceptIncomingCall, declineIncomingCall, hangUp, toggleMute, toggleCamera, switchCamera, toggleSpeaker]);
 
     return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 };

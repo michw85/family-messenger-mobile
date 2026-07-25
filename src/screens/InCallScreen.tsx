@@ -5,7 +5,7 @@ import { useCall } from '../context/CallContext';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function InCallScreen() {
-    const { state, remoteUser, roomName, localStream, remoteStream, muted, cameraEnabled, hangUp, toggleMute, toggleCamera, switchCamera } = useCall();
+    const { state, remoteUser, roomName, localStream, remoteStream, muted, cameraEnabled, speakerOn, hangUp, toggleMute, toggleCamera, switchCamera, toggleSpeaker } = useCall();
     const { t } = useLanguage();
 
     const statusLabel = state === 'outgoing_ringing' ? t('calling')
@@ -44,6 +44,9 @@ export default function InCallScreen() {
                 <TouchableOpacity style={styles.controlButton} onPress={toggleCamera}>
                     <Text style={styles.controlIcon}>{cameraEnabled ? '📷' : '🚫'}</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={[styles.controlButton, speakerOn && styles.controlButtonActive]} onPress={toggleSpeaker}>
+                    <Text style={styles.controlIcon}>{speakerOn ? '🔊' : '📱'}</Text>
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -75,6 +78,9 @@ const styles = StyleSheet.create({
     controlButton: {
         width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.15)',
         alignItems: 'center', justifyContent: 'center',
+    },
+    controlButtonActive: {
+        backgroundColor: 'rgba(255,255,255,0.35)',
     },
     hangup: { backgroundColor: '#FF4757', transform: [{ rotate: '135deg' }] },
     controlIcon: { fontSize: 26 },
