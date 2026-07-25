@@ -177,6 +177,8 @@ interface Message {
     } | null;
     reactions?: { emoji: string; count: number; usernames: string[] }[];
     revealAt?: string | null;
+    mediaExpiresAt?: string | null;
+    mediaExpired?: boolean;
 }
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
@@ -1178,6 +1180,25 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const renderMessage = useCallback(({ item }: { item: Message }) => {
         const isMyMessage = item.sender.username === currentUsername;
 
+        // Автоудаление видео/файлов через 30 дней (см. MediaRetentionService на бэкенде) -
+        // mediaExpired обычно уже приходит от бэкенда (mediaUrl тогда null), но считаем и
+        // на клиенте на случай узкого окна между наступлением срока и ночным прогоном задачи
+        // Video/file auto-expiry after 30 days (see MediaRetentionService on the backend) -
+        // mediaExpired usually already comes from the backend (mediaUrl is then null), but we
+        // also compute it client-side for the narrow window between the deadline and the
+        // nightly job run
+        const mediaExpired = !!item.mediaExpired
+            || (!!item.mediaExpiresAt && new Date(item.mediaExpiresAt).getTime() <= Date.now());
+        const daysLeft = !mediaExpired && item.mediaExpiresAt
+            ? Math.ceil((new Date(item.mediaExpiresAt).getTime() - Date.now()) / 86400000)
+            : null;
+        const expiryBadgeText = daysLeft !== null && daysLeft >= 0 && daysLeft <= 3
+            ? t('media_expiry_badge').replace('{days}', String(daysLeft))
+            : undefined;
+        const mediaExpiredPlaceholder = mediaExpired && (item.type === 'VIDEO' || item.type === 'FILE')
+            ? t(item.type === 'VIDEO' ? 'media_expired_placeholder_video' : 'media_expired_placeholder_file')
+            : undefined;
+
         // Ещё не раскрытая капсула времени - бэкенд не присылает content (только
         // revealAt), заглушку строим на клиенте, чтобы дата и текст были на языке
         // интерфейса, а не захардкожены на бэкенде
@@ -1291,7 +1312,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             timestamp={formatMessageTime(item.timestamp, t)}
                             isMyMessage={isMyMessage}
                             type={item.type}
-                            mediaUrl={item.mediaUrl}
+                            mediaUrl={mediaExpired ? undefined : item.mediaUrl}
+                            mediaExpiredPlaceholder={mediaExpiredPlaceholder}
+                            expiryBadgeText={expiryBadgeText}
                             grouped={item.grouped}
                             edited={item.edited}
                             deletedPlaceholder={false}
@@ -1342,7 +1365,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     timestamp={formatMessageTime(item.timestamp, t)}
                     isMyMessage={isMyMessage}
                     type={item.deleted ? 'TEXT' : item.type}
-                    mediaUrl={item.deleted ? undefined : item.mediaUrl}
+                    mediaUrl={item.deleted || mediaExpired ? undefined : item.mediaUrl}
+                    mediaExpiredPlaceholder={item.deleted ? undefined : mediaExpiredPlaceholder}
+                    expiryBadgeText={item.deleted ? undefined : expiryBadgeText}
                     grouped={item.grouped}
                     edited={item.edited}
                     deletedPlaceholder={item.deleted}

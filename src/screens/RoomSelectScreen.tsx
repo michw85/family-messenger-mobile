@@ -107,6 +107,21 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const [searchingUsers, setSearchingUsers] = useState(false);
     const [startingChatWith, setStartingChatWith] = useState<number | null>(null);
 
+    // Разовый баннер про автоудаление видео/файлов через 30 дней - показывается,
+    // пока пользователь не закроет его сам, потом не появляется больше никогда
+    // One-time banner about video/file auto-deletion after 30 days - shown
+    // until the user dismisses it, then never appears again
+    const [showRetentionBanner, setShowRetentionBanner] = useState(false);
+    useEffect(() => {
+        AsyncStorage.getItem('media_retention_notice_dismissed').then((dismissed) => {
+            if (!dismissed) setShowRetentionBanner(true);
+        });
+    }, []);
+    const dismissRetentionBanner = () => {
+        setShowRetentionBanner(false);
+        AsyncStorage.setItem('media_retention_notice_dismissed', 'true');
+    };
+
     /**
      * Загрузка чатов с бэкенда
      * Load chats from backend
@@ -520,6 +535,15 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     </View>
                     <Text style={styles.title}>{t('select_chat')}</Text>
 
+                    {showRetentionBanner && (
+                        <View style={styles.retentionBanner}>
+                            <Text style={styles.retentionBannerText}>{t('media_retention_banner')}</Text>
+                            <TouchableOpacity onPress={dismissRetentionBanner} style={styles.retentionBannerClose}>
+                                <Text style={styles.retentionBannerCloseText}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     {searchVisible && (
                         <TextInput
                             style={styles.searchInput}
@@ -681,6 +705,31 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         paddingVertical: spacing.xs,
     },
     sortButtonText: { fontSize: 12 * fontScale, fontWeight: '500', color: colors.primary, textDecorationLine: 'underline' },
+    retentionBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: colors.backgroundLight,
+        borderRadius: borderRadius.medium,
+        borderWidth: 1,
+        borderColor: colors.border,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
+        marginBottom: spacing.sm,
+        ...shadows.soft,
+    },
+    retentionBannerText: {
+        flex: 1,
+        fontSize: 12 * fontScale,
+        color: colors.textSecondary,
+        lineHeight: 17 * fontScale,
+    },
+    retentionBannerClose: {
+        paddingLeft: spacing.sm,
+    },
+    retentionBannerCloseText: {
+        fontSize: 16,
+        color: colors.textMuted,
+    },
     searchInput: {
         borderWidth: 1,
         borderColor: colors.border,

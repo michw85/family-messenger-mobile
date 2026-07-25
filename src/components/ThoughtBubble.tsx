@@ -59,6 +59,12 @@ interface ThoughtBubbleProps {
     edited?: boolean;
     /** Отрисовать как плейсхолдер удалённого сообщения / Render as a deleted-message placeholder */
     deletedPlaceholder?: boolean;
+    /** Текст плейсхолдера для VIDEO/FILE, у которых истёк срок хранения на сервере (mediaUrl уже null) /
+     * Placeholder text for VIDEO/FILE whose server retention window has passed (mediaUrl already null) */
+    mediaExpiredPlaceholder?: string;
+    /** Короткий текст "истекает через N дней" для VIDEO/FILE близко к удалению - не плейсхолдер, показывается рядом с самим медиа /
+     * Short "expires in N days" text for VIDEO/FILE close to removal - not a placeholder, shown alongside the media itself */
+    expiryBadgeText?: string;
     /** Прочитано ли всеми остальными участниками (галочка, только для своих сообщений) /
      * Whether it's been read by every other participant (checkmark, own messages only) */
     read?: boolean;
@@ -256,6 +262,8 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     grouped = false,
     edited = false,
     deletedPlaceholder = false,
+    mediaExpiredPlaceholder,
+    expiryBadgeText,
     read = false,
     replyTo = null,
     fontScale = 1,
@@ -576,39 +584,47 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                     </TouchableOpacity>
                 </View>
             ) : type === 'VIDEO' && mediaUrl ? (
-                <View style={styles.image}>
-                    <VideoView
-                        ref={videoViewRef}
-                        player={videoPlayer}
-                        style={styles.videoFill}
-                        nativeControls={false}
-                        contentFit="cover"
-                    />
-                    <TouchableOpacity
-                        style={styles.videoPlayOverlay}
-                        onPress={() => (isVideoPlaying ? videoPlayer.pause() : videoPlayer.play())}
-                    >
-                        {!isVideoPlaying && (
-                            <View style={styles.videoPlayOverlayCircle}>
-                                <Text style={styles.videoPlayOverlayText}>▶️</Text>
-                            </View>
-                        )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.videoFullscreenButton}
-                        onPress={() => videoViewRef.current?.enterFullscreen()}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                        <Text style={styles.videoFullscreenButtonText}>⛶</Text>
-                    </TouchableOpacity>
-                </View>
+                <>
+                    <View style={styles.image}>
+                        <VideoView
+                            ref={videoViewRef}
+                            player={videoPlayer}
+                            style={styles.videoFill}
+                            nativeControls={false}
+                            contentFit="cover"
+                        />
+                        <TouchableOpacity
+                            style={styles.videoPlayOverlay}
+                            onPress={() => (isVideoPlaying ? videoPlayer.pause() : videoPlayer.play())}
+                        >
+                            {!isVideoPlaying && (
+                                <View style={styles.videoPlayOverlayCircle}>
+                                    <Text style={styles.videoPlayOverlayText}>▶️</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={styles.videoFullscreenButton}
+                            onPress={() => videoViewRef.current?.enterFullscreen()}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <Text style={styles.videoFullscreenButtonText}>⛶</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {!!expiryBadgeText && <Text style={styles.expiryBadge}>{expiryBadgeText}</Text>}
+                </>
             ) : type === 'FILE' && mediaUrl ? (
-                <TouchableOpacity onPress={() => Linking.openURL(mediaUrl)} style={styles.voiceRow}>
-                    <Text style={styles.voiceIcon}>📄</Text>
-                    <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]} numberOfLines={1}>
-                        {content.replace(/^📄\s*/, '')}
-                    </Text>
-                </TouchableOpacity>
+                <>
+                    <TouchableOpacity onPress={() => Linking.openURL(mediaUrl)} style={styles.voiceRow}>
+                        <Text style={styles.voiceIcon}>📄</Text>
+                        <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]} numberOfLines={1}>
+                            {content.replace(/^📄\s*/, '')}
+                        </Text>
+                    </TouchableOpacity>
+                    {!!expiryBadgeText && <Text style={styles.expiryBadge}>{expiryBadgeText}</Text>}
+                </>
+            ) : (type === 'VIDEO' || type === 'FILE') && mediaExpiredPlaceholder ? (
+                <Text style={styles.deletedText}>{mediaExpiredPlaceholder}</Text>
             ) : deletedPlaceholder ? (
                 <Text style={styles.deletedText}>{content}</Text>
             ) : (type === 'CALL_MISSED' || type === 'CALL_DECLINED' || type === 'CALL_ANSWERED' || type === 'CALL_CANCELLED') ? (
@@ -727,6 +743,11 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
      * Deleted message placeholder — italic, muted color
      */
     deletedText: { fontSize: 15 * fontScale, lineHeight: 22 * fontScale, color: colors.textMuted, fontStyle: 'italic' },
+    /**
+     * Бейдж "истекает через N дней" на видео/файле, близком к автоудалению
+     * "Expires in N days" badge on video/file close to auto-deletion
+     */
+    expiryBadge: { fontSize: 11 * fontScale, color: colors.textMuted, fontStyle: 'italic', marginTop: spacing.xs },
     /**
      * Время отправки
      * Timestamp
