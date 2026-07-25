@@ -5,6 +5,8 @@
 
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import { getCurrentUser } from './api';
+import { getToken } from './authStorage';
 
 
 let stompClient: Client | null = null;
@@ -12,9 +14,8 @@ let stompClient: Client | null = null;
 /**
  * Подключение к WebSocket и получение клиента
  * Connect to WebSocket and obtain client
- * @param token - JWT токен для авторизации
  */
-export const connectWebSocket = async (token: string): Promise<Client> => {
+export const connectWebSocket = async (): Promise<Client> => {
     // Деактивируем старый клиент перед созданием нового / Deactivate the old client before creating a new one.
     if (stompClient) {
         stompClient.deactivate();
@@ -27,10 +28,26 @@ export const connectWebSocket = async (token: string): Promise<Client> => {
             // webSocketFactory: () => new SockJS('http://192.168.106.112:8080/ws'),
             // webSocketFactory: () => new SockJS('http://10.0.2.2:8080/ws'),
             webSocketFactory: () => new SockJS('https://bonds-app.duckdns.org/ws'),
-            connectHeaders: { Authorization: `Bearer ${token}` },
             reconnectDelay: 5000,
             heartbeatIncoming: 20000,
             heartbeatOutgoing: 20000,
+            // Вызывается перед КАЖДОЙ попыткой подключения, включая
+            // автоматические ретраи через reconnectDelay - без этого
+            // connectHeaders фиксировался бы один раз при создании клиента,
+            // и любой автопереподключение поздее в долгой сессии (access-
+            // токен живёт ~15 минут) слало бы уже протухший токен снова и
+            // снова, получая "Invalid JWT token" вечно.
+            // Called before EVERY connection attempt, including automatic
+            // retries via reconnectDelay - without this, connectHeaders
+            // would be fixed once at client creation, and any auto-
+            // reconnect later in a long session (the access token lives
+            // ~15 minutes) would keep sending the now-stale token forever,
+            // hitting "Invalid JWT token" every time.
+            beforeConnect: async () => {
+                await getCurrentUser();
+                const token = await getToken();
+                client.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+            },
             onConnect: () => {
                 stompClient = client;
                 console.log('✅ WebSocket connected');
@@ -189,11 +206,15 @@ export const disconnectWebSocket = () => {
 let refCount = 0;
 let connectingPromise: Promise<Client> | null = null;
 
-export const acquireWebSocket = async (token: string): Promise<Client> => {
+export const acquireWebSocket = async (): Promise<Client> => {
     refCount++;
     if (stompClient?.connected) return stompClient;
     if (connectingPromise) return connectingPromise;
-    connectingPromise = connectWebSocket(token).finally(() => {
+    // Токен для подключения читается и при необходимости обновляется
+    // внутри connectWebSocket's beforeConnect - см. его комментарий.
+    // The connection token is read and refreshed as needed inside
+    // connectWebSocket's beforeConnect - see its comment.
+    connectingPromise = connectWebSocket().finally(() => {
         connectingPromise = null;
     });
     return connectingPromise;

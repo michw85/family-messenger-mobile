@@ -329,7 +329,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             return;
         }
         try {
-            const client = await acquireWebSocket(token);
+            const client = await acquireWebSocket();
             stompClientRef.current = client;
             console.log('WebSocket connected, subscribing to room:', roomId);
             // Подписываемся на топик комнаты
