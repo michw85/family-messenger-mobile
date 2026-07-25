@@ -129,6 +129,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const teardown = useCallback((nextState: CallState = 'idle') => {
         clearRingTimeout();
+        InCallManager.setKeepScreenOn(false);
         InCallManager.stop();
         localStream?.getTracks().forEach((tr) => tr.stop());
         pcRef.current?.close();
@@ -345,6 +346,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // instead of the loudspeaker
             InCallManager.start({ media: 'video' });
             InCallManager.setForceSpeakerphoneOn(true);
+            // Без этого экран гаснет по обычному таймауту во время звонка - и
+            // после включения нативная поверхность видео (RTCView) не всегда
+            // восстанавливается корректно (пропадает локальный/удалённый превью)
+            // Without this the screen times out normally during a call - and
+            // after waking it, the native video surface (RTCView) doesn't
+            // always recover correctly (local/remote preview disappears)
+            InCallManager.setKeepScreenOn(true);
 
             callIdRef.current = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
             roomIdRef.current = roomId;
@@ -394,6 +402,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setLocalStream(stream);
             InCallManager.start({ media: 'video' });
             InCallManager.setForceSpeakerphoneOn(true);
+            // Без этого экран гаснет по обычному таймауту во время звонка - и
+            // после включения нативная поверхность видео (RTCView) не всегда
+            // восстанавливается корректно (пропадает локальный/удалённый превью)
+            // Without this the screen times out normally during a call - and
+            // after waking it, the native video surface (RTCView) doesn't
+            // always recover correctly (local/remote preview disappears)
+            InCallManager.setKeepScreenOn(true);
 
             const pc = await createPeerConnection(roomId);
             pcRef.current = pc;
