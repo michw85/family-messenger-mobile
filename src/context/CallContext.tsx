@@ -167,18 +167,24 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
 
         (pc as any).ontrack = (event: any) => {
+            console.log('📞 ontrack', event.track?.kind, 'streams:', event.streams?.length, 'stream tracks:', event.streams?.[0]?.getTracks()?.map((t: any) => t.kind));
             if (event.streams && event.streams[0]) {
                 setRemoteStream(event.streams[0]);
             }
         };
 
         (pc as any).onconnectionstatechange = () => {
+            console.log('📞 connectionState:', pc.connectionState);
             if (pc.connectionState === 'connected' && stateRef.current === 'connecting') {
                 callStartedAtRef.current = Date.now();
                 setCallState('active');
             } else if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && stateRef.current === 'active') {
                 endCall('CANCELLED');
             }
+        };
+
+        (pc as any).oniceconnectionstatechange = () => {
+            console.log('📞 iceConnectionState:', pc.iceConnectionState);
         };
 
         return pc;
@@ -233,13 +239,24 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 break;
             }
             case 'ANSWER': {
-                if (pcRef.current && stateRef.current === 'connecting') {
+                // ANSWER получает только звонящий, и в этот момент его состояние
+                // 'outgoing_ringing' (не 'connecting' - в него переходит только
+                // отвечающая сторона в acceptIncomingCall) - раньше проверка была
+                // на 'connecting' и ответ звонящим полностью игнорировался.
+                // Only the caller ever receives ANSWER, and at that point its
+                // state is 'outgoing_ringing' (not 'connecting' - only the
+                // answering side enters that in acceptIncomingCall) - the check
+                // used to test for 'connecting' and the caller silently dropped
+                // every answer.
+                if (pcRef.current && stateRef.current === 'outgoing_ringing') {
+                    clearRingTimeout();
                     await pcRef.current.setRemoteDescription(new RTCSessionDescription({ sdp: signal.sdp, type: 'answer' }));
                     remoteDescSetRef.current = true;
                     for (const c of pendingCandidatesRef.current) {
                         await pcRef.current.addIceCandidate(new RTCIceCandidate(c));
                     }
                     pendingCandidatesRef.current = [];
+                    setCallState('connecting');
                 }
                 break;
             }
