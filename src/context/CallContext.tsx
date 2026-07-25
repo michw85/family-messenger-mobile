@@ -37,6 +37,7 @@ interface CallContextType {
     hangUp: () => void;
     toggleMute: () => void;
     toggleCamera: () => void;
+    switchCamera: () => void;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -449,6 +450,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setCameraEnabled((c) => !c);
     }, [localStream, cameraEnabled]);
 
+    const switchCamera = useCallback(() => {
+        localStream?.getVideoTracks().forEach((tr: any) => tr._switchCamera());
+    }, [localStream]);
+
     const value = useMemo<CallContextType>(() => ({
         state,
         roomName,
@@ -463,8 +468,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hangUp,
         toggleMute,
         toggleCamera,
+        switchCamera,
     }), [state, roomName, remoteUser, localStream, remoteStream, muted, cameraEnabled,
-        startOutgoingCall, acceptIncomingCall, declineIncomingCall, hangUp, toggleMute, toggleCamera]);
+        startOutgoingCall, acceptIncomingCall, declineIncomingCall, hangUp, toggleMute, toggleCamera, switchCamera]);
 
     return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 };

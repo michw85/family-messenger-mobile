@@ -5,7 +5,7 @@ import { useCall } from '../context/CallContext';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function InCallScreen() {
-    const { state, remoteUser, roomName, localStream, remoteStream, muted, cameraEnabled, hangUp, toggleMute, toggleCamera } = useCall();
+    const { state, remoteUser, roomName, localStream, remoteStream, muted, cameraEnabled, hangUp, toggleMute, toggleCamera, switchCamera } = useCall();
     const { t } = useLanguage();
 
     const statusLabel = state === 'outgoing_ringing' ? t('calling')
@@ -26,7 +26,12 @@ export default function InCallScreen() {
             )}
 
             {localStream && cameraEnabled && (
-                <RTCView streamURL={localStream.toURL()} style={styles.localVideo} objectFit="cover" mirror />
+                <View style={styles.localVideoWrapper}>
+                    <RTCView streamURL={localStream.toURL()} style={styles.localVideo} objectFit="cover" mirror />
+                    <TouchableOpacity style={styles.switchCameraButton} onPress={switchCamera} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={styles.switchCameraIcon}>🔄</Text>
+                    </TouchableOpacity>
+                </View>
             )}
 
             <View style={styles.controls}>
@@ -51,10 +56,18 @@ const styles = StyleSheet.create({
     name: { color: '#fff', fontSize: 26, fontWeight: '600' },
     status: { color: '#B0B0C0', fontSize: 16, marginTop: 8 },
     room: { color: '#8A8A9A', fontSize: 14, marginTop: 4 },
-    localVideo: {
+    localVideoWrapper: {
         position: 'absolute', top: 50, right: 16, width: 110, height: 150,
+    },
+    localVideo: {
+        width: '100%', height: '100%',
         borderRadius: 12, backgroundColor: '#222', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
     },
+    switchCameraButton: {
+        position: 'absolute', bottom: 6, right: 6, width: 28, height: 28, borderRadius: 14,
+        backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center',
+    },
+    switchCameraIcon: { fontSize: 14 },
     controls: {
         position: 'absolute', bottom: 50, left: 0, right: 0,
         flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center',
