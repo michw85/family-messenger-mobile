@@ -99,6 +99,15 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const pcRef = useRef<InstanceType<typeof RTCPeerConnection> | null>(null);
     const pendingCandidatesRef = useRef<any[]>([]);
     const remoteDescSetRef = useRef(false);
+    // Синхронная блокировка от повторного входа - stateRef проверяется только
+    // в начале acceptIncomingCall, но состояние на 'connecting' меняется лишь
+    // в конце (после нескольких await), так что двойной тап по "Принять" до
+    // этого момента проходит обе проверки и создаёт вторую PeerConnection
+    // Synchronous re-entrancy lock - stateRef is only checked at the start of
+    // acceptIncomingCall, but the state only becomes 'connecting' at the end
+    // (after several awaits), so a double-tap on "Accept" before that point
+    // passes both checks and creates a second PeerConnection
+    const acceptingRef = useRef(false);
     const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const callStartedAtRef = useRef<number | null>(null);
 
@@ -136,6 +145,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         pcRef.current = null;
         pendingCandidatesRef.current = [];
         remoteDescSetRef.current = false;
+        acceptingRef.current = false;
         callIdRef.current = null;
         roomIdRef.current = null;
         callStartedAtRef.current = null;
@@ -388,7 +398,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const acceptIncomingCall = useCallback(async () => {
         const roomId = roomIdRef.current;
-        if (!roomId || stateRef.current !== 'incoming_ringing') return;
+        if (!roomId || stateRef.current !== 'incoming_ringing' || acceptingRef.current) return;
+        acceptingRef.current = true;
         clearRingTimeout();
 
         const ok = await requestPermissions();
