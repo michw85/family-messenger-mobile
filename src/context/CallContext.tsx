@@ -198,6 +198,18 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         (pc as any).onicecandidate = (event: any) => {
             if (event.candidate) {
+                // Раньше логировались только ВХОДЯЩИЕ кандидаты - без исходящих
+                // не видно, гатерит ли это устройство свой relay-кандидат вообще
+                // (типичная причина зависания на "checking" - только одна сторона
+                // получает relay-кандидат, вторая только host/srflx, и через
+                // строгий/симметричный NAT оператора пара не проходит)
+                // Previously only INCOMING candidates were logged - without
+                // outgoing ones there's no way to see whether this device
+                // gathers its own relay candidate at all (a common cause of
+                // getting stuck at "checking" - only one side gets a relay
+                // candidate, the other only host/srflx, and the pair doesn't
+                // work through a carrier's strict/symmetric NAT)
+                console.log('📞 local candidate:', event.candidate.candidate);
                 sendCallSignal(roomId, {
                     callId: callIdRef.current,
                     type: 'ICE_CANDIDATE',
@@ -206,6 +218,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     sdpMLineIndex: event.candidate.sdpMLineIndex,
                 });
             }
+        };
+
+        (pc as any).onicecandidateerror = (event: any) => {
+            console.warn('📞 icecandidateerror', event.errorCode, event.errorText, event.url);
         };
 
         (pc as any).ontrack = (event: any) => {
