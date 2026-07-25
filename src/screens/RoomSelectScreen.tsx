@@ -27,8 +27,9 @@ import { useLanguage, useLanguagePicker, LANGUAGE_META } from '../context/Langua
 import { useActionSheet } from '../components/ActionSheet';
 import { useTheme } from '../context/ThemeContext';
 import { useSimpleMode } from '../context/SimpleModeContext';
-import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat, logout } from '../services/api';
+import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat, renameChat, logout } from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
+import RenameChatModal from '../components/RenameChatModal';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -68,6 +69,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [refreshing, setRefreshing] = useState<boolean>(false);
     const [modalVisible, setModalVisible] = useState<boolean>(false);
+    const [renamingChat, setRenamingChat] = useState<ChatRoom | null>(null);
     const [filter, setFilter] = useState<ChatFilter>('ALL');
     // По умолчанию - по недавней активности (как бэкенд и отдаёт список), А-Я - по запросу
     // Default is recent activity (matches what the backend already returns), A-Z on request
@@ -136,6 +138,20 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     };
 
     /**
+     * Переименование чата, выбранного через долгий тап
+     * Renaming the chat selected via long-press
+     */
+    const handleRenameChat = async (name: string) => {
+        if (!renamingChat) return;
+        try {
+            await renameChat(renamingChat.id, name);
+            await loadChats();
+        } catch (error) {
+            Alert.alert(t('error'), t('could_not_rename_chat'));
+        }
+    };
+
+    /**
      * Покинуть чат (группа) / удалить чат у себя (личный) - доступно любому
      * участнику. Создатель группового чата дополнительно может удалить его
      * целиком для всех.
@@ -163,6 +179,11 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                 }
                 await loadChats();
             },
+        });
+
+        buttons.push({
+            text: t('rename_chat'),
+            onPress: () => setRenamingChat(item),
         });
 
         if (isGroup) {
@@ -404,6 +425,13 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                 visible={modalVisible}
                 onClose={() => setModalVisible(false)}
                 onCreate={handleCreateChat}
+            />
+
+            <RenameChatModal
+                visible={renamingChat !== null}
+                currentName={renamingChat?.name ?? ''}
+                onClose={() => setRenamingChat(null)}
+                onRename={handleRenameChat}
             />
         </LinearGradient>
     );

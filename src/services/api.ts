@@ -144,6 +144,7 @@ export const deleteChat = (chatId: string) => api.delete(`/chats/${chatId}`);
 export const leaveChat = (chatId: string) => api.post(`/chats/${chatId}/leave`);
 export const muteChat = (chatId: string) => api.post(`/chats/${chatId}/mute`);
 export const unmuteChat = (chatId: string) => api.delete(`/chats/${chatId}/mute`);
+export const renameChat = (chatId: string, name: string) => api.patch(`/chats/${chatId}/name`, { name });
 export const markChatRead = (chatId: string) => api.post(`/chats/${chatId}/read`);
 
 // Messages
