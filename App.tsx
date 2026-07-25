@@ -33,6 +33,7 @@ import { colors } from './src/styles/theme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setAuthExpiredHandler, triggerAuthLoggedIn } from './src/utils/authEvents';
 import { registerForPushNotificationsAsync } from './src/utils/notifications';
+import { updateFcmToken } from './src/services/api';
 import { navigationRef } from './src/services/navigationRef';
 import { CallProvider } from './src/context/CallContext';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
@@ -211,9 +212,20 @@ const Navigation = () => {
                     // is only called from the login/register screens) - without
                     // this cold-start call they'd be stuck on the old,
                     // vibration-less channel until logging out and back in.
-                    registerForPushNotificationsAsync().catch((e) =>
-                        console.warn('Failed to (re-)register push notifications', e)
-                    );
+                    //
+                    // getExpoPushTokenAsync() может вернуть другой токен при
+                    // каждом вызове - без ресинка на бэкенд сервер продолжит
+                    // слать пуши на устаревший токен, и они молча перестанут
+                    // приходить после первого раза.
+                    // getExpoPushTokenAsync() can return a different token on
+                    // each call - without re-syncing it to the backend, the
+                    // server keeps pushing to a stale token and notifications
+                    // silently stop arriving after the first one.
+                    registerForPushNotificationsAsync()
+                        .then((pushToken) => {
+                            if (pushToken) return updateFcmToken(pushToken);
+                        })
+                        .catch((e) => console.warn('Failed to (re-)register push notifications', e));
                 }
             } catch (error) {
                 console.error('Error checking login status:', error);
