@@ -432,7 +432,20 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             setCallState('connecting');
             if (navigationRef.isReady()) {
-                navigationRef.navigate('InCall' as never);
+                // reset, не navigate - IncomingCall уже есть в стеке (её туда
+                // положил OFFER-хендлер), и push поверх нее означало бы, что
+                // goBack() после звонка вернёт на экран "принять/отклонить"
+                // reset, not navigate - IncomingCall is already in the stack
+                // (the OFFER handler put it there), and pushing on top of it
+                // would mean goBack() after the call lands back on the
+                // accept/decline screen
+                navigationRef.reset({
+                    index: 1,
+                    routes: [
+                        { name: 'RoomSelect' },
+                        { name: 'InCall' },
+                    ],
+                });
             }
         } catch (e) {
             console.error('Failed to accept incoming call', e);

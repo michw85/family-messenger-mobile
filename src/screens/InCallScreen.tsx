@@ -16,7 +16,7 @@ export default function InCallScreen() {
     return (
         <View style={styles.container}>
             {remoteStream ? (
-                <RTCView streamURL={remoteStream.toURL()} style={styles.remoteVideo} objectFit="cover" />
+                <RTCView streamURL={remoteStream.toURL()} style={styles.remoteVideo} objectFit="cover" zOrder={0} />
             ) : (
                 <View style={styles.remotePlaceholder}>
                     <Text style={styles.name}>{remoteUser?.username}</Text>
@@ -27,7 +27,7 @@ export default function InCallScreen() {
 
             {localStream && cameraEnabled && (
                 <View style={styles.localVideoWrapper}>
-                    <RTCView streamURL={localStream.toURL()} style={styles.localVideo} objectFit="cover" mirror />
+                    <RTCView streamURL={localStream.toURL()} style={styles.localVideo} objectFit="cover" mirror zOrder={1} />
                     <TouchableOpacity style={styles.switchCameraButton} onPress={switchCamera} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Text style={styles.switchCameraIcon}>🔄</Text>
                     </TouchableOpacity>
