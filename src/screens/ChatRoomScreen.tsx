@@ -55,6 +55,22 @@ import { formatMessageTime, formatMessageDate } from '../utils/dateTime';
 
 const MESSAGES_PAGE_SIZE = 30;
 
+// Звонки временно скрыты для релиза в Google Play - механика (сигналинг,
+// coturn, WebRTC) работает, но остаётся нестабильной под реальными сетевыми
+// условиями (см. историю правок CallContext.tsx/websocket.ts), и маршрутизация
+// звука на Bluetooth-гарнитуру всё ещё не работает. Весь код звонков (кнопка,
+// CallProvider, экраны) НЕ удалён - просто выключен этим флагом, чтобы
+// доработать и включить отдельным обновлением позже без необходимости
+// переделывать уже написанное.
+// Calls are temporarily hidden for the Google Play release - the mechanics
+// (signaling, coturn, WebRTC) work, but remain unstable under real network
+// conditions (see the CallContext.tsx/websocket.ts edit history), and audio
+// routing to a Bluetooth headset still doesn't work. None of the calling code
+// (button, CallProvider, screens) was removed - it's just switched off by this
+// flag, to be finished and re-enabled in a later update without having to redo
+// what's already written.
+const CALLS_ENABLED = false;
+
 /**
  * Настройки записи голосовых сообщений: моно + пониженный битрейт вместо
  * RecordingPresets.HIGH_QUALITY (stereo, 128kbps) - для речи разницы в
@@ -1277,7 +1293,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                             <Text style={styles.iconText}>✨</Text>
                                         )}
                                     </TouchableOpacity>
-                                    {liveRoomType === 'DIRECT' && liveOtherParticipant && (
+                                    {CALLS_ENABLED && liveRoomType === 'DIRECT' && liveOtherParticipant && (
                                         <TouchableOpacity
                                             onPress={() => startOutgoingCall(roomId, roomName, liveOtherParticipant)}
                                             style={[styles.iconHeaderButton, styles.callButton]}
