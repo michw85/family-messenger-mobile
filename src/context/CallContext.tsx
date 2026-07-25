@@ -40,6 +40,19 @@ interface CallContextType {
     toggleCamera: () => void;
     switchCamera: () => void;
     toggleSpeaker: () => void;
+    // Тап по push-уведомлению может прийти с большой задержкой (уведомление
+    // открыли из шторки спустя минуту) - к этому моменту звонок мог уже
+    // истечь по таймауту или быть отменён. Без этой проверки App.tsx слепо
+    // навигировал на IncomingCallScreen по данным из пуша, а не по реальному
+    // состоянию - экран показывался, но кнопки ничего не делали, потому что
+    // stateRef.current уже не 'incoming_ringing'.
+    // A push notification tap can arrive with a large delay (opened from the
+    // shade a minute later) - by then the call may have already timed out or
+    // been cancelled. Without this check, App.tsx blindly navigated to
+    // IncomingCallScreen based on the push payload rather than real state -
+    // the screen would show, but the buttons did nothing because
+    // stateRef.current was no longer 'incoming_ringing'.
+    isCallActive: (callId: string) => boolean;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -567,6 +580,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSpeakerOn((s) => !s);
     }, [speakerOn]);
 
+    const isCallActive = useCallback(
+        (callId: string) => stateRef.current === 'incoming_ringing' && callIdRef.current === callId,
+        []
+    );
+
     const value = useMemo<CallContextType>(() => ({
         state,
         roomName,
@@ -584,8 +602,9 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toggleCamera,
         switchCamera,
         toggleSpeaker,
+        isCallActive,
     }), [state, roomName, remoteUser, localStream, remoteStream, muted, cameraEnabled, speakerOn,
-        startOutgoingCall, acceptIncomingCall, declineIncomingCall, hangUp, toggleMute, toggleCamera, switchCamera, toggleSpeaker]);
+        startOutgoingCall, acceptIncomingCall, declineIncomingCall, hangUp, toggleMute, toggleCamera, switchCamera, toggleSpeaker, isCallActive]);
 
     return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 };

@@ -35,7 +35,7 @@ import { setAuthExpiredHandler, triggerAuthLoggedIn } from './src/utils/authEven
 import { registerForPushNotificationsAsync } from './src/utils/notifications';
 import { updateFcmToken } from './src/services/api';
 import { navigationRef } from './src/services/navigationRef';
-import { CallProvider } from './src/context/CallContext';
+import { CallProvider, useCall } from './src/context/CallContext';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
 import InCallScreen from './src/screens/InCallScreen';
 
@@ -185,6 +185,7 @@ const Navigation = () => {
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
     const [isChecking, setIsChecking] = useState(true);
     const [navReady, setNavReady] = useState(false);
+    const { isCallActive } = useCall();
 
     useEffect(() => {
         const checkLoginStatus = async () => {
@@ -271,7 +272,20 @@ const Navigation = () => {
             // An incoming call opens the call screen, not the chat itself - same
             // push mechanism as regular messages (see CallController on the
             // backend), just a different destination screen.
-            if (data?.type === 'incoming_call') {
+            //
+            // Тап может прийти сильно позже (уведомление открыли из шторки
+            // спустя время) - к этому моменту звонок мог уже истечь по
+            // таймауту или быть отменён. isCallActive проверяет реальное
+            // состояние CallContext, а не просто данные из пуша - без этого
+            // открывался мёртвый экран звонка с нерабочими кнопками. Если
+            // звонок уже неактивен, просто открываем чат, как обычное сообщение.
+            // The tap can arrive much later (notification opened from the
+            // shade after a delay) - by then the call may have already timed
+            // out or been cancelled. isCallActive checks CallContext's real
+            // state, not just the push payload - without this, a dead call
+            // screen with non-functional buttons would open. If the call is
+            // no longer active, just open the chat like a regular message.
+            if (data?.type === 'incoming_call' && isCallActive(data.callId)) {
                 navigationRef.reset({
                     index: 1,
                     routes: [
@@ -314,7 +328,7 @@ const Navigation = () => {
         });
 
         return () => subscription.remove();
-    }, [navReady, isChecking]);
+    }, [navReady, isChecking, isCallActive]);
 
     // Показываем индикатор загрузки во время проверки / Show loading indicator during check
     if (isChecking) {
