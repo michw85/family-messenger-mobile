@@ -65,6 +65,16 @@ interface FoundUser {
 }
 
 /**
+ * Блокнот - это обычный DIRECT-чат, где единственный участник - сам
+ * пользователь (createChat никогда не добавляет никого, кроме создателя).
+ * Никакого отдельного RoomType заводить не пришлось.
+ * The notebook is just a DIRECT chat with a single participant - the user
+ * themselves (createChat never adds anyone but the creator). No separate
+ * RoomType was needed.
+ */
+const isNotebookChat = (chat: ChatRoom): boolean => chat.type !== 'GROUP' && chat.participants.length === 1;
+
+/**
  * Экран выбора чата
  * Chat selection screen
  */
@@ -104,7 +114,23 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const loadChats = async () => {
         try {
             const response = await fetchChats();
-            setChats(response.data);
+            let loaded: ChatRoom[] = response.data;
+            // Блокнот создаётся один раз при первом входе - проверяем по факту
+            // наличия на сервере (а не флагом в AsyncStorage), чтобы это
+            // переживало переустановку приложения и вход с другого устройства
+            // The notebook is created once on first login - checked by whether
+            // it actually exists server-side (not an AsyncStorage flag), so it
+            // survives reinstalls and logging in from another device
+            if (!loaded.some(isNotebookChat)) {
+                try {
+                    await createChat(t('notebook_chat_name'), 'DIRECT');
+                    const refreshed = await fetchChats();
+                    loaded = refreshed.data;
+                } catch (provisionError) {
+                    console.error('Failed to provision notebook chat:', provisionError);
+                }
+            }
+            setChats(loaded);
         } catch (error) {
             console.error('Failed to load chats:', error);
             Alert.alert(t('error'), t('could_not_load_chats'));
@@ -273,6 +299,13 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         } else {
             list.sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime());
         }
+        // Блокнот всегда закреплён первым, независимо от сортировки/фильтра
+        // The notebook is always pinned first, regardless of sort/filter
+        const notebookIndex = list.findIndex(isNotebookChat);
+        if (notebookIndex > 0) {
+            const [notebook] = list.splice(notebookIndex, 1);
+            list.unshift(notebook);
+        }
         return list;
     }, [chats, filter, sortAlpha, language, searchQuery]);
 
@@ -355,6 +388,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         const otherParticipant = item.type !== 'GROUP'
             ? item.participants.find((p) => p.username !== currentUsername)
             : null;
+        const isNotebook = isNotebookChat(item);
 
         return (
         <TouchableOpacity
@@ -372,7 +406,9 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             activeOpacity={0.7}
         >
             <View style={[styles.avatar, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
-                {otherParticipant?.avatarUrl ? (
+                {isNotebook ? (
+                    <Text style={styles.avatarText}>📓</Text>
+                ) : otherParticipant?.avatarUrl ? (
                     <Image source={{ uri: otherParticipant.avatarUrl }} style={styles.avatarImage} />
                 ) : (
                     <Text style={[styles.avatarText, { color: colors.primary }]}>
@@ -383,7 +419,9 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             <View style={styles.chatInfo}>
                 <Text style={styles.chatName}>{item.name}</Text>
                 <Text style={styles.chatType}>
-                    {item.type === 'GROUP' ? '👥 ' + t('group_chats') : '👤 ' + t('private_chats')}
+                    {isNotebook
+                        ? t('notebook_chat_label')
+                        : item.type === 'GROUP' ? '👥 ' + t('group_chats') : '👤 ' + t('private_chats')}
                 </Text>
             </View>
             {item.mutedForCurrentUser && <Text style={styles.muteIcon}>🔕</Text>}

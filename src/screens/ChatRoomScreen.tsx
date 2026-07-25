@@ -71,6 +71,52 @@ const MESSAGES_PAGE_SIZE = 30;
 // what's already written.
 const CALLS_ENABLED = false;
 
+/** Стилевой диапазон простого форматирования блокнота / A notebook simple-formatting style range */
+interface RichSpan {
+    start: number;
+    end: number;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
+    color?: string;
+}
+
+/** Палитра цветов для панели форматирования блокнота / Color palette for the notebook formatting toolbar */
+const NOTEBOOK_COLORS = ['#2D3436', '#D63031', '#0984E3', '#00B894', '#F39C12'];
+
+/**
+ * Превращает JSON чек-листа в редактируемый многострочный текст вида
+ * "[x] пункт" - repurposes the existing plain-text edit modal (editMessage
+ * endpoint) instead of building a dedicated checklist editor.
+ * Turns checklist JSON into editable multi-line "[x] item" text - reuses the
+ * existing plain-text edit modal (editMessage endpoint) instead of building a
+ * dedicated checklist editor.
+ */
+const checklistToEditText = (content: string): string => {
+    try {
+        const items = JSON.parse(content).items as { text: string; done: boolean }[];
+        return items.map(i => `[${i.done ? 'x' : ' '}] ${i.text}`).join('\n');
+    } catch {
+        return content;
+    }
+};
+
+const CHECKLIST_LINE_REGEX = /^\[([ xX])\]\s?(.*)$/;
+
+/** Обратное преобразование - см. checklistToEditText / The inverse - see checklistToEditText */
+const editTextToChecklistContent = (text: string): string => {
+    const items = text.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map(line => {
+            const match = line.match(CHECKLIST_LINE_REGEX);
+            return match
+                ? { id: Math.random().toString(36).slice(2), text: match[2].trim(), done: match[1].toLowerCase() === 'x' }
+                : { id: Math.random().toString(36).slice(2), text: line, done: false };
+        });
+    return JSON.stringify({ items });
+};
+
 /**
  * Настройки записи голосовых сообщений: моно + пониженный битрейт вместо
  * RecordingPresets.HIGH_QUALITY (stereo, 128kbps) - для речи разницы в
@@ -113,7 +159,7 @@ interface Message {
         avatarUrl?: string;
     };
     content: string;
-    type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED';
+    type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED' | 'RICH_TEXT' | 'CHECKLIST';
     mediaUrl?: string;
     timestamp: string;
     grouped?: boolean;
@@ -125,7 +171,7 @@ interface Message {
         id: string;
         senderUsername: string;
         content: string;
-        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED';
+        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED' | 'RICH_TEXT' | 'CHECKLIST';
         deleted: boolean;
         revealAt?: string | null;
     } | null;
@@ -202,6 +248,19 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     // was passed in on navigation.
     const [liveRoomType, setLiveRoomType] = useState<string | undefined>(roomType);
     const [liveOtherParticipant, setLiveOtherParticipant] = useState<{ id: number; username: string; avatarUrl?: string } | undefined>(otherParticipant);
+    // Блокнот - DIRECT-чат с единственным участником (самим собой) - см. план
+    // задачи #57. Определяется по свежим данным комнаты (тот же запрос, что
+    // выше заполняет liveRoomType/liveOtherParticipant).
+    // The notebook is a DIRECT chat with a single participant (yourself) -
+    // see task #57's plan. Detected from the same fresh room fetch that
+    // populates liveRoomType/liveOtherParticipant above.
+    const [isNotebook, setIsNotebook] = useState(false);
+    // Простое форматирование текста в блокноте: диапазоны стилей поверх
+    // обычного plain-text поля ввода (без сторонних rich-text библиотек)
+    // Simple notebook text formatting: style ranges over the plain-text
+    // input field (no third-party rich-text libraries)
+    const [formatSpans, setFormatSpans] = useState<RichSpan[]>([]);
+    const [inputSelection, setInputSelection] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
     // Только для iOS - Android использует системные диалоги DateTimePickerAndroid напрямую
     // iOS only - Android uses the DateTimePickerAndroid system dialogs directly
     const [iosCapsulePickerVisible, setIosCapsulePickerVisible] = useState(false);
@@ -448,6 +507,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 setLiveOtherParticipant(other
                     ? { id: other.id, username: other.username, avatarUrl: other.avatarUrl }
                     : undefined);
+                setIsNotebook(room.type !== 'GROUP' && room.participants.length === 1);
             })
             .catch((error) => console.error('Failed to load room info:', error));
     }, [roomId, currentUsername]);
@@ -483,11 +543,73 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const sendTextMessage = useCallback(() => {
         if (!inputText.trim() || !stompClientRef.current) return;
         console.log('Sending message:', { roomId, inputText });
-        wsSendMessage(roomId, inputText.trim(), 'TEXT', undefined, replyingTo?.id);
+        // В блокноте, если применено хоть одно форматирование - отправляем как
+        // RICH_TEXT ({text, spans} JSON), иначе как обычный TEXT
+        // In the notebook, if any formatting was applied - send as RICH_TEXT
+        // ({text, spans} JSON), otherwise as regular TEXT
+        if (isNotebook && formatSpans.length > 0) {
+            wsSendMessage(roomId, JSON.stringify({ text: inputText, spans: formatSpans }), 'RICH_TEXT', undefined, replyingTo?.id);
+        } else {
+            wsSendMessage(roomId, inputText.trim(), 'TEXT', undefined, replyingTo?.id);
+        }
         setInputText('');
+        setFormatSpans([]);
         setReplyingTo(null);
         setSending(false);
-    }, [inputText, roomId, replyingTo]);
+    }, [inputText, roomId, replyingTo, isNotebook, formatSpans]);
+
+    /**
+     * Применить формат (bold/italic/underline/цвет) к текущему выделению текста
+     * в поле ввода блокнота - добавляет диапазон в formatSpans
+     * Apply formatting (bold/italic/underline/color) to the current text
+     * selection in the notebook input - adds a range to formatSpans
+     */
+    const applyNotebookFormat = useCallback((style: Partial<Pick<RichSpan, 'bold' | 'italic' | 'underline' | 'color'>>) => {
+        const { start, end } = inputSelection;
+        if (start === end) {
+            Alert.alert(t('error'), t('select_text_first'));
+            return;
+        }
+        setFormatSpans(prev => [...prev, { start, end, ...style }]);
+    }, [inputSelection, t]);
+
+    /**
+     * Создать чек-лист блокнота из текста поля ввода: каждая непустая строка -
+     * отдельный пункт (переиспользует уже существующий редактор ввода, как и
+     * капсула времени / чек-ин настроения)
+     * Create a notebook checklist from the input field's text: each non-empty
+     * line becomes a separate item (reuses the existing input field, like the
+     * time capsule / mood check-in do)
+     */
+    const sendChecklist = useCallback(() => {
+        if (!inputText.trim() || !stompClientRef.current) return;
+        const items = inputText
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map(text => ({ id: Math.random().toString(36).slice(2), text, done: false }));
+        if (!items.length) return;
+        wsSendMessage(roomId, JSON.stringify({ items }), 'CHECKLIST');
+        setInputText('');
+        setFormatSpans([]);
+    }, [inputText, roomId]);
+
+    /**
+     * Переключить пункт чек-листа (done) - пересобирает JSON и сохраняет через
+     * уже существующий editMessage, как и обычное редактирование сообщения
+     * Toggle a checklist item's done flag - rebuilds the JSON and saves via
+     * the existing editMessage, same as regular message editing
+     */
+    const handleToggleChecklistItem = useCallback(async (message: Message, itemId: string) => {
+        try {
+            const parsed = JSON.parse(message.content) as { items: { id: string; text: string; done: boolean }[] };
+            const items = parsed.items.map(i => i.id === itemId ? { ...i, done: !i.done } : i);
+            const response = await editMessage(roomId, message.id, JSON.stringify({ items }));
+            applyMessageUpdate(response.data);
+        } catch (error) {
+            console.error('Failed to toggle checklist item:', error);
+        }
+    }, [roomId, applyMessageUpdate]);
 
     /**
      * Изменение текста в поле ввода - параллельно шлёт событие "печатает"
@@ -690,6 +812,21 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             case 'VOICE': return `[${t('voice_message')}] ${m.mediaUrl || ''}`;
             case 'VIDEO': return `[${t('video')}] ${m.mediaUrl || ''}`;
             case 'FILE': return `[${t('file_label')}] ${m.content} ${m.mediaUrl || ''}`;
+            case 'RICH_TEXT': {
+                try {
+                    return JSON.parse(m.content).text ?? '';
+                } catch {
+                    return m.content;
+                }
+            }
+            case 'CHECKLIST': {
+                try {
+                    const items = JSON.parse(m.content).items as { text: string; done: boolean }[];
+                    return items.map(i => `- [${i.done ? 'x' : ' '}] ${i.text}`).join('\n');
+                } catch {
+                    return m.content;
+                }
+            }
             case 'CALL_MISSED': return t('call_log_missed');
             case 'CALL_DECLINED': return t('call_log_declined');
             case 'CALL_CANCELLED': return t('call_log_cancelled');
@@ -760,6 +897,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const openExtrasMenu = useCallback(() => {
         showActionSheet('', [
             { text: t('cancel'), style: 'cancel' },
+            ...(isNotebook ? [{ text: t('checklist_menu_item'), onPress: sendChecklist }] : []),
             { text: t('mood_checkin_menu_item'), onPress: sendMoodCheckin },
             {
                 text: t('time_capsule_menu_item'),
@@ -781,7 +919,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             },
             { text: `📤 ${t('export_chat_menu_item')}`, onPress: exportChat },
         ]);
-    }, [sendMoodCheckin, sendTimeCapsuleIn, pickCapsuleDateTime, exportChat, inputText, t, showActionSheet]);
+    }, [sendMoodCheckin, sendTimeCapsuleIn, pickCapsuleDateTime, exportChat, inputText, t, showActionSheet, isNotebook, sendChecklist]);
 
     /**
  * Начало записи голоса
@@ -943,31 +1081,39 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         const isMine = item.sender.username === currentUsername;
         const options: any[] = [];
 
-        const reactionSet = item.type === 'MOOD_CHECKIN' ? MOOD_REACTIONS : QUICK_REACTIONS;
-        reactionSet.forEach((emoji) => {
-            options.push({
-                text: emoji,
-                onPress: () => handleToggleReaction(item.id, emoji),
+        // Чек-лист блокнота - это личный список дел, а не сообщение для реакций
+        // A notebook checklist is a personal to-do list, not something to react to
+        if (item.type !== 'CHECKLIST') {
+            const reactionSet = item.type === 'MOOD_CHECKIN' ? MOOD_REACTIONS : QUICK_REACTIONS;
+            reactionSet.forEach((emoji) => {
+                options.push({
+                    text: emoji,
+                    onPress: () => handleToggleReaction(item.id, emoji),
+                });
             });
-        });
+        }
 
         options.push({
             text: t('reply'),
             onPress: () => setReplyingTo(item),
         });
 
-        if (item.type === 'TEXT' && item.content) {
+        if ((item.type === 'TEXT' || item.type === 'RICH_TEXT' || item.type === 'CHECKLIST') && item.content) {
             options.push({
                 text: t('copy'),
-                onPress: () => Clipboard.setStringAsync(item.content),
+                onPress: () => Clipboard.setStringAsync(describeMessageForExport(item)),
             });
         }
-        if (isMine && item.type === 'TEXT') {
+        if (isMine && (item.type === 'TEXT' || item.type === 'CHECKLIST')) {
             options.push({
                 text: t('edit'),
                 onPress: () => {
                     setEditingMessage(item);
-                    setEditText(item.content);
+                    if (item.type === 'CHECKLIST') {
+                        setEditText(checklistToEditText(item.content));
+                    } else {
+                        setEditText(item.content);
+                    }
                 },
             });
         }
@@ -1012,7 +1158,10 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const saveEditedMessage = useCallback(async () => {
         if (!editingMessage || !editText.trim()) return;
         try {
-            const response = await editMessage(roomId, editingMessage.id, editText.trim());
+            const content = editingMessage.type === 'CHECKLIST'
+                ? editTextToChecklistContent(editText)
+                : editText.trim();
+            const response = await editMessage(roomId, editingMessage.id, content);
             applyMessageUpdate(response.data);
             setEditingMessage(null);
             setEditText('');
@@ -1094,6 +1243,44 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         // a long-press fires by accident instead of playback). So for video we
         // wrap in a plain View only (the player gets every touch directly), and
         // the reactions/actions menu opens via a separate "⋯" corner button.
+        // Чек-лист блокнота: каждый пункт - свой TouchableOpacity (тап переключает
+        // done) - как и с видео выше, если обернуть весь бабл в TouchableOpacity,
+        // он перехватывает тапы, предназначенные вложенным пунктам чек-листа.
+        // Поэтому оборачиваем в обычный View, а меню (реакции недоступны для
+        // блокнота, только редактирование/удаление) открывается кнопкой "⋯".
+        // Notebook checklist: each item is its own TouchableOpacity (tap toggles
+        // done) - just like video above, wrapping the whole bubble in a
+        // TouchableOpacity would steal taps meant for the nested checklist
+        // items. So we wrap in a plain View, and the menu (no reactions in the
+        // notebook, just edit/delete) opens via an "⋯" button.
+        if (item.type === 'CHECKLIST' && !item.deleted) {
+            return (
+                <View>
+                    <ThoughtBubble
+                        content={item.content}
+                        sender={item.sender.username}
+                        timestamp={formatMessageTime(item.timestamp, t)}
+                        isMyMessage={isMyMessage}
+                        type={item.type}
+                        grouped={item.grouped}
+                        edited={item.edited}
+                        deletedPlaceholder={false}
+                        read={item.read}
+                        replyTo={item.replyTo}
+                        fontScale={fontScale}
+                        onToggleChecklistItem={(itemId) => handleToggleChecklistItem(item, itemId)}
+                    />
+                    <TouchableOpacity
+                        style={styles.videoMenuButton}
+                        onPress={() => handleMessageLongPress(item)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <Text style={styles.videoMenuButtonText}>⋯</Text>
+                    </TouchableOpacity>
+                </View>
+            );
+        }
+
         if (item.type === 'VIDEO' && !item.deleted) {
             return (
                 <View>
@@ -1179,7 +1366,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             )}
         </View>
         );
-    }, [currentUsername, handleMessageLongPress, handleToggleReaction, styles, fontScale, t]);
+    }, [currentUsername, handleMessageLongPress, handleToggleReaction, handleToggleChecklistItem, styles, fontScale, t]);
 
     const keyExtractor = useCallback((item: Message) => item.id, []);
 
@@ -1400,6 +1587,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                         <Text style={styles.replyPreviewBarText} numberOfLines={1}>
                                             {replyingTo.type === 'TEXT' ? replyingTo.content
                                                 : replyingTo.type === 'IMAGE' ? '📷 ' + t('photo')
+                                                : replyingTo.type === 'RICH_TEXT' || replyingTo.type === 'CHECKLIST'
+                                                    ? describeMessageForExport(replyingTo)
                                                 : '🎤 ' + t('voice_message')}
                                         </Text>
                                     </View>
@@ -1423,32 +1612,55 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     </TouchableOpacity>
                                 </View>
                             ) : (
-                                <View style={styles.inputContainer}>
-                                    {/* Меню вложений: фото/видео, файл, голосовое - за одной кнопкой */}
-                                    <TouchableOpacity onPress={openAttachMenu} style={styles.iconButton} disabled={sending}>
-                                        <Text style={styles.iconText}>➕</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setEmojiPickerVisible(true)} style={styles.iconButton} disabled={sending}>
-                                        <Text style={styles.iconText}>😀</Text>
-                                    </TouchableOpacity>
-                                    <TextInput
-                                        style={styles.input}
-                                        value={inputText}
-                                        onChangeText={handleInputChange}
-                                        placeholder={t('placeholder')}
-                                        placeholderTextColor={colors.textMuted}
-                                        onSubmitEditing={sendTextMessage}
-                                        returnKeyType="send"
-                                        multiline
-                                    />
-                                    <TouchableOpacity
-                                        style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
-                                        onPress={sendTextMessage}
-                                        disabled={!inputText.trim() || sending}
-                                    >
-                                        <Text style={styles.sendButtonText}>↑</Text>
-                                    </TouchableOpacity>
-                                </View>
+                                <>
+                                    {isNotebook && (
+                                        <View style={styles.notebookToolbar}>
+                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ bold: true })}>
+                                                <Text style={[styles.notebookToolbarButtonText, { fontWeight: '700' }]}>B</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ italic: true })}>
+                                                <Text style={[styles.notebookToolbarButtonText, { fontStyle: 'italic' }]}>I</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ underline: true })}>
+                                                <Text style={[styles.notebookToolbarButtonText, { textDecorationLine: 'underline' }]}>U</Text>
+                                            </TouchableOpacity>
+                                            {NOTEBOOK_COLORS.map((color) => (
+                                                <TouchableOpacity
+                                                    key={color}
+                                                    style={[styles.notebookColorSwatch, { backgroundColor: color }]}
+                                                    onPress={() => applyNotebookFormat({ color })}
+                                                />
+                                            ))}
+                                        </View>
+                                    )}
+                                    <View style={styles.inputContainer}>
+                                        {/* Меню вложений: фото/видео, файл, голосовое - за одной кнопкой */}
+                                        <TouchableOpacity onPress={openAttachMenu} style={styles.iconButton} disabled={sending}>
+                                            <Text style={styles.iconText}>➕</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity onPress={() => setEmojiPickerVisible(true)} style={styles.iconButton} disabled={sending}>
+                                            <Text style={styles.iconText}>😀</Text>
+                                        </TouchableOpacity>
+                                        <TextInput
+                                            style={styles.input}
+                                            value={inputText}
+                                            onChangeText={handleInputChange}
+                                            onSelectionChange={(e) => setInputSelection(e.nativeEvent.selection)}
+                                            placeholder={t('placeholder')}
+                                            placeholderTextColor={colors.textMuted}
+                                            onSubmitEditing={sendTextMessage}
+                                            returnKeyType="send"
+                                            multiline
+                                        />
+                                        <TouchableOpacity
+                                            style={[styles.sendButton, (!inputText.trim() || sending) && styles.sendButtonDisabled]}
+                                            onPress={sendTextMessage}
+                                            disabled={!inputText.trim() || sending}
+                                        >
+                                            <Text style={styles.sendButtonText}>↑</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
                             )}
                         </View>
                         {/* Модалка добавления участников */}
@@ -1706,6 +1918,32 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         flexDirection: 'row',
         alignItems: 'flex-end',
         gap: spacing.sm,
+    },
+    notebookToolbar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        paddingBottom: spacing.xs,
+        paddingHorizontal: 2,
+    },
+    notebookToolbarButton: {
+        width: 30,
+        height: 30,
+        borderRadius: borderRadius.small,
+        backgroundColor: colors.pillBackground,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    notebookToolbarButtonText: {
+        fontSize: 15,
+        color: colors.primary,
+    },
+    notebookColorSwatch: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 1,
+        borderColor: colors.border,
     },
     recordingBar: {
         flexDirection: 'row',

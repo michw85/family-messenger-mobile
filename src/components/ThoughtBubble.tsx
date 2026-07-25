@@ -43,9 +43,11 @@ interface ThoughtBubbleProps {
     sender: string;
     timestamp: string;
     isMyMessage: boolean;
-    type?: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED';
+    type?: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED' | 'RICH_TEXT' | 'CHECKLIST';
     mediaUrl?: string;
     userColor?: string;
+    /** Тап по пункту чек-листа (CHECKLIST) - переключает done / Tap on a checklist (CHECKLIST) item - toggles done */
+    onToggleChecklistItem?: (itemId: string) => void;
     /**
      * true, если предыдущее сообщение в чате от того же отправителя и отправлено
      * недавно - тогда отступ сверху меньше (группировка сообщений подряд)
@@ -65,7 +67,7 @@ interface ThoughtBubbleProps {
     replyTo?: {
         senderUsername: string;
         content: string;
-        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED';
+        type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED' | 'RICH_TEXT' | 'CHECKLIST';
         deleted: boolean;
         revealAt?: string | null;
     } | null;
@@ -250,6 +252,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     type = 'TEXT',
     mediaUrl,
     userColor,
+    onToggleChecklistItem,
     grouped = false,
     edited = false,
     deletedPlaceholder = false,
@@ -450,6 +453,85 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     const opacity = opacityAnim;
     const translateYVal = translateY;
 
+    /**
+     * Рендер сообщения блокнота с простым форматированием: content хранит
+     * {text, spans}, где spans - непересекающиеся стилевые диапазоны поверх
+     * plain text. Вложенные <Text> в RN нормально комбинируют стили родителя.
+     * Renders a notebook message with simple formatting: content stores
+     * {text, spans}, where spans are style ranges over plain text. Nested
+     * <Text> in RN correctly combines styles from its parent.
+     */
+    const renderRichText = (raw: string) => {
+        try {
+            const parsed = JSON.parse(raw) as { text: string; spans?: Array<{ start: number; end: number; bold?: boolean; italic?: boolean; underline?: boolean; color?: string }> };
+            const text = parsed.text ?? '';
+            const spans = (parsed.spans ?? []).filter(s => s.end > s.start);
+            if (!spans.length) {
+                return <LinkifiedText text={text} textStyle={[styles.messageText, isMyMessage && styles.myText]} linkStyle={styles.linkText} />;
+            }
+            const boundaries = new Set<number>([0, text.length]);
+            spans.forEach(s => {
+                boundaries.add(Math.max(0, Math.min(s.start, text.length)));
+                boundaries.add(Math.max(0, Math.min(s.end, text.length)));
+            });
+            const points = Array.from(boundaries).sort((a, b) => a - b);
+            const segments: { key: number; text: string; style: any }[] = [];
+            for (let i = 0; i < points.length - 1; i++) {
+                const segStart = points[i];
+                const segEnd = points[i + 1];
+                if (segStart >= segEnd) continue;
+                const active = spans.filter(s => s.start <= segStart && s.end >= segEnd);
+                const style: any = {};
+                active.forEach(s => {
+                    if (s.bold) style.fontWeight = '700';
+                    if (s.italic) style.fontStyle = 'italic';
+                    if (s.underline) style.textDecorationLine = 'underline';
+                    if (s.color) style.color = s.color;
+                });
+                segments.push({ key: i, text: text.slice(segStart, segEnd), style });
+            }
+            return (
+                <Text style={[styles.messageText, isMyMessage && styles.myText]}>
+                    {segments.map(seg => <Text key={seg.key} style={seg.style}>{seg.text}</Text>)}
+                </Text>
+            );
+        } catch {
+            return <Text style={[styles.messageText, isMyMessage && styles.myText]}>{raw}</Text>;
+        }
+    };
+
+    /**
+     * Рендер чек-листа блокнота: content хранит {items:[{id,text,done}]},
+     * тап по пункту вызывает onToggleChecklistItem - остальное (пересборка
+     * content и вызов editMessage) делает родительский экран.
+     * Renders a notebook checklist: content stores {items:[{id,text,done}]},
+     * tapping an item calls onToggleChecklistItem - rebuilding the content
+     * and calling editMessage is handled by the parent screen.
+     */
+    const renderChecklist = (raw: string) => {
+        try {
+            const parsed = JSON.parse(raw) as { items: { id: string; text: string; done: boolean }[] };
+            return (
+                <View>
+                    {parsed.items.map(item => (
+                        <TouchableOpacity
+                            key={item.id}
+                            style={styles.checklistRow}
+                            onPress={() => onToggleChecklistItem?.(item.id)}
+                        >
+                            <Text style={styles.checklistCheckbox}>{item.done ? '☑' : '☐'}</Text>
+                            <Text style={[styles.checklistItemText, isMyMessage && styles.myText, item.done && styles.checklistItemDone]}>
+                                {item.text}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            );
+        } catch {
+            return <Text style={[styles.messageText, isMyMessage && styles.myText]}>{raw}</Text>;
+        }
+    };
+
     const renderContent = () => (
         <>
             {replyTo && (
@@ -462,6 +544,10 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                             ? t('message_deleted')
                             : (replyTo.revealAt && new Date(replyTo.revealAt).getTime() > Date.now())
                                 ? t('time_capsule_sealed').replace('{date}', `${formatMessageDate(replyTo.revealAt, t)}, ${formatMessageTime(replyTo.revealAt, t)}`)
+                                : replyTo.type === 'RICH_TEXT'
+                                    ? (() => { try { return JSON.parse(replyTo.content).text ?? ''; } catch { return replyTo.content; } })()
+                                : replyTo.type === 'CHECKLIST'
+                                    ? (() => { try { return (JSON.parse(replyTo.content).items ?? []).map((i: any) => i.text).join(', '); } catch { return replyTo.content; } })()
                                 : replyTo.content}
                     </Text>
                 </View>
@@ -537,6 +623,10 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                         : type === 'CALL_CANCELLED' ? t('call_log_cancelled')
                         : t('call_log_answered').replace('{duration}', formatCallDuration(content))}
                 </Text>
+            ) : type === 'RICH_TEXT' ? (
+                renderRichText(content)
+            ) : type === 'CHECKLIST' ? (
+                renderChecklist(content)
             ) : (
                 <LinkifiedText
                     text={content}
@@ -702,6 +792,10 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         justifyContent: 'center',
     },
     videoFullscreenButtonText: { fontSize: 16, color: '#FFFFFF' },
+    checklistRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 3 },
+    checklistCheckbox: { fontSize: 17 * fontScale, marginRight: spacing.xs, color: colors.primary },
+    checklistItemText: { fontSize: 15 * fontScale, lineHeight: 22 * fontScale, color: colors.text, flexShrink: 1, flexWrap: 'wrap' },
+    checklistItemDone: { textDecorationLine: 'line-through', color: colors.textMuted },
 });
 
 /**
