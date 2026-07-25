@@ -45,6 +45,19 @@ interface CallContextType {
 const CallContext = createContext<CallContextType | undefined>(undefined);
 
 const RING_TIMEOUT_MS = 30000;
+// Если после ANSWER/ACCEPT соединение не доходит до 'connected' за это время -
+// считаем звонок несостоявшимся и разрываем сами. Без этого таймаута застрявший
+// в 'connecting' звонок (ICE не смог соединиться, а явный HANGUP/CANCEL от
+// собеседника потерялся или не пришёл) навсегда блокирует состояние - кнопки
+// "позвонить/принять" перестают что-либо делать, потому что stateRef.current
+// уже не 'idle'.
+// If the connection doesn't reach 'connected' within this time after
+// ANSWER/ACCEPT, treat the call as failed and tear it down ourselves. Without
+// this timeout, a call stuck in 'connecting' (ICE never connected, and an
+// explicit HANGUP/CANCEL from the peer got lost or never arrived) permanently
+// blocks the state - the call/accept buttons stop doing anything because
+// stateRef.current is no longer 'idle'.
+const CONNECT_TIMEOUT_MS = 20000;
 
 // Порядок ICE-серверов: STUN сначала, наш coturn (TURN) - fallback для relay,
 // когда прямой P2P невозможен (частая ситуация в мобильных сетях с NAT).
@@ -109,6 +122,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // passes both checks and creates a second PeerConnection
     const acceptingRef = useRef(false);
     const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const callStartedAtRef = useRef<number | null>(null);
 
     const setCallState = useCallback((s: CallState) => {
@@ -120,6 +134,13 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (ringTimeoutRef.current) {
             clearTimeout(ringTimeoutRef.current);
             ringTimeoutRef.current = null;
+        }
+    }, []);
+
+    const clearConnectTimeout = useCallback(() => {
+        if (connectTimeoutRef.current) {
+            clearTimeout(connectTimeoutRef.current);
+            connectTimeoutRef.current = null;
         }
     }, []);
 
@@ -138,6 +159,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const teardown = useCallback((nextState: CallState = 'idle') => {
         clearRingTimeout();
+        clearConnectTimeout();
         InCallManager.setKeepScreenOn(false);
         InCallManager.stop();
         localStream?.getTracks().forEach((tr) => tr.stop());
@@ -168,7 +190,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // localStream is read directly from the closure at call time - not added
         // to deps, otherwise teardown would be recreated on every stream frame
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [clearRingTimeout, setCallState]);
+    }, [clearRingTimeout, clearConnectTimeout, setCallState]);
 
     const createPeerConnection = useCallback(async (roomId: string) => {
         const iceServers = await buildIceServers();
@@ -196,6 +218,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         (pc as any).onconnectionstatechange = () => {
             console.log('📞 connectionState:', pc.connectionState);
             if (pc.connectionState === 'connected' && stateRef.current === 'connecting') {
+                clearConnectTimeout();
                 callStartedAtRef.current = Date.now();
                 setCallState('active');
             } else if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && stateRef.current === 'active') {
@@ -209,7 +232,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         return pc;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [setCallState]);
+    }, [setCallState, clearConnectTimeout]);
 
     const endCall = useCallback((result: 'ANSWERED' | 'DECLINED' | 'MISSED' | 'CANCELLED') => {
         const roomId = roomIdRef.current;
@@ -277,6 +300,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     }
                     pendingCandidatesRef.current = [];
                     setCallState('connecting');
+                    connectTimeoutRef.current = setTimeout(() => {
+                        if (stateRef.current === 'connecting') {
+                            console.warn('📞 Call failed to connect within timeout, hanging up');
+                            hangUp();
+                        }
+                    }, CONNECT_TIMEOUT_MS);
                 }
                 break;
             }
@@ -452,6 +481,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
             sendCallSignal(roomId, { callId: callIdRef.current, type: 'ANSWER', sdp: answer.sdp });
 
             setCallState('connecting');
+            connectTimeoutRef.current = setTimeout(() => {
+                if (stateRef.current === 'connecting') {
+                    console.warn('📞 Call failed to connect within timeout, hanging up');
+                    hangUp();
+                }
+            }, CONNECT_TIMEOUT_MS);
             if (navigationRef.isReady()) {
                 // reset, не navigate - IncomingCall уже есть в стеке (её туда
                 // положил OFFER-хендлер), и push поверх нее означало бы, что
