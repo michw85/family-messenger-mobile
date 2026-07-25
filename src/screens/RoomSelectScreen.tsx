@@ -12,6 +12,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
+    TextInput,
     TouchableOpacity,
     StyleSheet,
     FlatList,
@@ -27,7 +28,10 @@ import { useLanguage, useLanguagePicker, LANGUAGE_META } from '../context/Langua
 import { useActionSheet } from '../components/ActionSheet';
 import { useTheme } from '../context/ThemeContext';
 import { useSimpleMode } from '../context/SimpleModeContext';
-import { fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat, renameChat, logout } from '../services/api';
+import {
+    fetchChats, createChat, deleteChat, leaveChat, muteChat, unmuteChat, renameChat, logout,
+    searchUsers, addParticipants,
+} from '../services/api';
 import CreateChatModal from '../components/CreateChatModal';
 import RenameChatModal from '../components/RenameChatModal';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
@@ -52,6 +56,14 @@ interface ChatRoom {
 /** Фильтр по типу чата на экране выбора / Chat-type filter on the room-select screen */
 type ChatFilter = 'ALL' | 'PERSONAL' | 'GROUP';
 
+/** Пользователь, найденный поиском (не обязательно уже есть личный чат) / A user found via search (may not have a personal chat yet) */
+interface FoundUser {
+    id: number;
+    username: string;
+    email: string;
+    avatarUrl?: string | null;
+}
+
 /**
  * Экран выбора чата
  * Chat selection screen
@@ -74,6 +86,16 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     // По умолчанию - по недавней активности (как бэкенд и отдаёт список), А-Я - по запросу
     // Default is recent activity (matches what the backend already returns), A-Z on request
     const [sortAlpha, setSortAlpha] = useState<boolean>(false);
+
+    // Поиск чатов (по названию/участнику, локально) и людей (через API, чтобы
+    // начать новый личный чат с тем, с кем ещё нет переписки)
+    // Search chats (by name/participant, locally) and people (via the API, to
+    // start a new personal chat with someone there's no existing chat with)
+    const [searchVisible, setSearchVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [foundUsers, setFoundUsers] = useState<FoundUser[]>([]);
+    const [searchingUsers, setSearchingUsers] = useState(false);
+    const [startingChatWith, setStartingChatWith] = useState<number | null>(null);
 
     /**
      * Загрузка чатов с бэкенда
@@ -238,6 +260,13 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         } else if (filter === 'PERSONAL') {
             list = list.filter((c) => c.type !== 'GROUP');
         }
+        const query = searchQuery.trim().toLowerCase();
+        if (query) {
+            list = list.filter((c) =>
+                c.name.toLowerCase().includes(query) ||
+                c.participants.some((p) => p.username.toLowerCase().includes(query))
+            );
+        }
         list = [...list];
         if (sortAlpha) {
             list.sort((a, b) => a.name.localeCompare(b.name, language));
@@ -245,7 +274,76 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             list.sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime());
         }
         return list;
-    }, [chats, filter, sortAlpha, language]);
+    }, [chats, filter, sortAlpha, language, searchQuery]);
+
+    /**
+     * ID пользователей, с которыми уже есть личный (не групповой) чат - чтобы
+     * не предлагать "начать новый чат" с тем, кто уже есть в списке выше
+     * IDs of users who already have a personal (non-group) chat - so "start
+     * new chat" doesn't suggest someone already shown in the list above
+     */
+    const existingDirectUserIds = useMemo(() => {
+        const ids = new Set<number>();
+        chats.filter((c) => c.type !== 'GROUP').forEach((c) => {
+            c.participants.forEach((p) => {
+                if (p.username !== currentUsername) ids.add(p.id);
+            });
+        });
+        return ids;
+    }, [chats, currentUsername]);
+
+    /**
+     * Поиск пользователей (для начала нового чата), с задержкой
+     * User search (to start a new chat), debounced
+     */
+    useEffect(() => {
+        const query = searchQuery.trim();
+        if (!searchVisible || query.length < 2) {
+            setFoundUsers([]);
+            return;
+        }
+        const timeout = setTimeout(async () => {
+            setSearchingUsers(true);
+            try {
+                const response = await searchUsers(query);
+                setFoundUsers(
+                    (response.data as FoundUser[]).filter((u) => !existingDirectUserIds.has(u.id))
+                );
+            } catch (error) {
+                console.error('User search failed:', error);
+            } finally {
+                setSearchingUsers(false);
+            }
+        }, 300);
+        return () => clearTimeout(timeout);
+    }, [searchQuery, searchVisible, existingDirectUserIds]);
+
+    /**
+     * Начать новый личный чат с найденным пользователем: создать пустой DIRECT-
+     * чат, добавить его участником, обновить список и сразу открыть чат
+     * Start a new personal chat with a found user: create an empty DIRECT
+     * chat, add them as a participant, refresh the list, and open the chat
+     */
+    const handleStartChatWithUser = async (foundUser: FoundUser) => {
+        setStartingChatWith(foundUser.id);
+        try {
+            const { data: newChat } = await createChat(foundUser.username, 'DIRECT');
+            await addParticipants(newChat.id, [foundUser.id]);
+            await loadChats();
+            setSearchVisible(false);
+            setSearchQuery('');
+            navigation.navigate('ChatRoom', {
+                roomId: newChat.id,
+                roomName: newChat.name,
+                roomType: 'DIRECT',
+                otherParticipant: { id: foundUser.id, username: foundUser.username, avatarUrl: foundUser.avatarUrl },
+            });
+        } catch (error) {
+            Alert.alert(t('error'), t('could_not_create_chat'));
+        } finally {
+            setStartingChatWith(null);
+        }
+    };
 
     /**
      * Рендер одного элемента чата
@@ -353,6 +451,15 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                         <Text style={[styles.greeting, { flex: 1 }]}>
                             {t('greeting')}, {currentUsername || t('friend')}! 👋
                         </Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setSearchVisible((v) => !v);
+                                if (searchVisible) setSearchQuery('');
+                            }}
+                            style={styles.langButton}
+                        >
+                            <Text style={styles.langText}>🔍</Text>
+                        </TouchableOpacity>
                         <TouchableOpacity onPress={toggleTheme} style={styles.langButton}>
                             <Text style={styles.langText}>{theme === 'dark' ? '☀️' : '🌙'}</Text>
                         </TouchableOpacity>
@@ -374,6 +481,18 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                         </TouchableOpacity>
                     </View>
                     <Text style={styles.title}>{t('select_chat')}</Text>
+
+                    {searchVisible && (
+                        <TextInput
+                            style={styles.searchInput}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder={t('search_chats_and_people_placeholder')}
+                            placeholderTextColor={colors.textMuted}
+                            autoCapitalize="none"
+                            autoFocus
+                        />
+                    )}
 
                     <View style={styles.filterRow}>
                         <View style={styles.segmentGroup}>
@@ -397,6 +516,41 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                             <Text style={styles.sortButtonText}>{sortAlpha ? t('sort_alpha') : t('sort_recent')}</Text>
                         </TouchableOpacity>
                     </View>
+
+                    {searchVisible && searchQuery.trim().length >= 2 && (
+                        <View style={styles.userResultsBox}>
+                            {searchingUsers ? (
+                                <ActivityIndicator size="small" color={colors.primary} style={{ padding: spacing.md }} />
+                            ) : foundUsers.length > 0 ? (
+                                <>
+                                    <Text style={styles.userResultsLabel}>{t('start_new_chat_label')}</Text>
+                                    {foundUsers.map((u) => (
+                                        <TouchableOpacity
+                                            key={u.id}
+                                            style={styles.userResultRow}
+                                            onPress={() => handleStartChatWithUser(u)}
+                                            disabled={startingChatWith !== null}
+                                        >
+                                            <View style={[styles.avatar, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+                                                {u.avatarUrl ? (
+                                                    <Image source={{ uri: u.avatarUrl }} style={styles.avatarImage} />
+                                                ) : (
+                                                    <Text style={[styles.avatarText, { color: colors.primary }]}>
+                                                        {u.username.charAt(0).toUpperCase()}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.chatName}>{u.username}</Text>
+                                                <Text style={styles.userResultEmail}>{u.email}</Text>
+                                            </View>
+                                            {startingChatWith === u.id && <ActivityIndicator size="small" color={colors.primary} />}
+                                        </TouchableOpacity>
+                                    ))}
+                                </>
+                            ) : null}
+                        </View>
+                    )}
                 </View>
 
                 <FlatList
@@ -489,6 +643,40 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         paddingVertical: spacing.xs,
     },
     sortButtonText: { fontSize: 12 * fontScale, fontWeight: '500', color: colors.primary, textDecorationLine: 'underline' },
+    searchInput: {
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: borderRadius.xlarge,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        backgroundColor: colors.backgroundLight,
+        fontSize: 15 * fontScale,
+        color: colors.text,
+        marginBottom: spacing.sm,
+    },
+    userResultsBox: {
+        backgroundColor: colors.backgroundLight,
+        borderRadius: borderRadius.medium,
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: spacing.sm,
+        marginTop: spacing.sm,
+        ...shadows.soft,
+    },
+    userResultsLabel: {
+        fontSize: 12 * fontScale,
+        fontWeight: '600',
+        color: colors.textSecondary,
+        marginBottom: spacing.xs,
+        marginLeft: spacing.xs,
+    },
+    userResultRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: spacing.xs,
+        paddingHorizontal: spacing.xs,
+    },
+    userResultEmail: { fontSize: 12 * fontScale, color: colors.textSecondary, marginTop: 1 },
     listContent: { paddingBottom: 80 },
     chatCard: {
         flexDirection: 'row',
