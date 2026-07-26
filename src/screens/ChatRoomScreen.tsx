@@ -52,6 +52,8 @@ import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
 import ForwardMessageModal from '../components/ForwardMessageModal';
+import RichTextPreview from '../components/RichTextPreview';
+import { RichSpan } from '../utils/richText';
 import ImageView from 'react-native-image-viewing';
 import { formatMessageTime, formatMessageDate } from '../utils/dateTime';
 import { isNotebookChat } from '../utils/notebook';
@@ -74,15 +76,6 @@ const MESSAGES_PAGE_SIZE = 30;
 // what's already written.
 const CALLS_ENABLED = false;
 
-/** Стилевой диапазон простого форматирования блокнота / A notebook simple-formatting style range */
-interface RichSpan {
-    start: number;
-    end: number;
-    bold?: boolean;
-    italic?: boolean;
-    underline?: boolean;
-    color?: string;
-}
 
 /** Палитра цветов для панели форматирования блокнота / Color palette for the notebook formatting toolbar */
 const NOTEBOOK_COLORS = ['#2D3436', '#D63031', '#0984E3', '#00B894', '#F39C12'];
@@ -1707,6 +1700,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             ) : (
                                 <>
                                     {isNotebook && (
+                                        <RichTextPreview text={inputText} spans={formatSpans} fontScale={fontScale} />
+                                    )}
+                                    {isNotebook && (
                                         <View style={styles.notebookToolbar}>
                                             <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ bold: true })}>
                                                 <Text style={[styles.notebookToolbarButtonText, { fontWeight: '700' }]}>B</Text>
@@ -1735,7 +1731,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                             <Text style={styles.iconText}>😀</Text>
                                         </TouchableOpacity>
                                         <TextInput
-                                            style={styles.input}
+                                            style={[styles.input, isNotebook && styles.notebookInput]}
                                             value={inputText}
                                             onChangeText={handleInputChange}
                                             onSelectionChange={(e) => setInputSelection(e.nativeEvent.selection)}
@@ -2203,6 +2199,14 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         maxHeight: 80 * fontScale,
         minHeight: 38 * fontScale,
         ...shadows.soft,
+    },
+    // Блокнот - редактор заметок/списков, часто длиннее обычной реплики -
+    // даём чуть больше места по высоте, прежде чем начинается скролл внутри поля
+    // The notebook is a notes/list editor and often runs longer than a regular
+    // reply - give it a bit more height before it starts scrolling internally
+    notebookInput: {
+        maxHeight: 120 * fontScale,
+        minHeight: 50 * fontScale,
     },
     // Кнопка отправки — индиго
     sendButton: {

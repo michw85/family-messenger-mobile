@@ -31,6 +31,7 @@ import { spacing, borderRadius, shadows, typography, AppColors } from '../styles
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { formatMessageDate, formatMessageTime } from '../utils/dateTime';
+import { buildRichTextSegments, RichSpan } from '../utils/richText';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -471,32 +472,11 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
      */
     const renderRichText = (raw: string) => {
         try {
-            const parsed = JSON.parse(raw) as { text: string; spans?: Array<{ start: number; end: number; bold?: boolean; italic?: boolean; underline?: boolean; color?: string }> };
+            const parsed = JSON.parse(raw) as { text: string; spans?: RichSpan[] };
             const text = parsed.text ?? '';
-            const spans = (parsed.spans ?? []).filter(s => s.end > s.start);
-            if (!spans.length) {
+            const segments = buildRichTextSegments(text, parsed.spans ?? []);
+            if (segments.length === 1 && Object.keys(segments[0].style).length === 0) {
                 return <LinkifiedText text={text} textStyle={[styles.messageText, isMyMessage && styles.myText]} linkStyle={styles.linkText} />;
-            }
-            const boundaries = new Set<number>([0, text.length]);
-            spans.forEach(s => {
-                boundaries.add(Math.max(0, Math.min(s.start, text.length)));
-                boundaries.add(Math.max(0, Math.min(s.end, text.length)));
-            });
-            const points = Array.from(boundaries).sort((a, b) => a - b);
-            const segments: { key: number; text: string; style: any }[] = [];
-            for (let i = 0; i < points.length - 1; i++) {
-                const segStart = points[i];
-                const segEnd = points[i + 1];
-                if (segStart >= segEnd) continue;
-                const active = spans.filter(s => s.start <= segStart && s.end >= segEnd);
-                const style: any = {};
-                active.forEach(s => {
-                    if (s.bold) style.fontWeight = '700';
-                    if (s.italic) style.fontStyle = 'italic';
-                    if (s.underline) style.textDecorationLine = 'underline';
-                    if (s.color) style.color = s.color;
-                });
-                segments.push({ key: i, text: text.slice(segStart, segEnd), style });
             }
             return (
                 <Text style={[styles.messageText, isMyMessage && styles.myText]}>
