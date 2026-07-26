@@ -50,6 +50,7 @@ import { acquireWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, 
 import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
+import ForwardMessageModal from '../components/ForwardMessageModal';
 import ImageView from 'react-native-image-viewing';
 import { formatMessageTime, formatMessageDate } from '../utils/dateTime';
 import { isNotebookChat } from '../utils/notebook';
@@ -237,6 +238,9 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [typingUser, setTypingUser] = useState<string | null>(null);
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+    // Сообщение, которое сейчас пересылают - открывает ForwardMessageModal для выбора чата-адресата
+    // The message currently being forwarded - opens ForwardMessageModal to pick the destination chat
+    const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
     const [exporting, setExporting] = useState(false);
     const [memories, setMemories] = useState<Message[]>([]);
     const [memoriesVisible, setMemoriesVisible] = useState(false);
@@ -1107,6 +1111,12 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 onPress: () => Clipboard.setStringAsync(describeMessageForExport(item)),
             });
         }
+        if ((item.type === 'TEXT' || item.type === 'RICH_TEXT') && item.content) {
+            options.push({
+                text: t('forward'),
+                onPress: () => setForwardingMessage(item),
+            });
+        }
         if (isMine && (item.type === 'TEXT' || item.type === 'CHECKLIST')) {
             options.push({
                 text: t('edit'),
@@ -1711,6 +1721,16 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             }}
                         />
                     </View>
+                    <ForwardMessageModal
+                        visible={forwardingMessage !== null}
+                        excludeChatId={roomId}
+                        onClose={() => setForwardingMessage(null)}
+                        onForward={(targetChatId) => {
+                            if (!forwardingMessage) return;
+                            wsSendMessage(targetChatId, forwardingMessage.content, forwardingMessage.type);
+                            Alert.alert(t('message_forwarded'));
+                        }}
+                    />
                     <ImageView
                         images={[{ uri: selectedImage || '' }]}
                         imageIndex={0}
