@@ -33,6 +33,7 @@ import { getToken } from '../services/authStorage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import * as Clipboard from 'expo-clipboard';
@@ -1082,6 +1083,30 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         }
     }, [roomId]);
 
+    /**
+     * Сохранение фото/видео из чата в галерею устройства - скачивает файл
+     * локально (сохранение в галерею требует локальный URI, не https), затем
+     * копирует его в системную галерею через expo-media-library.
+     * Saves a chat photo/video to the device's gallery - downloads the file
+     * locally first (saving to the gallery needs a local URI, not https),
+     * then copies it into the system gallery via expo-media-library.
+     */
+    const handleSaveMedia = useCallback(async (mediaUrl: string) => {
+        try {
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert(t('error'), t('media_library_permission_denied'));
+                return;
+            }
+            const localFile = await File.downloadFileAsync(mediaUrl, Paths.cache, { idempotent: true });
+            await MediaLibrary.saveToLibraryAsync(localFile.uri);
+            Alert.alert(t('media_saved'));
+        } catch (error) {
+            console.error('Failed to save media to device:', error);
+            Alert.alert(t('error'), t('could_not_save_media'));
+        }
+    }, [t]);
+
     const handleMessageLongPress = useCallback((item: Message) => {
         if (item.deleted) return;
 
@@ -1115,6 +1140,16 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             options.push({
                 text: t('forward'),
                 onPress: () => setForwardingMessage(item),
+            });
+        }
+        if ((item.type === 'IMAGE' || item.type === 'VIDEO') && item.mediaUrl) {
+            options.push({
+                text: t('forward'),
+                onPress: () => setForwardingMessage(item),
+            });
+            options.push({
+                text: t('save_to_device'),
+                onPress: () => handleSaveMedia(item.mediaUrl!),
             });
         }
         if (isMine && (item.type === 'TEXT' || item.type === 'CHECKLIST')) {
@@ -1162,7 +1197,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         if (options.length === 0) return;
         options.push({ text: t('cancel'), style: 'cancel' });
         showActionSheet('', options);
-    }, [currentUsername, roomId, applyMessageUpdate, handleToggleReaction, t, showActionSheet]);
+    }, [currentUsername, roomId, applyMessageUpdate, handleToggleReaction, handleSaveMedia, t, showActionSheet]);
 
     /**
      * Сохранение отредактированного текста сообщения
@@ -1727,7 +1762,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         onClose={() => setForwardingMessage(null)}
                         onForward={(targetChatId) => {
                             if (!forwardingMessage) return;
-                            wsSendMessage(targetChatId, forwardingMessage.content, forwardingMessage.type);
+                            wsSendMessage(targetChatId, forwardingMessage.content, forwardingMessage.type, forwardingMessage.mediaUrl);
                             Alert.alert(t('message_forwarded'));
                         }}
                     />
