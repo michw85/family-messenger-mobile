@@ -36,6 +36,7 @@ import CreateChatModal from '../components/CreateChatModal';
 import RenameChatModal from '../components/RenameChatModal';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NOTEBOOK_MARKER, isNotebookChat } from '../utils/notebook';
 
 
 /**
@@ -63,16 +64,6 @@ interface FoundUser {
     email: string;
     avatarUrl?: string | null;
 }
-
-/**
- * Блокнот - это обычный DIRECT-чат, где единственный участник - сам
- * пользователь (createChat никогда не добавляет никого, кроме создателя).
- * Никакого отдельного RoomType заводить не пришлось.
- * The notebook is just a DIRECT chat with a single participant - the user
- * themselves (createChat never adds anyone but the creator). No separate
- * RoomType was needed.
- */
-const isNotebookChat = (chat: ChatRoom): boolean => chat.type !== 'GROUP' && chat.participants.length === 1;
 
 /**
  * Экран выбора чата
@@ -138,7 +129,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             // survives reinstalls and logging in from another device
             if (!loaded.some(isNotebookChat)) {
                 try {
-                    await createChat(t('notebook_chat_name'), 'DIRECT');
+                    await createChat(NOTEBOOK_MARKER, 'DIRECT');
                     const refreshed = await fetchChats();
                     loaded = refreshed.data;
                 } catch (provisionError) {
@@ -304,7 +295,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         const query = searchQuery.trim().toLowerCase();
         if (query) {
             list = list.filter((c) =>
-                c.name.toLowerCase().includes(query) ||
+                (isNotebookChat(c) ? t('notebook_chat_name') : c.name).toLowerCase().includes(query) ||
                 c.participants.some((p) => p.username.toLowerCase().includes(query))
             );
         }
@@ -410,7 +401,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             style={styles.chatCard}
             onPress={() => navigation.navigate('ChatRoom', {
                 roomId: item.id,
-                roomName: item.name,
+                roomName: isNotebook ? t('notebook_chat_name') : item.name,
                 roomType: item.type,
                 otherParticipant: otherParticipant
                     ? { id: otherParticipant.id, username: otherParticipant.username, avatarUrl: otherParticipant.avatarUrl }
@@ -420,7 +411,12 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             delayLongPress={500}
             activeOpacity={0.7}
         >
-            <View style={[styles.avatar, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
+            <View style={[
+                styles.avatar,
+                isNotebook
+                    ? { backgroundColor: colors.notebookAccentLight, borderColor: colors.notebookAccent }
+                    : { backgroundColor: colors.accentLight, borderColor: colors.accent },
+            ]}>
                 {isNotebook ? (
                     <Text style={styles.avatarText}>📓</Text>
                 ) : otherParticipant?.avatarUrl ? (
@@ -432,7 +428,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                 )}
             </View>
             <View style={styles.chatInfo}>
-                <Text style={styles.chatName}>{item.name}</Text>
+                <Text style={styles.chatName}>{isNotebook ? t('notebook_chat_name') : item.name}</Text>
                 <Text style={styles.chatType}>
                     {isNotebook
                         ? t('notebook_chat_label')
@@ -504,15 +500,6 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                         <Text style={[styles.greeting, { flex: 1 }]}>
                             {t('greeting')}, {currentUsername || t('friend')}! 👋
                         </Text>
-                        <TouchableOpacity
-                            onPress={() => {
-                                setSearchVisible((v) => !v);
-                                if (searchVisible) setSearchQuery('');
-                            }}
-                            style={styles.langButton}
-                        >
-                            <Text style={styles.langText}>🔍</Text>
-                        </TouchableOpacity>
                         <TouchableOpacity onPress={toggleTheme} style={styles.langButton}>
                             <Text style={styles.langText}>{theme === 'dark' ? '☀️' : '🌙'}</Text>
                         </TouchableOpacity>
@@ -533,7 +520,18 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                             <Text style={styles.logoutText}>⎋</Text>
                         </TouchableOpacity>
                     </View>
-                    <Text style={styles.title}>{t('select_chat')}</Text>
+                    <View style={styles.titleRow}>
+                        <Text style={styles.title}>{t('select_chat')}</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setSearchVisible((v) => !v);
+                                if (searchVisible) setSearchQuery('');
+                            }}
+                            style={styles.titleSearchButton}
+                        >
+                            <Text style={styles.langText}>🔍</Text>
+                        </TouchableOpacity>
+                    </View>
 
                     {showRetentionBanner && (
                         <View style={styles.retentionBanner}>
@@ -645,7 +643,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
 
             <RenameChatModal
                 visible={renamingChat !== null}
-                currentName={renamingChat?.name ?? ''}
+                currentName={renamingChat ? (isNotebookChat(renamingChat) ? t('notebook_chat_name') : renamingChat.name) : ''}
                 onClose={() => setRenamingChat(null)}
                 onRename={handleRenameChat}
             />
@@ -681,7 +679,20 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         ...shadows.soft,
     },
     langText: { fontSize: 11, fontWeight: '500', color: colors.primary, letterSpacing: 0.3 },
-    title: { fontSize: 28 * fontScale, fontWeight: '700', color: colors.primary, letterSpacing: 0.5, marginBottom: spacing.md },
+    title: { fontSize: 28 * fontScale, fontWeight: '700', color: colors.primary, letterSpacing: 0.5 },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: spacing.md,
+    },
+    titleSearchButton: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        backgroundColor: colors.pillBackground,
+        borderRadius: borderRadius.medium,
+        ...shadows.soft,
+    },
     filterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     segmentGroup: {
         flexDirection: 'row',

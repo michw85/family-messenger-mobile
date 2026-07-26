@@ -52,6 +52,7 @@ import { spacing, borderRadius, shadows, typography, AppColors } from '../styles
 import AddParticipantsModal from '../components/AddParticipantsModal';
 import ImageView from 'react-native-image-viewing';
 import { formatMessageTime, formatMessageDate } from '../utils/dateTime';
+import { isNotebookChat } from '../utils/notebook';
 
 const MESSAGES_PAGE_SIZE = 30;
 
@@ -509,7 +510,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 setLiveOtherParticipant(other
                     ? { id: other.id, username: other.username, avatarUrl: other.avatarUrl }
                     : undefined);
-                setIsNotebook(room.type !== 'GROUP' && room.participants.length === 1);
+                setIsNotebook(isNotebookChat(room));
             })
             .catch((error) => console.error('Failed to load room info:', error));
     }, [roomId, currentUsername]);

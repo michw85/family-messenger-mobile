@@ -29,6 +29,15 @@ export const lightColors = {
     accent: '#D4AF37' as const,            // Мягкое золото – теплота и ценность отношений / Soft gold – warmth and value of relationships
     accentLight: '#F0E0B8' as const,       // Светлое золото для фонов и подсветок / Light gold for backgrounds and highlights
 
+    // Отдельный цвет для аватарки блокнот-чата - визуально отличается от
+    // обычных личных/групповых чатов (тёплое золото), чтобы он выделялся
+    // в списке чатов на глаз, а не только иконкой
+    // A separate color for the notebook chat's avatar - visually distinct
+    // from regular personal/group chats (warm gold), so it stands out in
+    // the chat list at a glance, not just via its icon
+    notebookAccent: '#4A9B8E' as const,
+    notebookAccentLight: '#D6ECE8' as const,
+
     // Фоновые цвета / Background colors
     background: '#FDF8F0' as const,        // Тёплый кремовый – основа уюта / Warm cream – foundation of coziness
     backgroundLight: '#FFFFFF' as const,   // Белый для карточек и полей / White for cards and fields
@@ -96,6 +105,9 @@ export const darkColors = {
     accent: '#E0BE5C' as const,
     accentLight: '#3A3320' as const,
 
+    notebookAccent: '#5FC9BA' as const,
+    notebookAccentLight: '#1E3A36' as const,
+
     background: '#14151F' as const,
     backgroundLight: '#1E2030' as const,
     backgroundWarm: '#242742' as const,
@@ -148,6 +160,8 @@ export interface AppColors {
     primaryDark: string;
     accent: string;
     accentLight: string;
+    notebookAccent: string;
+    notebookAccentLight: string;
     background: string;
     backgroundLight: string;
     backgroundWarm: string;
