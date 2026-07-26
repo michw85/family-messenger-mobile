@@ -57,6 +57,7 @@ const OtpVerifyScreen: React.FC<any> = ({ navigation, route }) => {
                 await setRefreshToken(refreshToken);
             }
             await AsyncStorage.setItem('username', user.username);
+            await AsyncStorage.setItem('isSuperadmin', String(!!user.isSuperadmin));
             triggerAuthLoggedIn(token);
 
             navigation.reset({ index: 0, routes: [{ name: 'RoomSelect' }] });

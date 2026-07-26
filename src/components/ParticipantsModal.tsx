@@ -20,9 +20,13 @@ import {
     Alert,
     Image,
 } from 'react-native';
-import { getParticipants, removeParticipant } from '../services/api';
+import {
+    getParticipants, removeParticipant,
+    promoteGroupAdmin, demoteGroupAdmin, promoteEditor, demoteEditor, blacklistUser,
+} from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useActionSheet } from './ActionSheet';
 import { spacing, borderRadius, shadows, AppColors } from '../styles/theme';
 
 interface Participant {
@@ -40,31 +44,56 @@ interface ParticipantsModalProps {
     /** Имя текущего пользователя - чтобы не показывать кнопку удаления для себя /
      * Current user's username - so the remove button isn't shown for yourself */
     currentUsername: string;
+    /** ID создателя чата - см. задачу #61 (роли) / Chat creator's ID - see task #61 (roles) */
+    createdBy?: number;
+    /** ID участников-админов группы / IDs of the group's admin participants */
+    groupAdminUserIds?: number[];
+    /** ID участников-редакторов группы / IDs of the group's editor participants */
+    editorUserIds?: number[];
+    /** Суперадмин ли текущий (просматривающий) пользователь / Whether the current (viewing) user is a superadmin */
+    isSuperadmin?: boolean;
+    /** Вызывается после назначения/снятия роли - родитель должен обновить свои
+     * createdBy/groupAdminUserIds/editorUserIds (badges тут иначе не обновятся) /
+     * Called after promoting/demoting a role - the parent should refresh its
+     * createdBy/groupAdminUserIds/editorUserIds (badges won't otherwise update) */
+    onRolesChanged?: () => void;
     /** Нажатие на "Добавить участников" - родитель откроет AddParticipantsModal /
      * Tapping "Add participants" - the parent opens AddParticipantsModal */
     onAddPress: () => void;
 }
 
 /**
- * Список участников группового чата с возможностью удалить (если это
- * разрешит бэкенд - создатель может удалить любого, участник только себя)
- * Group chat participants list with the ability to remove someone (allowed
- * by the backend - the creator can remove anyone, a participant only themself)
+ * Список участников группового чата с ролями (задача #61): создатель/админ
+ * группы могут назначать админов и редакторов и кикать кого угодно; редактор
+ * может только кикать; суперадмин может всё это в любом чате. Обычный
+ * участник видит только себя без действий (или может выйти сам - см.
+ * handleChatLongPress в RoomSelectScreen).
+ * Group chat participants list with roles (task #61): the creator/a group
+ * admin can promote admins/editors and kick anyone; an editor can only kick;
+ * a superadmin can do all of this in any chat. A regular participant sees
+ * no actions on themself (self-removal happens via handleChatLongPress in
+ * RoomSelectScreen instead).
  */
 const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
     visible,
     onClose,
     chatId,
     currentUsername,
+    createdBy,
+    groupAdminUserIds = [],
+    editorUserIds = [],
+    isSuperadmin = false,
+    onRolesChanged,
     onAddPress,
 }) => {
     const { colors } = useTheme();
     const { t } = useLanguage();
+    const showActionSheet = useActionSheet();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState(false);
-    const [removingId, setRemovingId] = useState<number | null>(null);
+    const [busyId, setBusyId] = useState<number | null>(null);
 
     const loadParticipants = useCallback(async () => {
         setLoading(true);
@@ -83,6 +112,14 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
         if (visible) loadParticipants();
     }, [visible, loadParticipants]);
 
+    const myId = participants.find((p) => p.username === currentUsername)?.id;
+    const iAmCreator = myId !== undefined && myId === createdBy;
+    const iAmGroupAdmin = myId !== undefined && groupAdminUserIds.includes(myId);
+    const iAmEditor = myId !== undefined && editorUserIds.includes(myId);
+    const canManageAdmins = iAmCreator || isSuperadmin;
+    const canManageEditors = iAmCreator || iAmGroupAdmin || isSuperadmin;
+    const canKick = iAmCreator || iAmGroupAdmin || iAmEditor || isSuperadmin;
+
     const handleRemove = (participant: Participant) => {
         Alert.alert(
             t('remove_participant_confirm'),
@@ -93,7 +130,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
                     text: t('remove'),
                     style: 'destructive',
                     onPress: async () => {
-                        setRemovingId(participant.id);
+                        setBusyId(participant.id);
                         try {
                             await removeParticipant(chatId, participant.id);
                             setParticipants(prev => prev.filter(p => p.id !== participant.id));
@@ -102,7 +139,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
                             const message = typeof data === 'string' ? data : null;
                             Alert.alert(t('error'), message || t('could_not_remove_participant'));
                         } finally {
-                            setRemovingId(null);
+                            setBusyId(null);
                         }
                     },
                 },
@@ -110,9 +147,78 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
         );
     };
 
+    const handleBlacklist = (participant: Participant) => {
+        Alert.alert(
+            t('blacklist_confirm_title'),
+            t('blacklist_confirm_message').replace('{name}', participant.username),
+            [
+                { text: t('cancel'), style: 'cancel' },
+                {
+                    text: t('blacklist_action'),
+                    style: 'destructive',
+                    onPress: async () => {
+                        setBusyId(participant.id);
+                        try {
+                            await blacklistUser(participant.id);
+                            Alert.alert(t('blacklist_done'));
+                        } catch (error) {
+                            console.error('Failed to blacklist user:', error);
+                            Alert.alert(t('error'), t('could_not_blacklist'));
+                        } finally {
+                            setBusyId(null);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const runRoleChange = async (participantId: number, action: () => Promise<any>) => {
+        setBusyId(participantId);
+        try {
+            await action();
+            onRolesChanged?.();
+        } catch (error) {
+            console.error('Failed to change role:', error);
+            Alert.alert(t('error'), t('could_not_change_role'));
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const openActionsFor = (participant: Participant) => {
+        const isAdminRow = groupAdminUserIds.includes(participant.id);
+        const isEditorRow = editorUserIds.includes(participant.id);
+        const options: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> = [];
+
+        if (canManageAdmins) {
+            options.push(isAdminRow
+                ? { text: t('demote_admin'), onPress: () => runRoleChange(participant.id, () => demoteGroupAdmin(chatId, participant.id)) }
+                : { text: t('promote_admin'), onPress: () => runRoleChange(participant.id, () => promoteGroupAdmin(chatId, participant.id)) });
+        }
+        if (canManageEditors) {
+            options.push(isEditorRow
+                ? { text: t('demote_editor'), onPress: () => runRoleChange(participant.id, () => demoteEditor(chatId, participant.id)) }
+                : { text: t('promote_editor'), onPress: () => runRoleChange(participant.id, () => promoteEditor(chatId, participant.id)) });
+        }
+        if (canKick) {
+            options.push({ text: t('remove'), style: 'destructive', onPress: () => handleRemove(participant) });
+        }
+        if (isSuperadmin) {
+            options.push({ text: t('blacklist_action'), style: 'destructive', onPress: () => handleBlacklist(participant) });
+        }
+        if (options.length === 0) return;
+        options.push({ text: t('cancel'), style: 'cancel' });
+        showActionSheet(participant.username, options);
+    };
+
     const renderParticipant = ({ item }: { item: Participant }) => {
         const isMe = item.username === currentUsername;
         const isOnline = item.status === 'ONLINE';
+        const isCreatorRow = item.id === createdBy;
+        const isAdminRow = groupAdminUserIds.includes(item.id);
+        const isEditorRow = editorUserIds.includes(item.id);
+        const canActOnThisRow = !isMe && (canManageAdmins || canManageEditors || canKick || isSuperadmin);
         return (
             <View style={styles.row}>
                 <View style={styles.avatar}>
@@ -124,19 +230,22 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
                     <View style={[styles.statusDot, isOnline ? styles.statusOnline : styles.statusOffline]} />
                 </View>
                 <View style={styles.info}>
-                    <Text style={styles.username}>{item.username}{isMe ? ` ${t('you_suffix')}` : ''}</Text>
+                    <Text style={styles.username}>
+                        {item.username}{isMe ? ` ${t('you_suffix')}` : ''}
+                        {isCreatorRow ? ' 👑' : isAdminRow ? ' 🛡️' : isEditorRow ? ' ✏️' : ''}
+                    </Text>
                     <Text style={styles.email}>{item.email}</Text>
                 </View>
-                {!isMe && (
+                {canActOnThisRow && (
                     <TouchableOpacity
-                        onPress={() => handleRemove(item)}
+                        onPress={() => openActionsFor(item)}
                         style={styles.removeButton}
-                        disabled={removingId === item.id}
+                        disabled={busyId === item.id}
                     >
-                        {removingId === item.id ? (
+                        {busyId === item.id ? (
                             <ActivityIndicator size="small" color={colors.textMuted} />
                         ) : (
-                            <Text style={styles.removeText}>✕</Text>
+                            <Text style={styles.removeText}>⋯</Text>
                         )}
                     </TouchableOpacity>
                 )}
@@ -277,8 +386,9 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
         padding: spacing.sm,
     },
     removeText: {
-        fontSize: 16,
-        color: '#d32f2f',
+        fontSize: 18,
+        color: colors.textMuted,
+        fontWeight: '700',
     },
     addButton: {
         marginTop: spacing.md,

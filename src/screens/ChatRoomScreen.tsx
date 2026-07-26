@@ -263,6 +263,17 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     // see task #57's plan. Detected from the same fresh room fetch that
     // populates liveRoomType/liveOtherParticipant above.
     const [isNotebook, setIsNotebook] = useState(false);
+    // Роли для этого чата (задача #61) - создатель/админы/редакторы группы,
+    // плюс глобальный суперадмин самого текущего пользователя
+    // Roles for this chat (task #61) - group creator/admins/editors, plus
+    // the current user's own global superadmin flag
+    const [liveCreatedBy, setLiveCreatedBy] = useState<number | undefined>(undefined);
+    const [liveGroupAdminUserIds, setLiveGroupAdminUserIds] = useState<number[]>([]);
+    const [liveEditorUserIds, setLiveEditorUserIds] = useState<number[]>([]);
+    const [isSuperadmin, setIsSuperadmin] = useState(false);
+    useEffect(() => {
+        AsyncStorage.getItem('isSuperadmin').then((v) => setIsSuperadmin(v === 'true'));
+    }, []);
     // Простое форматирование текста в блокноте: диапазоны стилей поверх
     // обычного plain-text поля ввода (без сторонних rich-text библиотек)
     // Simple notebook text formatting: style ranges over the plain-text
@@ -499,10 +510,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     }, [roomId]);
 
     // Свежая информация о типе комнаты/собеседнике для кнопки звонка - см.
-    // комментарий у liveRoomType/liveOtherParticipant выше
+    // комментарий у liveRoomType/liveOtherParticipant выше. Вынесена в
+    // отдельную функцию (не только в useEffect), чтобы ParticipantsModal
+    // могла попросить обновить роли сразу после назначения/снятия
     // Fresh room-type/other-participant info for the call button - see the
-    // comment next to liveRoomType/liveOtherParticipant above
-    useEffect(() => {
+    // comment next to liveRoomType/liveOtherParticipant above. Pulled out
+    // into a standalone function (not just a useEffect) so ParticipantsModal
+    // can ask for a refresh right after promoting/demoting a role
+    const refreshRoomInfo = useCallback(() => {
         if (!currentUsername) return;
         fetchChats()
             .then((res) => {
@@ -516,9 +531,16 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     ? { id: other.id, username: other.username, avatarUrl: other.avatarUrl }
                     : undefined);
                 setIsNotebook(isNotebookChat(room));
+                setLiveCreatedBy(room.createdBy);
+                setLiveGroupAdminUserIds(room.groupAdminUserIds || []);
+                setLiveEditorUserIds(room.editorUserIds || []);
             })
             .catch((error) => console.error('Failed to load room info:', error));
     }, [roomId, currentUsername]);
+
+    useEffect(() => {
+        refreshRoomInfo();
+    }, [refreshRoomInfo]);
 
     // Автоматически перезапрашивает историю в момент раскрытия ближайшей капсулы
     // времени, чтобы не ждать ручного обновления экрана. Таймер ограничен сутками,
@@ -1750,6 +1772,11 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             onClose={() => setParticipantsVisible(false)}
                             chatId={roomId}
                             currentUsername={currentUsername}
+                            createdBy={liveCreatedBy}
+                            groupAdminUserIds={liveGroupAdminUserIds}
+                            editorUserIds={liveEditorUserIds}
+                            isSuperadmin={isSuperadmin}
+                            onRolesChanged={refreshRoomInfo}
                             onAddPress={() => {
                                 setParticipantsVisible(false);
                                 setAddParticipantsVisible(true);

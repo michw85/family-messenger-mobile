@@ -205,6 +205,30 @@ export const removeParticipant = (chatId: string, userId: number) =>
 export const createGroupChat = (name: string, participantIds: number[]) =>
     api.post('/chats/group', { name, participantIds });
 
+// Роли: админ группы/редактор (задача #61) - создатель или суперадмин может
+// назначать/снимать, см. ChatService.java для точных прав
+// Roles: group admin/editor (task #61) - the creator or a superadmin can
+// promote/demote, see ChatService.java for the exact permissions
+export const promoteGroupAdmin = (chatId: string, userId: number) =>
+    api.post(`/chats/${chatId}/admins/${userId}`);
+
+export const demoteGroupAdmin = (chatId: string, userId: number) =>
+    api.delete(`/chats/${chatId}/admins/${userId}`);
+
+export const promoteEditor = (chatId: string, userId: number) =>
+    api.post(`/chats/${chatId}/editors/${userId}`);
+
+export const demoteEditor = (chatId: string, userId: number) =>
+    api.delete(`/chats/${chatId}/editors/${userId}`);
+
+// Чёрный список (только суперадмин) - блокирует вход пользователю
+// Blacklist (superadmin only) - blocks the user's login
+export const blacklistUser = (userId: number) =>
+    api.post(`/users/${userId}/blacklist`);
+
+export const unblacklistUser = (userId: number) =>
+    api.delete(`/users/${userId}/blacklist`);
+
 // Avatar upload — returns the updated user (including the new avatarUrl)
 export const uploadAvatar = (formData: FormData) =>
     api.post('/users/me/avatar', formData, {

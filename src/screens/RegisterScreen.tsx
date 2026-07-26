@@ -107,6 +107,7 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
                 await setRefreshToken(refreshToken);
             }
             await AsyncStorage.setItem('username', user.username);
+            await AsyncStorage.setItem('isSuperadmin', String(!!user.isSuperadmin));
             console.log('Registration successful');
             /* try {
                  const pushToken = await registerForPushNotificationsAsync();

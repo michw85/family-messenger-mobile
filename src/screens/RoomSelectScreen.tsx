@@ -52,6 +52,8 @@ interface ChatRoom {
     createdAt: string;
     lastActivityAt: string;
     mutedForCurrentUser: boolean;
+    groupAdminUserIds?: number[];
+    editorUserIds?: number[];
 }
 
 /** Фильтр по типу чата на экране выбора / Chat-type filter on the room-select screen */
@@ -79,6 +81,9 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const [chats, setChats] = useState<ChatRoom[]>([]);
     const [currentUsername, setCurrentUsername] = useState<string>('');
     const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
+    // Суперадмин (владелец приложения) - может удалить чужой блокнот навсегда, см. задачу #61
+    // Superadmin (app owner) - can permanently delete someone else's notebook, see task #61
+    const [isSuperadmin, setIsSuperadmin] = useState(false);
     const [loading, setLoading] = useState<boolean>(true);
     const [refreshing, setRefreshing] = useState<boolean>(false);
     const [modalVisible, setModalVisible] = useState<boolean>(false);
@@ -155,6 +160,8 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
         if (name) setCurrentUsername(name);
         const avatarUrl = await AsyncStorage.getItem('avatarUrl');
         setMyAvatarUrl(avatarUrl);
+        const superadmin = await AsyncStorage.getItem('isSuperadmin');
+        setIsSuperadmin(superadmin === 'true');
     };
 
     useEffect(() => {
@@ -217,6 +224,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
     const handleChatLongPress = (item: ChatRoom) => {
         const myId = item.participants.find((p) => p.username === currentUsername)?.id;
         const isCreator = myId !== undefined && myId === item.createdBy;
+        const isGroupAdmin = myId !== undefined && !!item.groupAdminUserIds?.includes(myId);
         const isGroup = item.type === 'GROUP';
 
         const buttons: Array<{ text: string; style?: 'cancel' | 'destructive'; onPress?: () => void }> = [
@@ -249,7 +257,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     await loadChats();
                 },
             });
-            if (isCreator) {
+            if (isCreator || isGroupAdmin || isSuperadmin) {
                 buttons.push({
                     text: t('delete_for_everyone'),
                     style: 'destructive',
@@ -268,6 +276,22 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     await loadChats();
                 },
             });
+            // Обычный пользователь может только скрыть свой блокнот (кнопка выше,
+            // leaveChat) - безвозвратно удалить чужой личный чат/блокнот может
+            // только суперадмин, см. задачу #61
+            // A regular user can only hide their own notebook (button above,
+            // leaveChat) - permanently deleting someone else's personal
+            // chat/notebook is superadmin-only, see task #61
+            if (isSuperadmin) {
+                buttons.push({
+                    text: t('delete_forever_superadmin'),
+                    style: 'destructive',
+                    onPress: async () => {
+                        await deleteChat(item.id);
+                        await loadChats();
+                    },
+                });
+            }
         }
 
         // showActionSheet вместо Alert.alert - у Android нативный AlertDialog
