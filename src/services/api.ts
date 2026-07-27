@@ -229,6 +229,15 @@ export const blacklistUser = (userId: number) =>
 export const unblacklistUser = (userId: number) =>
     api.delete(`/users/${userId}/blacklist`);
 
+// Подтверждение регистрации (только суперадмин) - новые аккаунты не могут
+// войти, пока их не одобрят
+// Registration approval (superadmin only) - new accounts can't log in until approved
+export const getPendingApprovalUsers = () => api.get('/users/pending-approval');
+
+export const approveUser = (userId: number) => api.post(`/users/${userId}/approve`);
+
+export const rejectUser = (userId: number) => api.post(`/users/${userId}/reject`);
+
 // Avatar upload — returns the updated user (including the new avatarUrl)
 export const uploadAvatar = (formData: FormData) =>
     api.post('/users/me/avatar', formData, {

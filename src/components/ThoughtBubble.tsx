@@ -19,13 +19,10 @@ import {
     TouchableOpacity,
     Alert,
     Linking,
-    ActivityIndicator,
 } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useEvent } from 'expo';
-import { File, Paths } from 'expo-file-system';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import { useTheme } from '../context/ThemeContext';
@@ -90,6 +87,13 @@ interface ThoughtBubbleProps {
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
 const LinkifiedText: React.FC<{ text: string; textStyle: any; linkStyle: any }> = ({ text, textStyle, linkStyle }) => {
+    // text может прийти null/undefined (например, рассинхрон с проверкой
+    // капсулы времени на экране чата) - раньше здесь падало с "Cannot read
+    // property 'split' of null"
+    // text can arrive null/undefined (e.g. a mismatch with the chat screen's
+    // time-capsule check) - this used to crash with "Cannot read property
+    // 'split' of null"
+    if (!text) return null;
     const parts = text.split(URL_REGEX);
     return (
         <Text style={textStyle}>
@@ -364,62 +368,25 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     };
 
     /**
-     * Транскрипция голосового сообщения на устройстве (без стороннего API) -
-     * скачиваем файл локально (распознавание требует локальный URI, не https)
-     * и запускаем речевой движок ОС в offline-режиме.
-     * On-device voice message transcription (no third-party API) -
-     * downloads the file locally first (recognition needs a local URI, not
-     * https) and runs the OS speech engine in offline mode.
+     * Показ транскрипции голосового сообщения. Раньше здесь пытались
+     * распознать уже отправленный .m4a-файл через файловый режим
+     * expo-speech-recognition - но библиотека поддерживает для audioSource
+     * только несжатый 16kHz/16-bit mono PCM WAV, а голос хранится в сжатом
+     * AAC (.m4a) ради компактности, поэтому распознавание падало на 100%
+     * записей. Теперь распознавание идёт вживую во время самой записи (см.
+     * ChatRoomScreen.startRecording/stopRecording), а результат приходит
+     * готовым в content - здесь просто показываем то, что уже сохранено.
+     * Shows the voice message's transcript. This used to try re-recognizing
+     * the already-sent .m4a file via expo-speech-recognition's file mode -
+     * but the library only supports uncompressed 16kHz/16-bit mono PCM WAV
+     * for audioSource, while voice is stored as compressed AAC (.m4a) for
+     * compactness, so recognition failed on 100% of recordings. Recognition
+     * now runs live during the recording itself (see ChatRoomScreen's
+     * startRecording/stopRecording), and the result arrives already baked
+     * into content - this just displays what's already stored.
      */
-    const [transcribing, setTranscribing] = useState(false);
-    const transcribingRef = useRef(false);
-
-    useSpeechRecognitionEvent('result', (event) => {
-        if (!transcribingRef.current || !event.isFinal) return;
-        transcribingRef.current = false;
-        setTranscribing(false);
-        const text = event.results[0]?.transcript;
-        Alert.alert(
-            t('transcript_title'),
-            text || t('no_speech_recognized')
-        );
-    });
-
-    useSpeechRecognitionEvent('error', (event) => {
-        if (!transcribingRef.current) return;
-        transcribingRef.current = false;
-        setTranscribing(false);
-        Alert.alert(t('error'), `${t('could_not_recognize_speech')}: ${event.error}`);
-    });
-
-    const transcribeVoice = async () => {
-        if (!mediaUrl || transcribingRef.current) return;
-
-        try {
-            const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-            if (!granted) {
-                Alert.alert(t('error'), t('no_speech_access'));
-                return;
-            }
-
-            transcribingRef.current = true;
-            setTranscribing(true);
-
-            const localFile = await File.downloadFileAsync(mediaUrl, Paths.cache, { idempotent: true });
-
-            ExpoSpeechRecognitionModule.start({
-                lang: 'ru-RU',
-                interimResults: false,
-                continuous: false,
-                requiresOnDeviceRecognition: true,
-                audioSource: { uri: localFile.uri },
-            });
-        } catch (error) {
-            console.error('Failed to transcribe voice message', error);
-            transcribingRef.current = false;
-            setTranscribing(false);
-            Alert.alert(t('error'), t('could_not_recognize_speech'));
-        }
+    const showTranscript = () => {
+        Alert.alert(t('transcript_title'), content || t('no_speech_recognized'));
     };
 
     /**
@@ -552,15 +519,11 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                     <TouchableOpacity onPress={() => playVoice(mediaUrl || '')} style={styles.voiceRow} disabled={!mediaUrl}>
                         <Text style={styles.voiceIcon}>{isPlaying ? '⏹️' : '▶️'}</Text>
                         <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]}>
-                            {isPlaying ? 'Остановить' : 'Голосовое сообщение'}
+                            {isPlaying ? t('stop_playback') : t('voice_message')}
                         </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={transcribeVoice} disabled={!mediaUrl || transcribing} style={styles.transcribeButton}>
-                        {transcribing ? (
-                            <ActivityIndicator size="small" color={isMyMessage ? colors.textLight : colors.primary} />
-                        ) : (
-                            <Text style={styles.voiceIcon}>📝</Text>
-                        )}
+                    <TouchableOpacity onPress={showTranscript} style={styles.transcribeButton}>
+                        <Text style={styles.voiceIcon}>📝</Text>
                     </TouchableOpacity>
                 </View>
             ) : type === 'VIDEO' && mediaUrl ? (

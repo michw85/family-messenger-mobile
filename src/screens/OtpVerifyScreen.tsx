@@ -57,7 +57,12 @@ const OtpVerifyScreen: React.FC<any> = ({ navigation, route }) => {
                 await setRefreshToken(refreshToken);
             }
             await AsyncStorage.setItem('username', user.username);
-            await AsyncStorage.setItem('isSuperadmin', String(!!user.isSuperadmin));
+            // Бэкенд (Jackson) отдаёт это поле как "superadmin", а не "isSuperadmin" -
+            // стандартная сериализация boolean-геттера isSuperadmin() без префикса "is"
+            // The backend (Jackson) serializes this field as "superadmin", not
+            // "isSuperadmin" - standard serialization of a boolean isSuperadmin()
+            // getter strips the "is" prefix
+            await AsyncStorage.setItem('isSuperadmin', String(!!user.superadmin));
             triggerAuthLoggedIn(token);
 
             navigation.reset({ index: 0, routes: [{ name: 'RoomSelect' }] });

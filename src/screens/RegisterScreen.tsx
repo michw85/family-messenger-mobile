@@ -101,13 +101,29 @@ const RegisterScreen: React.FC<any> = ({ navigation }) => {
         setLoading(true);
         try {
             const response = await register(username, email, password);
+
+            // Новая регистрация ждёт подтверждения суперадмина - сервер не выдаёт
+            // токен вообще (см. AuthController.register), а не просто отправляет
+            // "неактивный" токен - показываем экран ожидания, а не переходим в приложение
+            // A new registration awaits superadmin approval - the server doesn't issue
+            // a token at all (see AuthController.register), rather than a "disabled"
+            // token - show a waiting message instead of entering the app
+            if (response.data?.pendingApproval) {
+                Alert.alert(t('registration_pending_title'), t('registration_pending_message'), [
+                    { text: t('ok'), onPress: () => navigation.replace('Login') },
+                ]);
+                return;
+            }
+
             const { token, refreshToken, user } = response.data;
             await setToken(token);
             if (refreshToken) {
                 await setRefreshToken(refreshToken);
             }
             await AsyncStorage.setItem('username', user.username);
-            await AsyncStorage.setItem('isSuperadmin', String(!!user.isSuperadmin));
+            // Бэкенд (Jackson) отдаёт это поле как "superadmin" - см. OtpVerifyScreen
+            // The backend (Jackson) serializes this field as "superadmin" - see OtpVerifyScreen
+            await AsyncStorage.setItem('isSuperadmin', String(!!user.superadmin));
             console.log('Registration successful');
             /* try {
                  const pushToken = await registerForPushNotificationsAsync();

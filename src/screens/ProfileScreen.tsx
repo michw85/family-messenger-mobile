@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import FloatingClouds from '../components/FloatingClouds';
+import PendingApprovalsModal from '../components/PendingApprovalsModal';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { getCurrentUser, uploadAvatar } from '../services/api';
@@ -34,6 +35,7 @@ const ProfileScreen: React.FC<any> = ({ navigation }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [pendingApprovalsVisible, setPendingApprovalsVisible] = useState(false);
 
     const loadUser = useCallback(async () => {
         try {
@@ -141,7 +143,21 @@ const ProfileScreen: React.FC<any> = ({ navigation }) => {
                     <Text style={styles.infoLabel}>{t('email')}</Text>
                     <Text style={styles.infoValue}>{user?.email}</Text>
                 </View>
+
+                {user?.superadmin && (
+                    <TouchableOpacity
+                        style={styles.pendingApprovalsButton}
+                        onPress={() => setPendingApprovalsVisible(true)}
+                    >
+                        <Text style={styles.pendingApprovalsButtonText}>👤 {t('pending_approvals_title')}</Text>
+                    </TouchableOpacity>
+                )}
             </View>
+
+            <PendingApprovalsModal
+                visible={pendingApprovalsVisible}
+                onClose={() => setPendingApprovalsVisible(false)}
+            />
         </LinearGradient>
     );
 };
@@ -205,6 +221,21 @@ const createStyles = (colors: AppColors) => StyleSheet.create({
     },
     infoLabel: { fontSize: 11, color: colors.textSecondary, marginBottom: 2 },
     infoValue: { fontSize: 16, fontWeight: '600', color: colors.text },
+    pendingApprovalsButton: {
+        marginTop: spacing.md,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.medium,
+        backgroundColor: colors.backgroundLight,
+        borderWidth: 1,
+        borderColor: colors.border,
+        alignItems: 'center',
+        ...shadows.soft,
+    },
+    pendingApprovalsButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: colors.primary,
+    },
 });
 
 export default ProfileScreen;

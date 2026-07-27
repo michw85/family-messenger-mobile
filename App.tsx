@@ -33,7 +33,7 @@ import { colors } from './src/styles/theme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { setAuthExpiredHandler, triggerAuthLoggedIn } from './src/utils/authEvents';
 import { registerForPushNotificationsAsync } from './src/utils/notifications';
-import { updateFcmToken } from './src/services/api';
+import { updateFcmToken, getCurrentUser } from './src/services/api';
 import { navigationRef } from './src/services/navigationRef';
 import { CallProvider, useCall } from './src/context/CallContext';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
@@ -227,6 +227,22 @@ const Navigation = () => {
                             if (pushToken) return updateFcmToken(pushToken);
                         })
                         .catch((e) => console.warn('Failed to (re-)register push notifications', e));
+
+                    // isSuperadmin в AsyncStorage раньше проставлялся только в момент
+                    // логина/регистрации - у уже залогиненных на момент раскатки роли
+                    // устройств он так и оставался false, даже если на сервере флаг
+                    // потом выставили вручную. Подтягиваем его заново при каждом
+                    // холодном старте, чтобы не требовать ручного перелогина.
+                    // isSuperadmin in AsyncStorage used to only get set at the moment
+                    // of login/registration - devices already logged in when the
+                    // roles feature shipped kept it false forever, even after the
+                    // server-side flag was set manually later. Re-fetch it on every
+                    // cold start so a manual re-login isn't required.
+                    // Бэкенд (Jackson) отдаёт это поле как "superadmin" - см. OtpVerifyScreen
+                    // The backend (Jackson) serializes this field as "superadmin" - see OtpVerifyScreen
+                    getCurrentUser()
+                        .then((res) => AsyncStorage.setItem('isSuperadmin', String(!!res.data.superadmin)))
+                        .catch((e) => console.warn('Failed to refresh superadmin status', e));
                 }
             } catch (error) {
                 console.error('Error checking login status:', error);

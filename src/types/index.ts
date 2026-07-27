@@ -58,4 +58,7 @@ export interface User {
     email: string;
     avatarUrl: string | null;
     status: 'ONLINE' | 'OFFLINE' | 'AWAY';
+    /** Бэкенд (Jackson) сериализует это поле как "superadmin", а не "isSuperadmin" /
+     * The backend (Jackson) serializes this field as "superadmin", not "isSuperadmin" */
+    superadmin?: boolean;
 }

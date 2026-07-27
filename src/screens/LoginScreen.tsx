@@ -87,6 +87,13 @@ const LoginScreen: React.FC<any> = ({ navigation }) => {
             console.error('Login error:', error);
             if (error?.response?.status === 429) {
                 Alert.alert(t('error'), t('too_many_login_attempts'));
+            } else if (error?.response?.status === 403) {
+                // Аккаунт заблокирован или ещё не подтверждён суперадмином - сервер
+                // уже даёт конкретное сообщение, показываем его, а не общее "неверный пароль"
+                // Account is blocked or not yet approved by a superadmin - the server
+                // already gives a specific message, show it instead of a generic
+                // "wrong password"
+                Alert.alert(t('error'), error.response.data || t('invalid_credentials'));
             } else {
                 Alert.alert(t('error'), t('invalid_credentials'));
             }

@@ -46,6 +46,9 @@ interface ParticipantsModalProps {
     currentUsername: string;
     /** ID создателя чата - см. задачу #61 (роли) / Chat creator's ID - see task #61 (roles) */
     createdBy?: number;
+    /** Тип чата - роли админа/редактора группы имеют смысл только в GROUP /
+     * Chat type - group admin/editor roles only make sense for GROUP */
+    chatType?: string;
     /** ID участников-админов группы / IDs of the group's admin participants */
     groupAdminUserIds?: number[];
     /** ID участников-редакторов группы / IDs of the group's editor participants */
@@ -80,6 +83,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
     chatId,
     currentUsername,
     createdBy,
+    chatType,
     groupAdminUserIds = [],
     editorUserIds = [],
     isSuperadmin = false,
@@ -116,8 +120,15 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
     const iAmCreator = myId !== undefined && myId === createdBy;
     const iAmGroupAdmin = myId !== undefined && groupAdminUserIds.includes(myId);
     const iAmEditor = myId !== undefined && editorUserIds.includes(myId);
-    const canManageAdmins = iAmCreator || isSuperadmin;
-    const canManageEditors = iAmCreator || iAmGroupAdmin || isSuperadmin;
+    // Роли админа/редактора группы имеют смысл только в групповых чатах -
+    // в личном (DIRECT) чате "назначить админом группы" бессмысленно и
+    // сбивает с толку (нет самой группы, которой можно администрировать)
+    // Group admin/editor roles only make sense in group chats - "make group
+    // admin" in a personal (DIRECT) chat is meaningless and confusing (there
+    // is no group to administer)
+    const isGroupChat = chatType === 'GROUP';
+    const canManageAdmins = isGroupChat && (iAmCreator || isSuperadmin);
+    const canManageEditors = isGroupChat && (iAmCreator || iAmGroupAdmin || isSuperadmin);
     const canKick = iAmCreator || iAmGroupAdmin || iAmEditor || isSuperadmin;
 
     const handleRemove = (participant: Participant) => {

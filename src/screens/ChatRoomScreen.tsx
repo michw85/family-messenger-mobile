@@ -38,6 +38,7 @@ import * as Sharing from 'expo-sharing';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import * as Clipboard from 'expo-clipboard';
 import { useAudioRecorder, setAudioModeAsync, requestRecordingPermissionsAsync, IOSOutputFormat, AudioQuality, type RecordingOptions } from 'expo-audio';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import ThoughtBubble from '../components/ThoughtBubble';
 import FloatingClouds from '../components/FloatingClouds';
 import ParticipantsModal from '../components/ParticipantsModal';
@@ -144,6 +145,15 @@ const VOICE_RECORDING_OPTIONS: RecordingOptions = {
 };
 
 /**
+ * BCP-47 локаль для распознавания речи по коду языка интерфейса.
+ * BCP-47 locale for speech recognition, keyed by the UI language code.
+ */
+const SPEECH_RECOGNITION_LOCALES: Record<string, string> = {
+    ru: 'ru-RU', en: 'en-US', de: 'de-DE', uk: 'uk-UA', it: 'it-IT',
+    nl: 'nl-NL', fr: 'fr-FR', es: 'es-ES', bg: 'bg-BG',
+};
+
+/**
  * Интерфейс сообщения (соответствует DTO бэкенда)
  * Message interface (matches backend DTO)
  */
@@ -202,7 +212,7 @@ const MOOD_REACTIONS = ['😊', '😐', '😢', '😡', '😴', '🥳'];
  */
 const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const { roomId, roomName, roomType, otherParticipant } = route.params || { roomId: 'family-chat', roomName: 'Family Chat' };
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const { startOutgoingCall } = useCall();
     const { theme, colors } = useTheme();
     const { fontScale } = useSimpleMode();
@@ -225,6 +235,15 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [loading, setLoading] = useState<boolean>(true);
     const [sending, setSending] = useState<boolean>(false);
     const recorder = useAudioRecorder(VOICE_RECORDING_OPTIONS);
+    // Живая транскрипция во время записи голосового - см. startRecording/
+    // stopRecording. Копится сюда, а не в state, чтобы не перерисовывать
+    // компонент на каждый распознанный кусок речи.
+    // Live transcription while recording a voice message - see
+    // startRecording/stopRecording. Accumulated in a ref, not state, so the
+    // component doesn't re-render on every recognized chunk of speech.
+    const voiceTranscriptRef = useRef('');
+    const voiceRecognitionActiveRef = useRef(false);
+    const voiceRecognitionEndResolverRef = useRef<(() => void) | null>(null);
     const [addParticipantsVisible, setAddParticipantsVisible] = useState(false);
     const [participantsVisible, setParticipantsVisible] = useState(false);
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
@@ -945,6 +964,59 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     }, [sendMoodCheckin, sendTimeCapsuleIn, pickCapsuleDateTime, exportChat, inputText, t, showActionSheet, isNotebook, sendChecklist]);
 
     /**
+     * Живая транскрипция во время записи голоса (не постфактум по файлу -
+     * expo-speech-recognition поддерживает распознавание по файлу только для
+     * несжатого 16kHz/16-bit mono PCM WAV, а голос хранится сжатым в .m4a
+     * ради компактности, так что распознавание уже отправленного файла
+     * стабильно проваливалось на 100% записей). Копим финальные куски речи в
+     * voiceTranscriptRef, а не в state - событий может быть много подряд.
+     * Live transcription while recording (not after the fact from the file -
+     * expo-speech-recognition only supports file-based recognition for
+     * uncompressed 16kHz/16-bit mono PCM WAV, while voice is stored as
+     * compressed .m4a for compactness, so recognizing the already-sent file
+     * consistently failed on 100% of recordings). Final speech chunks are
+     * accumulated in voiceTranscriptRef, not state - there can be many events
+     * in a row.
+     */
+    useSpeechRecognitionEvent('result', (event) => {
+        // На практике event.isFinal:true на этом движке ни разу не приходит до
+        // события 'error'/'end' (диагностировано по логам с реального устройства) -
+        // при этом каждое событие уже несёт ПОЛНУЮ распознанную фразу целиком
+        // (не дельту), поэтому просто перезаписываем, а не ждём финальный флаг
+        // In practice event.isFinal:true never arrives on this engine before
+        // 'error'/'end' fires (diagnosed from real-device logs) - and each event
+        // already carries the FULL recognized phrase so far (not a delta), so we
+        // just overwrite rather than waiting for the final flag
+        if (!voiceRecognitionActiveRef.current) return;
+        const transcript = event.results[0]?.transcript;
+        if (transcript) {
+            voiceTranscriptRef.current = transcript;
+        }
+    });
+
+    useSpeechRecognitionEvent('end', () => {
+        voiceRecognitionActiveRef.current = false;
+        voiceRecognitionEndResolverRef.current?.();
+        voiceRecognitionEndResolverRef.current = null;
+    });
+
+    useSpeechRecognitionEvent('error', (event) => {
+        // Не критично для самой записи - просто не будет транскрипта у этого
+        // сообщения, запись и отправка голосового всё равно продолжатся.
+        // На практике это событие срабатывает почти всегда (даже когда речь
+        // уже успешно распозналась) - см. voiceTranscriptRef в 'result' выше.
+        // Not critical to the recording itself - this message just won't have
+        // a transcript, the recording and sending still proceed regardless.
+        // In practice this fires almost every time (even when speech was
+        // already successfully recognized) - see voiceTranscriptRef in
+        // 'result' above.
+        console.warn('Live voice transcription ended with an error', event.error);
+        voiceRecognitionActiveRef.current = false;
+        voiceRecognitionEndResolverRef.current?.();
+        voiceRecognitionEndResolverRef.current = null;
+    });
+
+    /**
  * Начало записи голоса
  * Start voice recording
  */
@@ -971,11 +1043,53 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             recorder.record();
             setIsRecording(true);
             console.log('Recording started');
+
+            voiceTranscriptRef.current = '';
+            try {
+                const speechPermission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+                if (speechPermission.granted) {
+                    const targetLocale = SPEECH_RECOGNITION_LOCALES[language] || 'en-US';
+                    // requiresOnDeviceRecognition:true падает с "language-not-supported",
+                    // если офлайн-модель этого языка не скачана на устройство (у нас
+                    // так было с русским скачанным, а английским - нет). Проверяем
+                    // installedLocales и включаем офлайн-режим только когда язык
+                    // реально доступен, иначе используем сетевое распознавание -
+                    // компромисс с приватностью (аудио уходит в облако Google), но
+                    // без этого транскрипция на нескачанном языке не работает вовсе.
+                    // requiresOnDeviceRecognition:true fails with "language-not-supported"
+                    // if that language's offline model isn't downloaded on the device
+                    // (this is exactly what happened - Russian was downloaded, English
+                    // wasn't). Check installedLocales and only enable on-device mode
+                    // when the language is actually available, otherwise fall back to
+                    // network-based recognition - a privacy trade-off (audio goes to
+                    // Google's cloud), but without it transcription simply doesn't work
+                    // at all for a language whose model isn't downloaded.
+                    let requiresOnDevice = true;
+                    try {
+                        const { installedLocales } = await ExpoSpeechRecognitionModule.getSupportedLocales({});
+                        requiresOnDevice = installedLocales.includes(targetLocale);
+                    } catch {
+                        requiresOnDevice = false;
+                    }
+
+                    voiceRecognitionActiveRef.current = true;
+                    ExpoSpeechRecognitionModule.start({
+                        lang: targetLocale,
+                        interimResults: false,
+                        continuous: true,
+                        requiresOnDeviceRecognition: requiresOnDevice,
+                    });
+                }
+            } catch (speechError) {
+                // Транскрипция - бонус, а не обязательное условие записи голосового
+                // Transcription is a bonus, not a requirement for recording voice
+                console.warn('Could not start live transcription', speechError);
+            }
         } catch (err) {
             console.error('Failed to start recording', err);
             Alert.alert(t('error'), t('could_not_start_recording'));
         }
-    }, [recorder, t]);
+    }, [recorder, t, language]);
 
     /**
      * Остановка записи и отправка голосового сообщения
@@ -998,6 +1112,20 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 return;
             }
 
+            // Ждём, пока распознавание речи полностью завершится (событие 'end'),
+            // чтобы не потерять последний распознанный кусок - но не дольше 1.5с,
+            // если событие почему-то не пришло
+            // Wait for speech recognition to fully wind down (the 'end' event) so
+            // we don't lose the last recognized chunk - but no longer than 1.5s
+            // if the event somehow never arrives
+            if (voiceRecognitionActiveRef.current) {
+                ExpoSpeechRecognitionModule.stop();
+                await new Promise<void>((resolve) => {
+                    voiceRecognitionEndResolverRef.current = resolve;
+                    setTimeout(resolve, 1500);
+                });
+            }
+
             const formData = new FormData();
             formData.append('file', {
                 uri: uri,
@@ -1007,7 +1135,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
             const uploadRes = await uploadFile(formData, 'voice');
             const mediaUrl = uploadRes.data.url;
-            wsSendMessage(roomId, `🎤 ${t('voice_message')}`, 'VOICE', mediaUrl);
+            const transcript = voiceTranscriptRef.current.trim();
+            wsSendMessage(roomId, transcript || `🎤 ${t('voice_message')}`, 'VOICE', mediaUrl);
         } catch (error) {
             console.error('Failed to send voice message', error);
             Alert.alert(t('error'), t('could_not_send_voice'));
@@ -1262,11 +1391,20 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
 
         // Ещё не раскрытая капсула времени - бэкенд не присылает content (только
         // revealAt), заглушку строим на клиенте, чтобы дата и текст были на языке
-        // интерфейса, а не захардкожены на бэкенде
+        // интерфейса, а не захардкожены на бэкенде.
+        // Проверяем ещё и content == null как страховку: если revealAt почему-то
+        // не распарсился (NaN) или разошёлся с часами устройства, сервер всё
+        // равно не прислал текст - без этой проверки сообщение проваливалось в
+        // обычный рендер с content=null и падало (LinkifiedText.split on null).
         // A still-sealed time capsule - the backend sends no content (only
         // revealAt), we build the placeholder on the client so the date and text
-        // follow the interface language instead of being hardcoded on the backend
-        const isSealedCapsule = !!item.revealAt && new Date(item.revealAt).getTime() > Date.now();
+        // follow the interface language instead of being hardcoded on the backend.
+        // Also checking content == null as a safety net: if revealAt somehow
+        // failed to parse (NaN) or drifted from the device clock, the server
+        // still didn't send any text - without this check the message fell
+        // through to the regular render with content=null and crashed
+        // (LinkifiedText.split on null).
+        const isSealedCapsule = !!item.revealAt && (item.content == null || new Date(item.revealAt).getTime() > Date.now());
         if (isSealedCapsule) {
             const revealText = `${formatMessageDate(item.revealAt!, t)}, ${formatMessageTime(item.revealAt!, t)}`;
             return (
@@ -1553,9 +1691,11 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     <TouchableOpacity style={{ flex: 1 }} onPress={() => setParticipantsVisible(true)} activeOpacity={0.7}>
                                         <Text style={styles.headerTitle}>{roomName}</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
-                                        <Text style={styles.addButtonText}>+</Text>
-                                    </TouchableOpacity>
+                                    {liveRoomType === 'GROUP' && (
+                                        <TouchableOpacity onPress={() => setAddParticipantsVisible(true)} style={styles.addButton}>
+                                            <Text style={styles.addButtonText}>+</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <TouchableOpacity onPress={() => setSearchVisible(true)} style={styles.iconHeaderButton}>
                                         <Text style={styles.iconText}>🔍</Text>
                                     </TouchableOpacity>
@@ -1769,6 +1909,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             chatId={roomId}
                             currentUsername={currentUsername}
                             createdBy={liveCreatedBy}
+                            chatType={liveRoomType}
                             groupAdminUserIds={liveGroupAdminUserIds}
                             editorUserIds={liveEditorUserIds}
                             isSuperadmin={isSuperadmin}

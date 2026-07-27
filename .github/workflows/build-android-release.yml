@@ -1,0 +1,72 @@
+name: Build Android Release (App Bundle)
+
+# Ручной запуск - собирает подписанный релизный .aab для загрузки в Google
+# Play Console (закрытое тестирование), отдельно от build-android.yml
+# (debug-сборка для внутреннего тестирования на устройствах семьи).
+# Manual trigger - builds a signed release .aab for uploading to Google Play
+# Console (closed testing), separate from build-android.yml (debug build for
+# internal testing on family devices).
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prebuild Android project
+        run: npx expo prebuild --clean --platform android
+
+      # Java идёт после prebuild - см. комментарий в build-android.yml
+      # Java comes after prebuild - see the comment in build-android.yml
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      # Релизный keystore никогда не хранится в репозитории (в отличие от
+      # debug.keystore) - только как base64 в GitHub Secret, восстанавливается
+      # здесь во временный файл внутри android/app/ (уже в .gitignore).
+      # The release keystore is never stored in the repo (unlike
+      # debug.keystore) - only as base64 in a GitHub Secret, restored here
+      # into a file inside android/app/ (already gitignored).
+      - name: Restore release keystore
+        run: echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.jks
+
+      - name: Wire up release signing config
+        run: node scripts/patch-release-signing.js
+
+      # Все архитектуры (не только arm64-v8a, как в debug-сборке) - в App
+      # Bundle это не раздувает установку, Play Store сам отдаёт устройству
+      # только нужный срез.
+      # All architectures (not just arm64-v8a like the debug build) - in an
+      # App Bundle this doesn't bloat the install, Play Store serves each
+      # device only the slice it needs.
+      - name: Build release App Bundle
+        working-directory: android
+        env:
+          BONDS_RELEASE_STORE_FILE: release.jks
+          BONDS_RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          BONDS_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          BONDS_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+
+      - name: Upload App Bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-bundle
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
