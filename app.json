@@ -3,7 +3,7 @@
     "owner": "mvorontsovs-team",
     "name": "Bonds",
     "slug": "family-messenger-mobile",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -27,7 +27,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2C3E7A"
       },
-      "versionCode": 6,
+      "versionCode": 7,
       "predictiveBackGestureEnabled": false,
       "permissions": ["CAMERA"]
     },
