@@ -243,12 +243,19 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             },
         });
 
-        buttons.push({
-            text: t('rename_chat'),
-            onPress: () => setRenamingChat(item),
-        });
-
         if (isGroup) {
+            // Переименование теперь только для групп - у личных чатов
+            // название всегда показывает имя собеседника у каждого участника
+            // отдельно (задача #94), так что общее имя чата на бэкенде больше
+            // ни на что не влияет визуально
+            // Renaming is now group-only - a personal chat's title always
+            // shows the other participant's own name to each side separately
+            // (task #94), so the shared chat name on the backend no longer
+            // affects anything visually
+            buttons.push({
+                text: t('rename_chat'),
+                onPress: () => setRenamingChat(item),
+            });
             buttons.push({
                 text: t('leave_chat'),
                 style: 'destructive',
@@ -397,7 +404,7 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             setSearchQuery('');
             navigation.navigate('ChatRoom', {
                 roomId: newChat.id,
-                roomName: newChat.name,
+                roomName: foundUser.username,
                 roomType: 'DIRECT',
                 otherParticipant: { id: foundUser.id, username: foundUser.username, avatarUrl: foundUser.avatarUrl },
             });
@@ -419,13 +426,26 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
             ? item.participants.find((p) => p.username !== currentUsername)
             : null;
         const isNotebook = isNotebookChat(item);
+        // Личный чат всегда показывает имя собеседника у каждого участника
+        // отдельно - раньше общее (одно на двоих) название чата приводило к
+        // тому, что переименование чата одним человеком меняло заголовок и у
+        // второго участника тоже, вплоть до путаницы вида "у меня все чаты
+        // называются Оля" (задача #94)
+        // A personal chat always shows the other participant's own name to
+        // each side separately - previously the shared (one-for-both) chat
+        // name meant one person renaming it also changed the title for the
+        // other participant, up to confusion like "all my chats are named
+        // Olya" (task #94)
+        const displayName = isNotebook
+            ? t('notebook_chat_name')
+            : item.type === 'GROUP' ? item.name : (otherParticipant?.username ?? item.name);
 
         return (
         <TouchableOpacity
             style={styles.chatCard}
             onPress={() => navigation.navigate('ChatRoom', {
                 roomId: item.id,
-                roomName: isNotebook ? t('notebook_chat_name') : item.name,
+                roomName: displayName,
                 roomType: item.type,
                 otherParticipant: otherParticipant
                     ? { id: otherParticipant.id, username: otherParticipant.username, avatarUrl: otherParticipant.avatarUrl }
@@ -447,12 +467,12 @@ const RoomSelectScreen: React.FC<any> = ({ navigation }) => {
                     <Image source={{ uri: otherParticipant.avatarUrl }} style={styles.avatarImage} />
                 ) : (
                     <Text style={[styles.avatarText, { color: colors.primary }]}>
-                        {item.name.charAt(0).toUpperCase()}
+                        {displayName.charAt(0).toUpperCase()}
                     </Text>
                 )}
             </View>
             <View style={styles.chatInfo}>
-                <Text style={styles.chatName}>{isNotebook ? t('notebook_chat_name') : item.name}</Text>
+                <Text style={styles.chatName}>{displayName}</Text>
                 <Text style={styles.chatType}>
                     {isNotebook
                         ? t('notebook_chat_label')

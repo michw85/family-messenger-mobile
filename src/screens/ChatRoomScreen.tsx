@@ -26,6 +26,7 @@ import {
     ScrollView,
 } from 'react-native';
 import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -48,7 +49,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useActionSheet } from '../components/ActionSheet';
 import { useSimpleMode } from '../context/SimpleModeContext';
 import { fetchMessages, uploadFile, searchMessages, editMessage, deleteMessage, markChatRead, toggleReaction, getMemories, fetchChats } from '../services/api';
-import { acquireWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, releaseWebSocket } from '../services/websocket';
+import { acquireWebSocket, subscribeToRoom, subscribeToTyping, subscribeToRead, subscribeToReactions, sendTyping, sendMessage as wsSendMessage, releaseWebSocket, onWebSocketReconnect } from '../services/websocket';
 import TypingIndicator from '../components/TypingIndicator';
 import { spacing, borderRadius, shadows, typography, AppColors } from '../styles/theme';
 import AddParticipantsModal from '../components/AddParticipantsModal';
@@ -58,6 +59,8 @@ import { RichSpan } from '../utils/richText';
 import ImageView from 'react-native-image-viewing';
 import { formatMessageTime, formatMessageDate } from '../utils/dateTime';
 import { isNotebookChat } from '../utils/notebook';
+import * as Notifications from 'expo-notifications';
+import { setActiveChatId } from '../utils/activeChat';
 
 const MESSAGES_PAGE_SIZE = 30;
 
@@ -248,6 +251,11 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     const [participantsVisible, setParticipantsVisible] = useState(false);
     const [imageViewerVisible, setImageViewerVisible] = useState(false);
     const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
+    // Если задан - пикер эмодзи открыт в режиме "выбрать реакцию" для этого
+    // сообщения (задача #82), а не для вставки эмодзи в текст
+    // If set - the emoji picker is open in "pick a reaction" mode for this
+    // message (task #82), instead of inserting an emoji into the text
+    const [reactingToMessageId, setReactingToMessageId] = useState<string | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [typingUser, setTypingUser] = useState<string | null>(null);
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
@@ -286,6 +294,24 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     useEffect(() => {
         AsyncStorage.getItem('isSuperadmin').then((v) => setIsSuperadmin(v === 'true'));
     }, []);
+
+    // Пока этот чат открыт на экране - подавляем alert/звук пуш-уведомлений
+    // из него (см. App.tsx) и сразу убираем уже показанные уведомления из
+    // этого чата все разом, а не по одному вручную (задача #80)
+    // While this chat is open on screen - suppress the alert/sound for push
+    // notifications from it (see App.tsx) and immediately clear any already-
+    // shown notifications from this chat all at once, instead of one by one
+    // (task #80)
+    useEffect(() => {
+        setActiveChatId(roomId);
+        Notifications.getPresentedNotificationsAsync()
+            .then((presented) => {
+                const toDismiss = presented.filter((n) => n.request.content.data?.roomId === roomId);
+                return Promise.all(toDismiss.map((n) => Notifications.dismissNotificationAsync(n.request.identifier)));
+            })
+            .catch((e) => console.warn('Failed to clear notifications for this chat', e));
+        return () => setActiveChatId(null);
+    }, [roomId]);
     // Простое форматирование текста в блокноте: диапазоны стилей поверх
     // обычного plain-text поля ввода (без сторонних rich-text библиотек)
     // Simple notebook text formatting: style ranges over the plain-text
@@ -359,7 +385,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             markChatRead(roomId).catch(() => {});
         } catch (error) {
             console.error('Failed to load messages:', error);
-            Alert.alert(t('error'), 'Could not load messages');
+            Alert.alert(t('error'), t('could_not_load_messages'));
         } finally {
             setLoading(false);
         }
@@ -429,6 +455,18 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      * Setup WebSocket and subscribe to room
      */
     const setupWebSocket = useCallback(async () => {
+        // Безопасно вызывать повторно (после переподключения WebSocket, см.
+        // onWebSocketReconnect ниже) - сначала отписываемся от возможных
+        // старых подписок, привязанных к уже недействительному соединению
+        // (задача #86)
+        // Safe to call again (after a WebSocket reconnect, see
+        // onWebSocketReconnect below) - first unsubscribe any stale
+        // subscriptions bound to the now-dead connection (task #86)
+        try { subscriptionRef.current?.unsubscribe(); } catch { /* ignore */ }
+        try { readSubscriptionRef.current?.unsubscribe(); } catch { /* ignore */ }
+        try { reactionsSubscriptionRef.current?.unsubscribe(); } catch { /* ignore */ }
+        try { typingSubscriptionRef.current?.unsubscribe(); } catch { /* ignore */ }
+
         const token = await getToken();
         if (!token) {
             console.log('No token, skipping WebSocket connection');
@@ -502,8 +540,23 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         loadCurrentUser();
         loadMessages();
         setupWebSocket();
+        // Если сам WebSocket молча переподключился (обрыв сети, долгий фон
+        // приложения и т.п.) - stomp.js не переиздаёт старые подписки сам,
+        // поэтому нужно подписаться заново, иначе новые сообщения от
+        // собеседника тихо перестают приходить, пока не выйти из чата и не
+        // зайти снова (задача #86)
+        // If the WebSocket itself silently reconnected (network drop, app
+        // backgrounded for a while, etc.) - stomp.js doesn't reissue old
+        // subscriptions on its own, so we need to re-subscribe, otherwise new
+        // messages from the other side silently stop arriving until leaving
+        // the chat and re-entering (task #86)
+        const unregisterReconnect = onWebSocketReconnect(() => {
+            console.log('WebSocket reconnected - re-subscribing to room', roomId);
+            setupWebSocket();
+        });
         // Отписка при размонтировании
         return () => {
+            unregisterReconnect();
             if (subscriptionRef.current) subscriptionRef.current.unsubscribe();
             if (typingSubscriptionRef.current) typingSubscriptionRef.current.unsubscribe();
             if (readSubscriptionRef.current) readSubscriptionRef.current.unsubscribe();
@@ -511,7 +564,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             if (typingClearTimeoutRef.current) clearTimeout(typingClearTimeoutRef.current);
             releaseWebSocket();
         };
-    }, [loadCurrentUser, loadMessages, setupWebSocket]);
+    }, [loadCurrentUser, loadMessages, setupWebSocket, roomId]);
 
     // Лента памяти: подгружаем сообщения этого чата за этот же день в прошлые годы
     // Memory lane: load this chat's messages from this same day in past years
@@ -579,6 +632,24 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
     }, [messages, loadMessages]);
 
     /**
+     * Обёртка над wsSendMessage, которая предупреждает пользователя, если
+     * публикация тихо не удалась (сокет не подключён) - раньше это никак не
+     * сообщалось: файл мог успешно загрузиться на сервер, а сама ссылка на
+     * него в чат так и не попадала, без единой ошибки на экране (задача #87)
+     * A wrapper over wsSendMessage that warns the user if publishing silently
+     * failed (socket not connected) - previously this wasn't surfaced at
+     * all: a file could upload successfully while the message referencing it
+     * never made it into the chat, with no error shown anywhere (task #87)
+     */
+    const sendWsOrWarn = useCallback((content: string, type: string, mediaUrl?: string, replyToId?: string, revealAt?: string): boolean => {
+        const ok = wsSendMessage(roomId, content, type, mediaUrl, replyToId, revealAt);
+        if (!ok) {
+            Alert.alert(t('error'), t('message_not_sent_check_connection'));
+        }
+        return ok;
+    }, [roomId, t]);
+
+    /**
      * Отправка текстового сообщения через WebSocket
      * Send text message via WebSocket
      */
@@ -589,16 +660,20 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
         // RICH_TEXT ({text, spans} JSON), иначе как обычный TEXT
         // In the notebook, if any formatting was applied - send as RICH_TEXT
         // ({text, spans} JSON), otherwise as regular TEXT
-        if (isNotebook && formatSpans.length > 0) {
-            wsSendMessage(roomId, JSON.stringify({ text: inputText, spans: formatSpans }), 'RICH_TEXT', undefined, replyingTo?.id);
-        } else {
-            wsSendMessage(roomId, inputText.trim(), 'TEXT', undefined, replyingTo?.id);
+        const sent = isNotebook && formatSpans.length > 0
+            ? sendWsOrWarn(JSON.stringify({ text: inputText, spans: formatSpans }), 'RICH_TEXT', undefined, replyingTo?.id)
+            : sendWsOrWarn(inputText.trim(), 'TEXT', undefined, replyingTo?.id);
+        // Не стираем набранный текст, если отправка не удалась - иначе
+        // человек просто теряет то, что напечатал (задача #87)
+        // Don't clear the typed text if sending failed - otherwise the
+        // person just loses what they typed (task #87)
+        if (sent) {
+            setInputText('');
+            setFormatSpans([]);
+            setReplyingTo(null);
         }
-        setInputText('');
-        setFormatSpans([]);
-        setReplyingTo(null);
         setSending(false);
-    }, [inputText, roomId, replyingTo, isNotebook, formatSpans]);
+    }, [inputText, roomId, replyingTo, isNotebook, formatSpans, sendWsOrWarn]);
 
     /**
      * Применить формат (bold/italic/underline/цвет) к текущему выделению текста
@@ -631,10 +706,11 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             .filter(line => line.length > 0)
             .map(text => ({ id: Math.random().toString(36).slice(2), text, done: false }));
         if (!items.length) return;
-        wsSendMessage(roomId, JSON.stringify({ items }), 'CHECKLIST');
-        setInputText('');
-        setFormatSpans([]);
-    }, [inputText, roomId]);
+        if (sendWsOrWarn(JSON.stringify({ items }), 'CHECKLIST')) {
+            setInputText('');
+            setFormatSpans([]);
+        }
+    }, [inputText, roomId, sendWsOrWarn]);
 
     /**
      * Переключить пункт чек-листа (done) - пересобирает JSON и сохраняет через
@@ -684,9 +760,23 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             // поэтому здесь не нужно агрессивно давить качество - это только портило картинку без экономии места.
             quality: 0.8,
             videoMaxDuration: 60,
+            // Массовая отправка (задача #83) - раньше можно было выбрать
+            // только один файл за раз
+            // Batch sending (task #83) - previously only one file could be
+            // picked at a time
+            allowsMultipleSelection: true,
+            selectionLimit: 10,
         });
-        if (!result.canceled && result.assets[0]) {
-            const asset = result.assets[0];
+        if (result.canceled || result.assets.length === 0) return;
+
+        setSending(true);
+        // Отправляем по одному, последовательно (не Promise.all) - иначе
+        // десяток параллельных загрузок на мобильном интернете конкурируют
+        // за один и тот же канал и могут душить друг друга/сервер
+        // Sent one at a time, sequentially (not Promise.all) - otherwise ten
+        // parallel uploads on a mobile connection compete for the same
+        // bandwidth and can choke each other/the server
+        for (const asset of result.assets) {
             // asset.type может быть null на некоторых Android ContentProvider'ах (см. типы expo-image-picker),
             // поэтому подстраховываемся mimeType и duration (duration задан только у видео)
             // asset.type can be null on some Android ContentProviders (see expo-image-picker's types),
@@ -694,7 +784,6 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             const isVideo = asset.type === 'video'
                 || (!!asset.mimeType && asset.mimeType.startsWith('video/'))
                 || asset.duration != null;
-            setSending(true);
             try {
                 const formData = new FormData();
                 formData.append('file', {
@@ -704,14 +793,13 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                 } as any);
                 const uploadRes = await uploadFile(formData, isVideo ? 'video' : 'image');
                 const mediaUrl = uploadRes.data.url;
-                wsSendMessage(roomId, isVideo ? `🎥 ${t('video')}` : `📷 ${t('photo')}`, isVideo ? 'VIDEO' : 'IMAGE', mediaUrl);
+                sendWsOrWarn(isVideo ? `🎥 ${t('video')}` : `📷 ${t('photo')}`, isVideo ? 'VIDEO' : 'IMAGE', mediaUrl);
             } catch (error) {
                 Alert.alert(t('error'), isVideo ? t('failed_to_send_video') : t('failed_to_send_image'));
-            } finally {
-                setSending(false);
             }
         }
-    }, [roomId, t]);
+        setSending(false);
+    }, [roomId, t, sendWsOrWarn]);
 
     /**
      * Отправка произвольного файла (документа)
@@ -752,14 +840,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             } as any);
             const uploadRes = await uploadFile(formData, uploadType);
             const mediaUrl = uploadRes.data.url;
-            wsSendMessage(roomId, messageContent, messageType, mediaUrl);
+            sendWsOrWarn(messageContent, messageType, mediaUrl);
         } catch (error) {
             console.error('Failed to send file:', error);
             Alert.alert(t('error'), t('failed_to_send_file'));
         } finally {
             setSending(false);
         }
-    }, [roomId, t]);
+    }, [roomId, t, sendWsOrWarn]);
 
     /**
      * Запустить семейный чек-ин настроения - отправляет специальное сообщение,
@@ -773,8 +861,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             Alert.alert(t('error'), t('connection_not_ready'));
             return;
         }
-        wsSendMessage(roomId, t('mood_checkin_prompt'), 'MOOD_CHECKIN');
-    }, [roomId, t]);
+        sendWsOrWarn(t('mood_checkin_prompt'), 'MOOD_CHECKIN');
+    }, [roomId, t, sendWsOrWarn]);
 
     /**
      * Отправить "капсулу времени" на точный момент: текст из поля ввода
@@ -788,9 +876,10 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      */
     const sendTimeCapsuleAt = useCallback((targetDate: Date) => {
         if (!inputText.trim() || !stompClientRef.current) return;
-        wsSendMessage(roomId, inputText.trim(), 'TEXT', undefined, undefined, targetDate.toISOString());
-        setInputText('');
-    }, [inputText, roomId]);
+        if (sendWsOrWarn(inputText.trim(), 'TEXT', undefined, undefined, targetDate.toISOString())) {
+            setInputText('');
+        }
+    }, [inputText, roomId, sendWsOrWarn]);
 
     const sendTimeCapsuleIn = useCallback((delayMs: number) => {
         sendTimeCapsuleAt(new Date(Date.now() + delayMs));
@@ -1136,14 +1225,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             const uploadRes = await uploadFile(formData, 'voice');
             const mediaUrl = uploadRes.data.url;
             const transcript = voiceTranscriptRef.current.trim();
-            wsSendMessage(roomId, transcript || `🎤 ${t('voice_message')}`, 'VOICE', mediaUrl);
+            sendWsOrWarn(transcript || `🎤 ${t('voice_message')}`, 'VOICE', mediaUrl);
         } catch (error) {
             console.error('Failed to send voice message', error);
             Alert.alert(t('error'), t('could_not_send_voice'));
         } finally {
             setIsRecording(false);
         }
-    }, [recorder, roomId, t]);
+    }, [recorder, roomId, t, sendWsOrWarn]);
 
     /**
      * Меню вложений (фото/видео, файл, голосовое) - спрятано за одной кнопкой,
@@ -1193,23 +1282,45 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
      * Переход к найденному сообщению (если оно уже загружено на экране)
      * Jump to a found message (if it's already loaded on screen)
      */
+    /**
+     * Общая логика прокрутки к сообщению по id (если оно уже загружено на
+     * экране) - используется и результатами поиска, и тапом по цитате
+     * "ответ на сообщение" (задача #99)
+     * Shared logic for scrolling to a message by id (if it's already loaded
+     * on screen) - used by both search results and tapping a "reply to"
+     * quote (task #99)
+     */
+    const scrollToMessageId = useCallback((id: string, onNotLoaded?: () => void) => {
+        const displayData = [...messagesWithGrouping].reverse();
+        const index = displayData.findIndex(m => m.id === id);
+        if (index === -1) {
+            if (onNotLoaded) {
+                onNotLoaded();
+            } else {
+                Alert.alert(t('not_loaded_yet'), t('scroll_up_for_older'));
+            }
+            return;
+        }
+        flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+    }, [messagesWithGrouping, t]);
+
     const handleSelectSearchResult = useCallback((result: Message) => {
         setSearchVisible(false);
         setSearchQuery('');
         setSearchResults([]);
 
-        const displayData = [...messagesWithGrouping].reverse();
-        const index = displayData.findIndex(m => m.id === result.id);
-        if (index === -1) {
-            Alert.alert(
-                t('not_loaded_yet'),
-                `${formatMessageDate(result.timestamp, t)}, ${formatMessageTime(result.timestamp, t)}: ${result.content}\n\n` +
-                t('scroll_up_for_older')
-            );
-            return;
-        }
-        flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
-    }, [messagesWithGrouping, t]);
+        scrollToMessageId(result.id, () => Alert.alert(
+            t('not_loaded_yet'),
+            `${formatMessageDate(result.timestamp, t)}, ${formatMessageTime(result.timestamp, t)}: ${result.content}\n\n` +
+            t('scroll_up_for_older')
+        ));
+    }, [scrollToMessageId, t]);
+
+    /** Тап по цитате "ответ на" внутри сообщения - см. scrollToMessageId выше /
+     * Tap on a "reply to" quote inside a message - see scrollToMessageId above */
+    const handleReplyPress = useCallback((replyToId: string) => {
+        scrollToMessageId(replyToId);
+    }, [scrollToMessageId]);
 
     /**
      * Копирование, редактирование и удаление сообщения (долгое нажатие)
@@ -1226,6 +1337,16 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             console.error('Failed to toggle reaction:', error);
         }
     }, [roomId]);
+
+    /**
+     * Долгое нажатие на пилюлю реакции - показывает, кто именно её поставил
+     * (задача #92: раньше это было никак не видно, особенно на фото/видео)
+     * Long-press on a reaction pill - shows who exactly placed it (task #92:
+     * previously there was no way to see this, especially on photo/video)
+     */
+    const showReactionAuthors = useCallback((emoji: string, usernames: string[]) => {
+        Alert.alert(emoji, usernames.join('\n'));
+    }, []);
 
     /**
      * Сохранение фото/видео из чата в галерею устройства - скачивает файл
@@ -1267,6 +1388,12 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     onPress: () => handleToggleReaction(item.id, emoji),
                 });
             });
+            if (item.type !== 'MOOD_CHECKIN') {
+                options.push({
+                    text: '😀 ' + t('more_reactions'),
+                    onPress: () => setReactingToMessageId(item.id),
+                });
+            }
         }
 
         options.push({
@@ -1439,6 +1566,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     key={r.emoji}
                                     style={[styles.reactionPill, r.usernames.includes(currentUsername) && styles.reactionPillMine]}
                                     onPress={() => handleToggleReaction(item.id, r.emoji)}
+                                    onLongPress={() => showReactionAuthors(r.emoji, r.usernames)}
                                 >
                                     <Text style={styles.reactionPillText}>{r.emoji} {r.count}</Text>
                                 </TouchableOpacity>
@@ -1487,6 +1615,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         deletedPlaceholder={false}
                         read={item.read}
                         replyTo={item.replyTo}
+                        onReplyPress={item.replyTo ? () => handleReplyPress(item.replyTo!.id) : undefined}
                         fontScale={fontScale}
                         onToggleChecklistItem={(itemId) => handleToggleChecklistItem(item, itemId)}
                     />
@@ -1519,6 +1648,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             deletedPlaceholder={false}
                             read={item.read}
                             replyTo={item.replyTo}
+                        onReplyPress={item.replyTo ? () => handleReplyPress(item.replyTo!.id) : undefined}
                             fontScale={fontScale}
                         />
                         <TouchableOpacity
@@ -1536,6 +1666,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     key={r.emoji}
                                     style={[styles.reactionPill, r.usernames.includes(currentUsername) && styles.reactionPillMine]}
                                     onPress={() => handleToggleReaction(item.id, r.emoji)}
+                                    onLongPress={() => showReactionAuthors(r.emoji, r.usernames)}
                                 >
                                     <Text style={styles.reactionPillText}>{r.emoji} {r.count}</Text>
                                 </TouchableOpacity>
@@ -1556,6 +1687,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     }
                 }}
                 onLongPress={() => handleMessageLongPress(item)}
+                delayLongPress={250}
                 activeOpacity={item.type === 'IMAGE' ? 0.7 : 1}
             >
                 <ThoughtBubble
@@ -1572,6 +1704,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                     deletedPlaceholder={item.deleted}
                     read={item.read}
                     replyTo={item.replyTo}
+                    onReplyPress={item.replyTo ? () => handleReplyPress(item.replyTo!.id) : undefined}
                     fontScale={fontScale}
                 />
             </TouchableOpacity>
@@ -1582,6 +1715,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                             key={r.emoji}
                             style={[styles.reactionPill, r.usernames.includes(currentUsername) && styles.reactionPillMine]}
                             onPress={() => handleToggleReaction(item.id, r.emoji)}
+                            onLongPress={() => showReactionAuthors(r.emoji, r.usernames)}
                         >
                             <Text style={styles.reactionPillText}>{r.emoji} {r.count}</Text>
                         </TouchableOpacity>
@@ -1590,7 +1724,7 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
             )}
         </View>
         );
-    }, [currentUsername, handleMessageLongPress, handleToggleReaction, handleToggleChecklistItem, styles, fontScale, t]);
+    }, [currentUsername, handleMessageLongPress, handleToggleReaction, showReactionAuthors, handleToggleChecklistItem, styles, fontScale, t]);
 
     const keyExtractor = useCallback((item: Message) => item.id, []);
 
@@ -1685,8 +1819,17 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                 </>
                             ) : (
                                 <>
+                                    {/* Раньше здесь был текстовый символ "←" - слишком узкий/маленький
+                                        и визуально не по центру своей же кнопки из-за особенностей
+                                        метрики шрифта. MaterialIcons даёт настоящую векторную иконку
+                                        "arrow-back", такую же, как стандартная стрелка назад в Android
+                                        (задача #98) /
+                                        The "←" text glyph here used to be too thin/small and visually
+                                        off-center within its own button due to font-metric quirks.
+                                        MaterialIcons gives a real vector "arrow-back" icon, the same one
+                                        as Android's standard back arrow (task #98) */}
                                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                                        <Text style={styles.backButtonText}>←</Text>
+                                        <MaterialIcons name="arrow-back" size={26} color={colors.primary} />
                                     </TouchableOpacity>
                                     <TouchableOpacity style={{ flex: 1 }} onPress={() => setParticipantsVisible(true)} activeOpacity={0.7}>
                                         <Text style={styles.headerTitle}>{roomName}</Text>
@@ -1842,30 +1985,14 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                     {isNotebook && (
                                         <RichTextPreview text={inputText} spans={formatSpans} fontScale={fontScale} />
                                     )}
-                                    {isNotebook && (
-                                        <View style={styles.notebookToolbar}>
-                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ bold: true })}>
-                                                <Text style={[styles.notebookToolbarButtonText, { fontWeight: '700' }]}>B</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ italic: true })}>
-                                                <Text style={[styles.notebookToolbarButtonText, { fontStyle: 'italic' }]}>I</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ underline: true })}>
-                                                <Text style={[styles.notebookToolbarButtonText, { textDecorationLine: 'underline' }]}>U</Text>
-                                            </TouchableOpacity>
-                                            {NOTEBOOK_COLORS.map((color) => (
-                                                <TouchableOpacity
-                                                    key={color}
-                                                    style={[styles.notebookColorSwatch, { backgroundColor: color }]}
-                                                    onPress={() => applyNotebookFormat({ color })}
-                                                />
-                                            ))}
-                                        </View>
-                                    )}
                                     <View style={styles.inputContainer}>
                                         {/* Меню вложений: фото/видео, файл, голосовое - за одной кнопкой */}
-                                        <TouchableOpacity onPress={openAttachMenu} style={styles.iconButton} disabled={sending}>
-                                            <Text style={styles.iconText}>➕</Text>
+                                        {/* Видимое затемнение, пока идёт отправка - иначе кажется, что кнопка
+                                            просто не реагирует на нажатие (задача #87) /
+                                            Visible dimming while sending is in progress - otherwise the button
+                                            just looks unresponsive (task #87) */}
+                                        <TouchableOpacity onPress={openAttachMenu} style={[styles.iconButton, sending && styles.iconButtonDisabled]} disabled={sending}>
+                                            {sending ? <ActivityIndicator size="small" color={colors.primary} /> : <Text style={styles.iconText}>➕</Text>}
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={() => setEmojiPickerVisible(true)} style={styles.iconButton} disabled={sending}>
                                             <Text style={styles.iconText}>😀</Text>
@@ -1889,6 +2016,34 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                                             <Text style={styles.sendButtonText}>↑</Text>
                                         </TouchableOpacity>
                                     </View>
+                                    {isNotebook && (
+                                        // Вынесена ПОД поле ввода, а не над ним - системная Android-панель
+                                        // "Вставить"/выделения текста всплывает над курсором внутри
+                                        // TextInput и перекрывала цветные кружки, когда панель была прямо
+                                        // над полем (задача #81)
+                                        // Moved BELOW the input instead of above it - Android's native
+                                        // text-selection/"Paste" popup floats above the cursor inside the
+                                        // TextInput and was covering the color swatches when the toolbar
+                                        // sat directly above the field (task #81)
+                                        <View style={styles.notebookToolbar}>
+                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ bold: true })}>
+                                                <Text style={[styles.notebookToolbarButtonText, { fontWeight: '700' }]}>B</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ italic: true })}>
+                                                <Text style={[styles.notebookToolbarButtonText, { fontStyle: 'italic' }]}>I</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={styles.notebookToolbarButton} onPress={() => applyNotebookFormat({ underline: true })}>
+                                                <Text style={[styles.notebookToolbarButtonText, { textDecorationLine: 'underline' }]}>U</Text>
+                                            </TouchableOpacity>
+                                            {NOTEBOOK_COLORS.map((color) => (
+                                                <TouchableOpacity
+                                                    key={color}
+                                                    style={[styles.notebookColorSwatch, { backgroundColor: color }]}
+                                                    onPress={() => applyNotebookFormat({ color })}
+                                                />
+                                            ))}
+                                        </View>
+                                    )}
                                 </>
                             )}
                         </View>
@@ -1926,8 +2081,8 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         onClose={() => setForwardingMessage(null)}
                         onForward={(targetChatId) => {
                             if (!forwardingMessage) return;
-                            wsSendMessage(targetChatId, forwardingMessage.content, forwardingMessage.type, forwardingMessage.mediaUrl);
-                            Alert.alert(t('message_forwarded'));
+                            const sent = wsSendMessage(targetChatId, forwardingMessage.content, forwardingMessage.type, forwardingMessage.mediaUrl);
+                            Alert.alert(sent ? t('message_forwarded') : t('message_not_sent_check_connection'));
                         }}
                     />
                     <ImageView
@@ -1937,27 +2092,41 @@ const ChatRoomScreen: React.FC<any> = ({ route, navigation }) => {
                         onRequestClose={() => setImageViewerVisible(false)}
                     />
 
-                    {/* Пикер эмодзи для вставки в текст сообщения / Emoji picker for inserting into message text */}
+                    {/* Пикер эмодзи: вставка в текст сообщения, либо (если reactingToMessageId
+                        задан) выбор реакции на сообщение из полного набора (задача #82) /
+                        Emoji picker: inserting into message text, or (if reactingToMessageId
+                        is set) picking a reaction on a message from the full set (task #82) */}
                     <Modal
-                        visible={emojiPickerVisible}
+                        visible={emojiPickerVisible || !!reactingToMessageId}
                         transparent
                         animationType="slide"
-                        onRequestClose={() => setEmojiPickerVisible(false)}
+                        onRequestClose={() => {
+                            setEmojiPickerVisible(false);
+                            setReactingToMessageId(null);
+                        }}
                     >
                         <TouchableOpacity
                             style={styles.emojiPickerOverlay}
                             activeOpacity={1}
-                            onPress={() => setEmojiPickerVisible(false)}
+                            onPress={() => {
+                                setEmojiPickerVisible(false);
+                                setReactingToMessageId(null);
+                            }}
                         >
-                            <TouchableOpacity activeOpacity={1} style={styles.emojiPickerSheet}>
+                            <TouchableOpacity activeOpacity={1} style={[styles.emojiPickerSheet, { paddingBottom: spacing.xl + insets.bottom }]}>
                                 <ScrollView contentContainerStyle={styles.emojiPickerGrid}>
                                     {EMOJI_PICKER_SET.map((emoji, index) => (
                                         <TouchableOpacity
                                             key={`${emoji}-${index}`}
                                             style={styles.emojiPickerItem}
                                             onPress={() => {
-                                                handleInputChange(inputText + emoji);
-                                                setEmojiPickerVisible(false);
+                                                if (reactingToMessageId) {
+                                                    handleToggleReaction(reactingToMessageId, emoji);
+                                                    setReactingToMessageId(null);
+                                                } else {
+                                                    handleInputChange(inputText + emoji);
+                                                    setEmojiPickerVisible(false);
+                                                }
                                             }}
                                         >
                                             <Text style={styles.emojiPickerItemText}>{emoji}</Text>
@@ -2116,12 +2285,11 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         flex: 1,
     },
     backButton: {
-        padding: 4,
+        width: 40,
+        height: 40,
         marginRight: 8,
-    },
-    backButtonText: {
-        fontSize: 24,
-        color: colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     /**
      * Кнопка добавления участников
@@ -2168,7 +2336,7 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        paddingBottom: spacing.xs,
+        paddingTop: spacing.xs,
         paddingHorizontal: 2,
     },
     notebookToolbarButton: {
@@ -2256,7 +2424,11 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: spacing.xs,
-        marginTop: -spacing.md,
+        // Было -spacing.md - слишком сильно затягивало ряд реакций вверх и
+        // перекрывало время отправки сообщения внутри облака (задача #97)
+        // Was -spacing.md - pulled the reactions row up too far and covered
+        // the message's send-time text inside the bubble (task #97)
+        marginTop: -spacing.xs,
         marginBottom: spacing.xs,
         paddingHorizontal: spacing.lg,
     },
@@ -2326,6 +2498,9 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
     iconText: {
         fontSize: 18 * fontScale,
     },
+    iconButtonDisabled: {
+        opacity: 0.5,
+    },
     // Поле ввода — светлое с тёплой границей
     input: {
         flex: 1,
@@ -2371,8 +2546,11 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
     },
     // Поиск / Search
     iconHeaderButton: {
-        padding: 8,
+        width: 40,
+        height: 40,
         marginRight: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     // Тёмный значок телефона плохо виден на тёмном фоне без своего фона -
     // кружок даёт контраст в любой теме. И colors.online, и colors.theirMessage

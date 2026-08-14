@@ -19,6 +19,7 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { spacing, borderRadius, shadows } from '../styles/theme';
 
@@ -36,6 +37,7 @@ const ActionSheetContext = createContext<ActionSheetContextType | undefined>(und
 
 export const ActionSheetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { colors } = useTheme();
+    const insets = useSafeAreaInsets();
     const [visible, setVisible] = useState(false);
     const [title, setTitle] = useState('');
     const [options, setOptions] = useState<ActionSheetOption[]>([]);
@@ -67,7 +69,7 @@ export const ActionSheetProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={close}>
                     <TouchableOpacity
                         activeOpacity={1}
-                        style={[styles.sheet, { backgroundColor: colors.backgroundLight }]}
+                        style={[styles.sheet, { backgroundColor: colors.backgroundLight, paddingBottom: spacing.xl + insets.bottom }]}
                         onPress={() => {}}
                     >
                         {!!title && (

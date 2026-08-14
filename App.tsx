@@ -38,17 +38,28 @@ import { navigationRef } from './src/services/navigationRef';
 import { CallProvider, useCall } from './src/context/CallContext';
 import IncomingCallScreen from './src/screens/IncomingCallScreen';
 import InCallScreen from './src/screens/InCallScreen';
+import { getActiveChatId } from './src/utils/activeChat';
 
-// Как показывать уведомление, когда приложение открыто на переднем плане
-// How to display a notification while the app is in the foreground
+// Как показывать уведомление, когда приложение открыто на переднем плане.
+// Если уведомление пришло из чата, который пользователь читает прямо сейчас
+// (см. ChatRoomScreen/activeChat.ts) - не показываем alert/звук, он и так
+// видит это сообщение на экране.
+// How to display a notification while the app is in the foreground. If the
+// notification is from the chat the user is currently reading (see
+// ChatRoomScreen/activeChat.ts) - skip the alert/sound, they can already see
+// the message on screen.
 Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-    }),
+    handleNotification: async (notification) => {
+        const roomId = notification.request.content.data?.roomId;
+        const isActiveChat = typeof roomId === 'string' && roomId === getActiveChatId();
+        return {
+            shouldShowAlert: !isActiveChat,
+            shouldShowBanner: !isActiveChat,
+            shouldShowList: !isActiveChat,
+            shouldPlaySound: !isActiveChat,
+            shouldSetBadge: false,
+        };
+    },
 });
 
 

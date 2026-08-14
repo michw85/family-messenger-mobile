@@ -20,6 +20,7 @@ import {
     ActivityIndicator,
     Alert, KeyboardAvoidingView, Platform, Image
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { searchUsers, addParticipants } from '../services/api';
 import { colors, spacing, borderRadius, shadows } from '../styles/theme';
 import { useLanguage } from '../context/LanguageContext';
@@ -57,6 +58,7 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
     onParticipantsAdded,
 }) => {
     const { t } = useLanguage();
+    const insets = useSafeAreaInsets();
     const [searchQuery, setSearchQuery] = useState('');
     const [users, setUsers] = useState<User[]>([]);
     const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
@@ -168,7 +170,11 @@ const AddParticipantsModal: React.FC<AddParticipantsModalProps> = ({
                 style={styles.overlay}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
-                <View style={styles.modalContent}>
+                {/* Отступ снизу под системную панель жестов Android - без него
+                    кнопка "Добавить" оказывалась частично перекрыта (задача #85) /
+                    Bottom padding for Android's gesture nav bar - without it the
+                    "Add" button ended up partially covered (task #85) */}
+                <View style={[styles.modalContent, { paddingBottom: spacing.xl + insets.bottom }]}>
                     {/* Заголовок / Header */}
                     <View style={styles.header}>
                         <Text style={styles.title}>{t('add_participants_button')}</Text>

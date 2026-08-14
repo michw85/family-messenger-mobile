@@ -19,6 +19,8 @@ import {
     TouchableOpacity,
     Alert,
     Linking,
+    Modal,
+    ScrollView,
 } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -31,6 +33,19 @@ import { formatMessageDate, formatMessageTime } from '../utils/dateTime';
 import { buildRichTextSegments, RichSpan } from '../utils/richText';
 
 const { width: screenWidth } = Dimensions.get('window');
+
+/** Скорости воспроизведения голосовых, по кругу / Voice playback speeds, cycled through */
+const VOICE_PLAYBACK_RATES = [1, 1.5, 2];
+
+/**
+ * Текстовые сообщения длиннее этого показываются свёрнутыми, с кнопкой
+ * "показать полностью" (задача #84) - раньше очень длинное сообщение просто
+ * растягивало облако на весь экран.
+ * Text messages longer than this render collapsed, with a "show more" button
+ * (task #84) - previously a very long message just stretched the bubble to
+ * fill the whole screen.
+ */
+const LONG_TEXT_TRUNCATE_LENGTH = 400;
 
 /**
  * Интерфейс пропсов компонента ThoughtBubble
@@ -69,12 +84,16 @@ interface ThoughtBubbleProps {
     /** Сообщение, на которое отвечает это (превью-цитата сверху) /
      * The message this one replies to (preview quote on top) */
     replyTo?: {
+        id: string;
         senderUsername: string;
         content: string;
         type: 'TEXT' | 'IMAGE' | 'VOICE' | 'VIDEO' | 'FILE' | 'MOOD_CHECKIN' | 'CALL_MISSED' | 'CALL_DECLINED' | 'CALL_ANSWERED' | 'CALL_CANCELLED' | 'RICH_TEXT' | 'CHECKLIST';
         deleted: boolean;
         revealAt?: string | null;
     } | null;
+    /** Тап по цитате ответа - скроллит к оригинальному сообщению (задача #99) /
+     * Tap on the reply quote - scrolls to the original message (task #99) */
+    onReplyPress?: () => void;
     /** Множитель размера шрифта для упрощённого режима интерфейса (по умолчанию 1) /
      * Font-size multiplier for the simplified UI mode (defaults to 1) */
     fontScale?: number;
@@ -271,6 +290,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     expiryBadgeText,
     read = false,
     replyTo = null,
+    onReplyPress,
     fontScale = 1,
 }) => {
     const { colors } = useTheme();
@@ -303,6 +323,16 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     const voicePlayer = useAudioPlayer(mediaUrl || null);
     const voicePlayerStatus = useAudioPlayerStatus(voicePlayer);
     const isPlaying = voicePlayerStatus.playing;
+    // Скорость воспроизведения голосовых - переключается по кругу 1x/1.5x/2x
+    // кнопкой рядом с кнопкой воспроизведения (задача #89)
+    // Voice playback speed - cycles through 1x/1.5x/2x via a button next to
+    // the play button (task #89)
+    const [playbackRateIndex, setPlaybackRateIndex] = useState(0);
+    const cyclePlaybackRate = () => {
+        const nextIndex = (playbackRateIndex + 1) % VOICE_PLAYBACK_RATES.length;
+        setPlaybackRateIndex(nextIndex);
+        voicePlayer.setPlaybackRate(VOICE_PLAYBACK_RATES[nextIndex]);
+    };
 
     useEffect(() => {
         Animated.parallel([
@@ -360,6 +390,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
             await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
 
             await voicePlayer.seekTo(0);
+            voicePlayer.setPlaybackRate(VOICE_PLAYBACK_RATES[playbackRateIndex]);
             voicePlayer.play();
         } catch (error) {
             console.error('Failed to play voice', error);
@@ -385,8 +416,17 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
      * startRecording/stopRecording), and the result arrives already baked
      * into content - this just displays what's already stored.
      */
+    // Alert.alert не гарантирует прокрутку до начала длинного текста - для
+    // длинных расшифровок было видно только конец (задача #88). Собственная
+    // модалка со ScrollView всегда открывается с начала и позволяет
+    // долистать вниз.
+    // Alert.alert doesn't guarantee scrolling to the start of long text - for
+    // long transcripts only the end was visible (task #88). A dedicated
+    // modal with a ScrollView always opens at the top and lets you scroll
+    // down through the rest.
+    const [transcriptModalVisible, setTranscriptModalVisible] = useState(false);
     const showTranscript = () => {
-        Alert.alert(t('transcript_title'), content || t('no_speech_recognized'));
+        setTranscriptModalVisible(true);
     };
 
     /**
@@ -400,7 +440,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     const fixedDimensions = useMemo(() => {
         const replyExtra = replyTo ? 34 : 0;
         if (type === 'IMAGE' || type === 'VIDEO') return { width: 260, height: 240 + replyExtra };
-        if (type === 'VOICE') return { width: 220, height: 80 + replyExtra };
+        if (type === 'VOICE') return { width: 250, height: 80 + replyExtra };
         return null;
     }, [type, replyTo]);
 
@@ -413,6 +453,17 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     // the content stays invisible (opacity 0) so a wrong-sized cloud never
     // flashes on screen.
     const [measuredSize, setMeasuredSize] = useState<{ width: number; height: number } | null>(null);
+
+    // Разворачивание длинного текстового сообщения по кнопке "показать
+    // полностью" (задача #84). Меняет реальную высоту контента, поэтому
+    // нужно заново запустить измерение облака.
+    // Expanding a long text message via the "show more" button (task #84).
+    // Changes the content's actual height, so the cloud measurement has to
+    // run again.
+    const [textExpanded, setTextExpanded] = useState(false);
+    useEffect(() => {
+        setMeasuredSize(null);
+    }, [textExpanded]);
 
     const handleContentLayout = (e: { nativeEvent: { layout: { width: number; height: number } } }) => {
         const { width, height } = e.nativeEvent.layout;
@@ -490,7 +541,16 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
     const renderContent = () => (
         <>
             {replyTo && (
-                <View style={[styles.replyQuote, isMyMessage && styles.replyQuoteMy]}>
+                // Тап по цитате скроллит к оригинальному сообщению, на которое
+                // был дан ответ (задача #99)
+                // Tapping the quote scrolls to the original message being
+                // replied to (task #99)
+                <TouchableOpacity
+                    style={[styles.replyQuote, isMyMessage && styles.replyQuoteMy]}
+                    onPress={onReplyPress}
+                    disabled={!onReplyPress}
+                    activeOpacity={0.6}
+                >
                     <Text style={[styles.replyQuoteSender, isMyMessage && styles.replyQuoteSenderMy]}>
                         {replyTo.senderUsername}
                     </Text>
@@ -505,7 +565,7 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                                     ? (() => { try { return (JSON.parse(replyTo.content).items ?? []).map((i: any) => i.text).join(', '); } catch { return replyTo.content; } })()
                                 : replyTo.content}
                     </Text>
-                </View>
+                </TouchableOpacity>
             )}
             {!isMyMessage && !grouped && <Text style={[styles.senderName, { color: accentColor }]}>{sender}</Text>}
             {type === 'IMAGE' && mediaUrl ? (
@@ -520,6 +580,11 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                         <Text style={styles.voiceIcon}>{isPlaying ? '⏹️' : '▶️'}</Text>
                         <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy]}>
                             {isPlaying ? t('stop_playback') : t('voice_message')}
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={cyclePlaybackRate} style={styles.speedButton}>
+                        <Text style={[styles.voiceText, isMyMessage && styles.voiceTextMy, { fontSize: 12 * fontScale }]}>
+                            {VOICE_PLAYBACK_RATES[playbackRateIndex]}x
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={showTranscript} style={styles.transcribeButton}>
@@ -586,17 +651,33 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
                 renderRichText(content)
             ) : type === 'CHECKLIST' ? (
                 renderChecklist(content)
-            ) : (
-                <LinkifiedText
-                    text={content}
-                    textStyle={[styles.messageText, isMyMessage && styles.myText]}
-                    linkStyle={styles.linkText}
-                />
-            )}
+            ) : (() => {
+                const isLongText = type === 'TEXT' && !!content && content.length > LONG_TEXT_TRUNCATE_LENGTH;
+                const displayText = isLongText && !textExpanded
+                    ? content.slice(0, LONG_TEXT_TRUNCATE_LENGTH) + '…'
+                    : content;
+                return (
+                    <>
+                        <LinkifiedText
+                            text={displayText}
+                            textStyle={[styles.messageText, isMyMessage && styles.myText]}
+                            linkStyle={styles.linkText}
+                        />
+                        {isLongText && (
+                            <TouchableOpacity onPress={() => setTextExpanded(v => !v)}>
+                                <Text style={styles.readMoreText}>
+                                    {textExpanded ? t('show_less') : t('show_more')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </>
+                );
+            })()}
         </>
     );
 
     return (
+        <>
         <Animated.View style={[
             styles.wrapper,
             isMyMessage ? styles.myWrapper : styles.theirWrapper,
@@ -645,12 +726,37 @@ const ThoughtBubble: React.FC<ThoughtBubbleProps> = ({
             )}
             <TailDots isMyMessage={isMyMessage} colors={colors} />
             <Text style={[styles.timestamp, isMyMessage ? styles.timestampRight : styles.timestampLeft]}>
-                {edited && !deletedPlaceholder ? 'изменено · ' : ''}{timestamp}
+                {edited && !deletedPlaceholder ? `${t('edited_label')} · ` : ''}{timestamp}
                 {isMyMessage && !deletedPlaceholder && (
                     <Text style={read ? styles.tickRead : styles.tickSent}> {read ? '✓✓' : '✓'}</Text>
                 )}
             </Text>
         </Animated.View>
+        <Modal
+            visible={transcriptModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setTranscriptModalVisible(false)}
+        >
+            <TouchableOpacity
+                style={styles.transcriptModalOverlay}
+                activeOpacity={1}
+                onPress={() => setTranscriptModalVisible(false)}
+            >
+                <TouchableOpacity activeOpacity={1} style={styles.transcriptModalSheet}>
+                    <Text style={styles.transcriptModalTitle}>{t('transcript_title')}</Text>
+                    <ScrollView style={styles.transcriptModalScroll}>
+                        <Text style={styles.transcriptModalText}>
+                            {content || t('no_speech_recognized')}
+                        </Text>
+                    </ScrollView>
+                    <TouchableOpacity onPress={() => setTranscriptModalVisible(false)} style={styles.transcriptModalCloseButton}>
+                        <Text style={styles.transcriptModalCloseButtonText}>{t('close')}</Text>
+                    </TouchableOpacity>
+                </TouchableOpacity>
+            </TouchableOpacity>
+        </Modal>
+        </>
     );
 };
 
@@ -671,6 +777,7 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
      * Main message text
      */
     messageText: { fontSize: 15 * fontScale, lineHeight: 22 * fontScale, color: colors.text, letterSpacing: 0.2, flexShrink: 1, flexWrap: 'wrap' },
+    readMoreText: { fontSize: 13 * fontScale, fontWeight: '700', color: colors.primary, marginTop: spacing.xs },
     /**
      * Текст для своих сообщений — тот же цвет
      * Text for my messages — same color
@@ -721,6 +828,7 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
     voiceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     voiceIcon: { fontSize: 22 },
     transcribeButton: { marginLeft: spacing.xs, width: 22, alignItems: 'center', justifyContent: 'center' },
+    speedButton: { marginLeft: spacing.xs, minWidth: 28, alignItems: 'center', justifyContent: 'center' },
     voiceText: { fontSize: 14 * fontScale, color: colors.text },
     voiceTextMy: { color: colors.text },
     videoFill: { width: '100%', height: '100%', borderRadius: borderRadius.medium },
@@ -760,6 +868,25 @@ const createStyles = (colors: AppColors, fontScale: number = 1) => StyleSheet.cr
     checklistCheckbox: { fontSize: 17 * fontScale, marginRight: spacing.xs, color: colors.primary },
     checklistItemText: { fontSize: 15 * fontScale, lineHeight: 22 * fontScale, color: colors.text, flexShrink: 1, flexWrap: 'wrap' },
     checklistItemDone: { textDecorationLine: 'line-through', color: colors.textMuted },
+    transcriptModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: spacing.xl,
+    },
+    transcriptModalSheet: {
+        backgroundColor: colors.backgroundLight,
+        borderRadius: borderRadius.large,
+        padding: spacing.lg,
+        maxHeight: '70%',
+        width: '100%',
+    },
+    transcriptModalTitle: { fontSize: 17 * fontScale, fontWeight: '700', color: colors.text, marginBottom: spacing.sm },
+    transcriptModalScroll: { marginBottom: spacing.md },
+    transcriptModalText: { fontSize: 15 * fontScale, lineHeight: 22 * fontScale, color: colors.text },
+    transcriptModalCloseButton: { alignSelf: 'flex-end', paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
+    transcriptModalCloseButtonText: { fontSize: 15 * fontScale, fontWeight: '600', color: colors.primary },
 });
 
 /**

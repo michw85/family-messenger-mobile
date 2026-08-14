@@ -12,6 +12,42 @@ import { getToken } from './authStorage';
 let stompClient: Client | null = null;
 
 /**
+ * Слушатели "переподключения" WebSocket - см. connectWebSocket's onConnect.
+ * КОРЕНЬ БАГА (задача #86): в stomp.js автопереподключение (reconnectDelay)
+ * восстанавливает только сам транспорт, но НЕ переиздаёт заново все ранее
+ * сделанные client.subscribe() - все подписки экрана чата (room/typing/
+ * read/reactions) остаются привязаны к старому, уже недействительному
+ * соединению и молча перестают получать что-либо, хотя client.connected
+ * снова true и отправка сообщений (publish) работает как ни в чём не бывало.
+ * Отсюда и жалобы "сообщения не приходят, пока не выйти из чата и не
+ * зайти заново" - повторный вход просто вызывает subscribe() заново.
+ * Экраны (ChatRoomScreen, CallProvider) регистрируют здесь колбэк, который
+ * заново переподписывается при каждом реальном переподключении - не только
+ * при первом подключении, которое обрабатывается ожиданием промиса
+ * connectWebSocket()/acquireWebSocket() как раньше.
+ *
+ * Reconnect listeners for the WebSocket - see connectWebSocket's onConnect.
+ * ROOT CAUSE (task #86): stomp.js's automatic reconnect (reconnectDelay)
+ * only restores the transport itself, it does NOT reissue any of the
+ * previously made client.subscribe() calls - all of a chat screen's
+ * subscriptions (room/typing/read/reactions) stay bound to the old, now-dead
+ * connection and silently stop receiving anything, even though
+ * client.connected is true again and sending messages (publish) works fine.
+ * This is why messages stopped arriving until leaving and re-entering the
+ * chat - re-entering just calls subscribe() again from scratch.
+ * Screens (ChatRoomScreen, CallProvider) register a callback here that
+ * re-subscribes on every actual reconnect - not just the first connection,
+ * which is already handled by awaiting connectWebSocket()/acquireWebSocket()'s
+ * promise as before.
+ */
+const reconnectListeners = new Set<() => void>();
+
+export const onWebSocketReconnect = (listener: () => void): (() => void) => {
+    reconnectListeners.add(listener);
+    return () => reconnectListeners.delete(listener);
+};
+
+/**
  * Подключение к WebSocket и получение клиента
  * Connect to WebSocket and obtain client
  */
@@ -22,6 +58,13 @@ export const connectWebSocket = async (): Promise<Client> => {
         stompClient = null;
     }
     return new Promise((resolve, reject) => {
+        // true только для самого первого onConnect этого клиента - именно он
+        // резолвит промис. Любой следующий onConnect для того же клиента -
+        // это уже автопереподключение stomp.js (см. reconnectListeners выше).
+        // true only for this client's very first onConnect - that one
+        // resolves the promise. Any later onConnect for the same client is
+        // stomp.js's automatic reconnect (see reconnectListeners above).
+        let isFirstConnect = true;
         const client = new Client({
             // webSocketFactory: () => new WebSocket('ws://165.245.213.90:8080/ws'),
             // webSocketFactory: () => new SockJS('http://165.245.213.90:8080/ws'),
@@ -50,8 +93,20 @@ export const connectWebSocket = async (): Promise<Client> => {
             },
             onConnect: () => {
                 stompClient = client;
-                console.log('✅ WebSocket connected');
-                resolve(client);
+                if (isFirstConnect) {
+                    isFirstConnect = false;
+                    console.log('✅ WebSocket connected');
+                    resolve(client);
+                } else {
+                    console.log('🔁 WebSocket reconnected - notifying subscribers to re-subscribe');
+                    reconnectListeners.forEach((listener) => {
+                        try {
+                            listener();
+                        } catch (e) {
+                            console.error('WebSocket reconnect listener failed', e);
+                        }
+                    });
+                }
             },
             onStompError: (frame) => {
                 console.error('STOMP error', frame);
@@ -168,16 +223,25 @@ export const subscribeToReactions = (
  * @param type - тип сообщения (TEXT, IMAGE, VOICE)
  * @param mediaUrl - URL медиафайла (опционально)
  */
-export const sendMessage = (roomId: string, content: string, type: string, mediaUrl?: string, replyToId?: string, revealAt?: string) => {
+/**
+ * Возвращает false, если публикация не удалась (сокет не подключён) - раньше
+ * это молча логировалось в консоль и терялось, вызывающий код не мог узнать,
+ * что сообщение на самом деле никуда не ушло (задача #87)
+ * Returns false if publishing failed (socket not connected) - previously
+ * this was silently logged to the console and lost, the calling code had no
+ * way to find out the message never actually went anywhere (task #87)
+ */
+export const sendMessage = (roomId: string, content: string, type: string, mediaUrl?: string, replyToId?: string, revealAt?: string): boolean => {
     if (!stompClient?.connected) {
         console.error('STOMP client not connected');
-        return;
+        return false;
     }
     console.log('Sending message via STOMP:', { roomId, content, type, mediaUrl, replyToId, revealAt });
     stompClient.publish({
         destination: `/app/chat.send/${roomId}`,
         body: JSON.stringify({ content, type, mediaUrl, replyToId, revealAt }),
     });
+    return true;
 };
 
 /**

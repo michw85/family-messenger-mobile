@@ -19,6 +19,7 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPendingApprovalUsers, approveUser, rejectUser } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -39,6 +40,7 @@ interface PendingApprovalsModalProps {
 const PendingApprovalsModal: React.FC<PendingApprovalsModalProps> = ({ visible, onClose }) => {
     const { colors } = useTheme();
     const { t } = useLanguage();
+    const insets = useSafeAreaInsets();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
     const [pending, setPending] = useState<PendingUser[]>([]);
@@ -125,7 +127,9 @@ const PendingApprovalsModal: React.FC<PendingApprovalsModalProps> = ({ visible, 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={styles.overlay}>
-                <View style={styles.modalContent}>
+                {/* Отступ снизу под системную панель жестов Android (задача #85) /
+                    Bottom padding for Android's gesture nav bar (task #85) */}
+                <View style={[styles.modalContent, { paddingBottom: spacing.xl + insets.bottom }]}>
                     <View style={styles.header}>
                         <Text style={styles.title}>{t('pending_approvals_title')}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>

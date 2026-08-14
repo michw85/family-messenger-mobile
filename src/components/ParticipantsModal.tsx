@@ -24,6 +24,7 @@ import {
     getParticipants, removeParticipant,
     promoteGroupAdmin, demoteGroupAdmin, promoteEditor, demoteEditor, blacklistUser,
 } from '../services/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useActionSheet } from './ActionSheet';
@@ -92,6 +93,7 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
 }) => {
     const { colors } = useTheme();
     const { t } = useLanguage();
+    const insets = useSafeAreaInsets();
     const showActionSheet = useActionSheet();
     const styles = useMemo(() => createStyles(colors), [colors]);
 
@@ -267,7 +269,9 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={styles.overlay}>
-                <View style={styles.modalContent}>
+                {/* Отступ снизу под системную панель жестов Android (задача #85) /
+                    Bottom padding for Android's gesture nav bar (task #85) */}
+                <View style={[styles.modalContent, { paddingBottom: spacing.xl + insets.bottom }]}>
                     <View style={styles.header}>
                         <Text style={styles.title}>{t('participants_title')}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
